@@ -1,0 +1,57 @@
+{
+  "title": "COS Graph Engine",
+  "description": "Dashboard for COS Graph Engine metrics",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "title": "BFS Traversals",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "rate(cos_bfs_traversals_total[1m])",
+          "legendFormat": "BFS rate"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 }
+    },
+    {
+      "title": "PageRank Operations",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "rate(cos_pagerank_operations_total[1m])",
+          "legendFormat": "PageRank rate"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 }
+    },
+    {
+      "title": "Graph Size",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "cos_graph_nodes_total",
+          "legendFormat": "Nodes"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 }
+    },
+    {
+      "title": "Memory Usage",
+      "type": "gauge",
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "process_resident_memory_bytes",
+          "legendFormat": "Memory"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 }
+    }
+  ],
+  "time": { "from": "now-1h", "to": "now" }
+}

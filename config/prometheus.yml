@@ -1,0 +1,18 @@
+# Prometheus config — COS Graph Engine
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: 'cos-engine'
+    static_configs:
+      - targets: ['cos-engine:8080']
+    metrics_path: '/metrics'
+    scheme: http
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'cos-engine-v2.1'
