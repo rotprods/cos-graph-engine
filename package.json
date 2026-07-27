@@ -18,7 +18,8 @@
     "packages/graph"
   ],
   "scripts": {
-    "start": "npx tsx packages/deployment/src/launch.ts",
+    "asbuild": "cd packages/wasm && npx asc assembly/index.ts --outFile build/optimized.wasm --optimizeLevel 3 --shrinkLevel 1 --exportRuntime",
+    "wasm:build": "npm run asbuild",
     "test": "npx tsx scripts/run-tests.ts",
     "test:all": "npx tsx scripts/run-tests.ts && npx tsx scripts/test-level1-diamond.ts && npx tsx scripts/test-level1-mutation.ts && npx tsx scripts/test-level3-consistency.ts && npx tsx scripts/test-level3-mutation.ts && npx tsx scripts/test-level7-compute.ts && npx tsx scripts/test-levels-12-19.ts && npx tsx scripts/test-pipeline-l45l6.ts && npx tsx scripts/test-pipeline-l891011.ts && npx tsx scripts/test-pipeline-l12131415.ts && npx tsx scripts/test-pipeline-l16171819.ts && npx tsx scripts/test-cli-visualizer.ts",
     "test:l1": "npx tsx scripts/test-level1-diamond.ts && npx tsx scripts/test-level1-mutation.ts",
@@ -44,6 +45,7 @@
   "devDependencies": {
     "@playwright/test": "^1.62.0",
     "@types/node": "^26.1.1",
+    "assemblyscript": "^0.28.20",
     "c8": "^12.0.0",
     "md-to-pdf": "^5.2.5",
     "pdfkit": "^0.19.1",

@@ -1,0 +1,18 @@
+{
+  "targets": {
+    "release": {
+      "outFile": "build/optimized.wasm",
+      "textFile": "build/optimized.wat",
+      "optimizeLevel": 3,
+      "shrinkLevel": 1,
+      "debug": false,
+      "exportRuntime": false
+    }
+  },
+  "options": {
+    "bindings": "raw"
+  },
+  "entries": [
+    "assembly/index.ts"
+  ]
+}
