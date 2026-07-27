@@ -15,6 +15,24 @@
 import { generateId } from '@cos/core';
 
 // ============================================================
+// Minimal TraceSession interface for CSR integration
+// Structural typing: compatible with @cos/observability TraceSession
+// ============================================================
+
+export interface TraceHop {
+  nodeId: string;
+  depth: number;
+  source: 'forward' | 'backward' | 'pruned';
+  metadata?: Record<string, unknown>;
+}
+
+export interface TraceSession {
+  readonly id: string;
+  addHop(hop: TraceHop): void;
+  reset(): void;
+}
+
+// ============================================================
 // CSR Node/Edge types
 // ============================================================
 
@@ -195,7 +213,11 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
    * BFS traversal from a source node.
    * Returns ordered array of node IDs.
    */
-  bfs(source: string, maxDepth: number = Infinity): Array<{ id: string; depth: number }> {
+  bfs(
+    source: string,
+    maxDepth: number = Infinity,
+    traceSession?: TraceSession
+  ): Array<{ id: string; depth: number }> {
     if (!this._nodeIndex.has(source)) return [];
 
     this._ensureIndices();
@@ -204,12 +226,37 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
     const queue: Array<{ id: string; depth: number }> = [{ id: source, depth: 0 }];
 
     visited.add(source);
+    let hopIndex = 0;
 
     while (queue.length > 0) {
       const current = queue.shift()!;
       result.push(current);
 
-      if (current.depth >= maxDepth) continue;
+      if (traceSession) {
+        traceSession.addHop({
+          nodeId: current.id,
+          depth: current.depth,
+          source: 'forward',
+          metadata: { hopIndex: hopIndex++ },
+        });
+      }
+
+      if (current.depth >= maxDepth) {
+        if (traceSession) {
+          const nbrs = this.neighbors(current.id);
+          for (const nid of nbrs) {
+            if (!visited.has(nid)) {
+              traceSession.addHop({
+                nodeId: nid,
+                depth: current.depth + 1,
+                source: 'pruned',
+                metadata: { hopIndex: hopIndex++, prunedBy: 'maxDepth' },
+              });
+            }
+          }
+        }
+        continue;
+      }
 
       const neighbors = this.neighbors(current.id);
       for (const nid of neighbors) {
@@ -231,10 +278,16 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
   bidirectionalBFS(
     source: string,
     target: string,
-    maxDepth: number = 20
+    maxDepth: number = 20,
+    traceSession?: TraceSession
   ): Array<{ id: string; depth: number }> | null {
     if (!this._nodeIndex.has(source) || !this._nodeIndex.has(target)) return null;
-    if (source === target) return [{ id: source, depth: 0 }];
+    if (source === target) {
+      if (traceSession) {
+        traceSession.addHop({ nodeId: source, depth: 0, source: 'forward' });
+      }
+      return [{ id: source, depth: 0 }];
+    }
 
     this._ensureIndices();
 
@@ -257,17 +310,35 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
     let meeting: string | null = null;
     let fIdx = 0, bIdx = 0;
 
+    if (traceSession) {
+      traceSession.addHop({ nodeId: source, depth: 0, source: 'forward' });
+      traceSession.addHop({ nodeId: target, depth: 0, source: 'backward' });
+    }
+
     while (fIdx < fQueue.length || bIdx < bQueue.length) {
       // Expand forward
       if (fIdx < fQueue.length) {
         const cur = fQueue[fIdx++];
-        if (cur.depth >= maxDepth) continue;
+        if (cur.depth >= maxDepth) {
+          if (traceSession) {
+            const nbrs = this.neighbors(cur.id);
+            for (const nid of nbrs) {
+              if (!fVisited.has(nid)) {
+                traceSession.addHop({ nodeId: nid, depth: cur.depth + 1, source: 'pruned', metadata: { prunedBy: 'maxDepth', side: 'forward' } });
+              }
+            }
+          }
+          continue;
+        }
         const nbrs = this.neighbors(cur.id);
         for (const nid of nbrs) {
           if (!fVisited.has(nid)) {
             fVisited.set(nid, cur.depth + 1);
             fParent.set(nid, cur.id);
             fQueue.push({ id: nid, depth: cur.depth + 1 });
+            if (traceSession) {
+              traceSession.addHop({ nodeId: nid, depth: cur.depth + 1, source: 'forward' });
+            }
             if (bVisited.has(nid)) {
               meeting = nid;
               break;
@@ -280,13 +351,26 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
       // Expand backward
       if (bIdx < bQueue.length) {
         const cur = bQueue[bIdx++];
-        if (cur.depth >= maxDepth) continue;
+        if (cur.depth >= maxDepth) {
+          if (traceSession) {
+            const revNbrs = this.reverseNeighbors(cur.id);
+            for (const nid of revNbrs) {
+              if (!bVisited.has(nid)) {
+                traceSession.addHop({ nodeId: nid, depth: cur.depth + 1, source: 'pruned', metadata: { prunedBy: 'maxDepth', side: 'backward' } });
+              }
+            }
+          }
+          continue;
+        }
         const revNbrs = this.reverseNeighbors(cur.id);
         for (const nid of revNbrs) {
           if (!bVisited.has(nid)) {
             bVisited.set(nid, cur.depth + 1);
             bParent.set(nid, cur.id);
             bQueue.push({ id: nid, depth: cur.depth + 1 });
+            if (traceSession) {
+              traceSession.addHop({ nodeId: nid, depth: cur.depth + 1, source: 'backward' });
+            }
             if (fVisited.has(nid)) {
               meeting = nid;
               break;
@@ -329,7 +413,11 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
   /**
    * DFS traversal.
    */
-  dfs(source: string, maxDepth: number = Infinity): Array<{ id: string; depth: number }> {
+  dfs(
+    source: string,
+    maxDepth: number = Infinity,
+    traceSession?: TraceSession
+  ): Array<{ id: string; depth: number }> {
     if (!this._nodeIndex.has(source)) return [];
 
     this._ensureIndices();
@@ -343,7 +431,21 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
       visited.add(current.id);
       result.push(current);
 
-      if (current.depth >= maxDepth) continue;
+      if (traceSession) {
+        traceSession.addHop({ nodeId: current.id, depth: current.depth, source: 'forward' });
+      }
+
+      if (current.depth >= maxDepth) {
+        if (traceSession) {
+          const nbrs = this.neighbors(current.id);
+          for (const nid of nbrs) {
+            if (!visited.has(nid)) {
+              traceSession.addHop({ nodeId: nid, depth: current.depth + 1, source: 'pruned', metadata: { prunedBy: 'maxDepth' } });
+            }
+          }
+        }
+        continue;
+      }
 
       const nbrs = this.neighbors(current.id);
       // Push in reverse order to maintain original order
