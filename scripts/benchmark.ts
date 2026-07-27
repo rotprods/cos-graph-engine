@@ -239,8 +239,23 @@ export class GraphGenerator {
 
 export class Measurer {
   static time<T>(fn: () => T, iterations: number): { result: T; timeMs: number } {
-    // TODO: T-1.3b — implementar
-    throw new Error('Not implemented: Measurer.time');
+    if (iterations < 1) throw new Error('iterations must be >= 1');
+
+    // Cold run: primera ejecucion (JIT compilation, cache miss)
+    fn();
+
+    // Warm measured iterations
+    const start = performance.now();
+    let result: T = undefined as unknown as T;
+    for (let i = 0; i < iterations; i++) {
+      result = fn();
+    }
+    const end = performance.now();
+
+    return {
+      result,
+      timeMs: (end - start) / iterations,
+    };
   }
 
   static memory<T>(fn: () => T): { result: T; heapDelta: number } {

@@ -130,8 +130,13 @@ section('Unit: GraphGenerator');
 
 section('Unit: Measurer');
 
-// Test 9: time(fast-fn, 100) — timeMs > 0
-assertThrows(() => Measurer.time(() => 42, 100), 'Measurer.time throws Not implemented');
+// Test 9: time(fast-fn, 100) — timeMs > 0, returns result
+{
+  const { result, timeMs } = Measurer.time(() => 42, 100);
+  assert(result === 42, 'Measurer.time: returns correct result');
+  assert(timeMs > 0, 'Measurer.time: timeMs > 0');
+  assert(timeMs < 100, 'Measurer.time: timeMs < 100ms (fast function)');
+}
 
 // Test 10: memory(fast-fn) — heapDelta >= 0
 assertThrows(() => Measurer.memory(() => 42), 'Measurer.memory throws Not implemented');
