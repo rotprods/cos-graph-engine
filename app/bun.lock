@@ -84,6 +84,13 @@
         "vite-plugin-svgr": "^5.2.0",
       },
     },
+    "packages/auth-unified": {
+      "name": "@agency/auth-unified",
+      "version": "1.0.0",
+      "dependencies": {
+        "@cos/smb-client": "workspace:*",
+      },
+    },
     "packages/fnf": {
       "name": "@higgsfield/fnf",
       "version": "0.0.0",
@@ -165,6 +172,8 @@
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.5.0", "", {}, "sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q=="],
+
+    "@agency/auth-unified": ["@agency/auth-unified@workspace:packages/auth-unified"],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 
