@@ -299,7 +299,7 @@ export class Measurer {
     const memoryBytes = Math.max(0, memAfter - memBefore);
 
     // Extract metadata from result
-    const { nodes, edges } = Measurer.extractMetadata(result);
+    const { nodes, edges, pruningRatio } = Measurer.extractMetadata(result);
 
     return {
       timeMs,
@@ -308,12 +308,12 @@ export class Measurer {
       nodesProcessed: nodes,
       edgesProcessed: edges,
       nodesPerMs: timeMs > 0 ? nodes / timeMs : 0,
-      pruningRatio: 0,
+      pruningRatio,
     };
   }
 
-  private static extractMetadata(result: unknown): { nodes: number; edges: number } {
-    if (!result || typeof result !== 'object') return { nodes: 0, edges: 0 };
+  private static extractMetadata(result: unknown): { nodes: number; edges: number; pruningRatio: number } {
+    if (!result || typeof result !== 'object') return { nodes: 0, edges: 0, pruningRatio: 0 };
 
     const r = result as Record<string, unknown>;
 
@@ -322,13 +322,15 @@ export class Measurer {
       return {
         nodes: (r.nodeCount as () => number)(),
         edges: (r.edgeCount as () => number)(),
+        pruningRatio: 0,
       };
     }
 
-    // Plain object with nodes/edges properties
+    // Plain object with nodes/edges/pruningRatio properties
     return {
       nodes: typeof r.nodes === 'number' ? r.nodes : 0,
       edges: typeof r.edges === 'number' ? r.edges : 0,
+      pruningRatio: typeof r.pruningRatio === 'number' ? r.pruningRatio : 0,
     };
   }
 
@@ -377,6 +379,7 @@ export class BenchmarkRunner {
     if (threshold.speedup && speedup < threshold.speedup) status = 'fail';
     if (threshold.maxMemoryMB && metrics.heapUsedMB > threshold.maxMemoryMB) status = 'fail';
     if (threshold.minPruningRatio && metrics.pruningRatio < threshold.minPruningRatio) status = 'fail';
+    if (threshold.maxMemoryRatio && b.baseline.memoryMB > 0 && metrics.heapUsedMB / b.baseline.memoryMB > threshold.maxMemoryRatio) status = 'fail';
     if (threshold.maxNodesVisitedPercent && metrics.nodesPerMs > 0 && b.graph.nodeCount() > 0) {
       const visitedPercent = (metrics.nodesProcessed / b.graph.nodeCount()) * 100;
       if (visitedPercent > threshold.maxNodesVisitedPercent) status = 'fail';

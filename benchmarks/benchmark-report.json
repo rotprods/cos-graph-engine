@@ -5,20 +5,20 @@
       "name": "bfs-chain-10k",
       "status": "pass",
       "metrics": {
-        "timeMs": 2.7051005999999918,
-        "memoryBytes": 172568,
-        "heapUsedMB": 0.16457366943359375,
+        "timeMs": 2.7683336000000054,
+        "memoryBytes": 0,
+        "heapUsedMB": 0,
         "nodesProcessed": 10000,
-        "edgesProcessed": 9999,
-        "nodesPerMs": 3696.7201885209115,
+        "edgesProcessed": 0,
+        "nodesPerMs": 3612.2814100150285,
         "pruningRatio": 0
       },
       "baseline": {
         "nodesPerMs": 1420,
         "memoryMB": 4.2
       },
-      "speedup": 2.6033240764231773,
-      "memoryReduction": "96%",
+      "speedup": 2.5438601478979073,
+      "memoryReduction": "100%",
       "details": {}
     },
     {
@@ -26,20 +26,20 @@
       "name": "bfs-grid-100x100",
       "status": "pass",
       "metrics": {
-        "timeMs": 1.0542527999999947,
-        "memoryBytes": 0,
-        "heapUsedMB": 0,
+        "timeMs": 3.3782881999999974,
+        "memoryBytes": 2239864,
+        "heapUsedMB": 2.1361007690429688,
         "nodesProcessed": 10000,
-        "edgesProcessed": 19800,
-        "nodesPerMs": 9485.39098022794,
+        "edgesProcessed": 0,
+        "nodesPerMs": 2960.079012797075,
         "pruningRatio": 0
       },
       "baseline": {
         "nodesPerMs": 2100,
         "memoryMB": 6.8
       },
-      "speedup": 4.51685284772759,
-      "memoryReduction": "100%",
+      "speedup": 1.4095614346652738,
+      "memoryReduction": "69%",
       "details": {}
     },
     {
@@ -47,19 +47,19 @@
       "name": "bfs-social-5k",
       "status": "pass",
       "metrics": {
-        "timeMs": 0.13923899999999775,
-        "memoryBytes": 736088,
-        "heapUsedMB": 0.7019882202148438,
+        "timeMs": 0.1026642000000038,
+        "memoryBytes": 740632,
+        "heapUsedMB": 0.7063217163085938,
         "nodesProcessed": 500,
-        "edgesProcessed": 2000,
-        "nodesPerMs": 3590.9479384368465,
+        "edgesProcessed": 0,
+        "nodesPerMs": 4870.24688255479,
         "pruningRatio": 0
       },
       "baseline": {
         "nodesPerMs": 800,
         "memoryMB": 3.5
       },
-      "speedup": 4.488684923046058,
+      "speedup": 6.087808603193488,
       "memoryReduction": "80%",
       "details": {}
     },
@@ -68,20 +68,20 @@
       "name": "shortest-path-tree-1k",
       "status": "pass",
       "metrics": {
-        "timeMs": 112.7348904,
-        "memoryBytes": 1436176,
-        "heapUsedMB": 1.3696441650390625,
-        "nodesProcessed": 88573,
-        "edgesProcessed": 88572,
-        "nodesPerMs": 785.6751329222918,
+        "timeMs": 105.36254679999998,
+        "memoryBytes": 1437328,
+        "heapUsedMB": 1.3707427978515625,
+        "nodesProcessed": 10,
+        "edgesProcessed": 0,
+        "nodesPerMs": 0.094910386125936,
         "pruningRatio": 0
       },
       "baseline": {
         "nodesPerMs": 500,
         "memoryMB": 2
       },
-      "speedup": 1.5713502658445837,
-      "memoryReduction": "32%",
+      "speedup": 0.00018982077225187198,
+      "memoryReduction": "31%",
       "details": {}
     },
     {
@@ -89,20 +89,20 @@
       "name": "pruning-beam-10k",
       "status": "pass",
       "metrics": {
-        "timeMs": 9.064678400000002,
-        "memoryBytes": 3065080,
-        "heapUsedMB": 2.9230880737304688,
-        "nodesProcessed": 1000,
-        "edgesProcessed": 24915,
-        "nodesPerMs": 110.31830980346747,
-        "pruningRatio": 0
+        "timeMs": 8.35022240000003,
+        "memoryBytes": 2975144,
+        "heapUsedMB": 2.8373184204101562,
+        "nodesProcessed": 501,
+        "edgesProcessed": 0,
+        "nodesPerMs": 59.998401958730845,
+        "pruningRatio": 0.9429254955570745
       },
       "baseline": {
         "nodesPerMs": 300,
         "memoryMB": 5
       },
-      "speedup": 0.3677276993448916,
-      "memoryReduction": "42%",
+      "speedup": 0.1999946731957695,
+      "memoryReduction": "43%",
       "details": {}
     },
     {
@@ -110,20 +110,20 @@
       "name": "pruning-landmark-5k",
       "status": "pass",
       "metrics": {
-        "timeMs": 4.746335999999974,
-        "memoryBytes": 2548072,
-        "heapUsedMB": 2.4300308227539062,
-        "nodesProcessed": 500,
-        "edgesProcessed": 8359,
-        "nodesPerMs": 105.34441725153945,
-        "pruningRatio": 0
+        "timeMs": 4.2281095999999705,
+        "memoryBytes": 2850776,
+        "heapUsedMB": 2.7187118530273438,
+        "nodesProcessed": 495,
+        "edgesProcessed": 0,
+        "nodesPerMs": 117.07359714611074,
+        "pruningRatio": 0.8843457943925234
       },
       "baseline": {
         "nodesPerMs": 250,
         "memoryMB": 4
       },
-      "speedup": 0.4213776690061578,
-      "memoryReduction": "39%",
+      "speedup": 0.46829438858444294,
+      "memoryReduction": "32%",
       "details": {}
     },
     {
@@ -131,25 +131,25 @@
       "name": "memory-profile",
       "status": "pass",
       "metrics": {
-        "timeMs": 1.9531574000000091,
-        "memoryBytes": 5508616,
-        "heapUsedMB": 5.253425598144531,
-        "nodesProcessed": 2000,
-        "edgesProcessed": 999,
-        "nodesPerMs": 1023.9830133505833,
+        "timeMs": 0.4993547999999919,
+        "memoryBytes": 0,
+        "heapUsedMB": 0,
+        "nodesProcessed": 1000,
+        "edgesProcessed": 0,
+        "nodesPerMs": 2002.5841345672782,
         "pruningRatio": 0
       },
       "baseline": {
         "nodesPerMs": 0,
-        "memoryMB": 0
+        "memoryMB": 1
       },
       "speedup": 1,
-      "memoryReduction": "N/A",
+      "memoryReduction": "100%",
       "details": {}
     }
   ],
-  "overallSpeedup": 2.6854828543590834,
+  "overallSpeedup": 1.94605119277502,
   "passCount": 7,
   "failCount": 0,
-  "summary": "7/7 benchmarks passed. Overall speedup: 2.69x"
+  "summary": "7/7 benchmarks passed. Overall speedup: 1.95x"
 }

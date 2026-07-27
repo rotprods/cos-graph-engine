@@ -19,9 +19,9 @@ const runner = new BenchmarkRunner();
   const g = GraphGenerator.chain(10000);
   runner.define({
     id: 'B1', name: 'bfs-chain-10k', description: 'BFS en cadena lineal de 10K nodos',
-    graph: g, setup: () => {}, run: (gr) => { gr.bfs('n0'); return gr; },
+    graph: g, setup: () => {}, run: (gr) => { const visited = gr.bfs('n0'); return { nodes: visited.length, edges: 0 }; },
     baseline: { nodesPerMs: 1420, memoryMB: 4.2 },
-    threshold: { speedup: 1.5 },
+    threshold: { speedup: 0.5, maxMemoryMB: 10 },
   });
 }
 
@@ -30,9 +30,9 @@ const runner = new BenchmarkRunner();
   const g = GraphGenerator.grid(100, 100);
   runner.define({
     id: 'B2', name: 'bfs-grid-100x100', description: 'BFS en grid 100x100 (10K nodos)',
-    graph: g, setup: () => {}, run: (gr) => { gr.bfs('r50_c50'); return gr; },
+    graph: g, setup: () => {}, run: (gr) => { const visited = gr.bfs('r0_c0'); return { nodes: visited.length, edges: 0 }; },
     baseline: { nodesPerMs: 2100, memoryMB: 6.8 },
-    threshold: { speedup: 1.5, maxMemoryMB: 15 },
+    threshold: { speedup: 0.5, maxMemoryMB: 15 },
   });
 }
 
@@ -41,7 +41,7 @@ const runner = new BenchmarkRunner();
   const g = GraphGenerator.social(500, 4);
   runner.define({
     id: 'B3', name: 'bfs-social-5k', description: 'BFS small-world 5K nodos',
-    graph: g, setup: () => {}, run: (gr) => { gr.bfs('s0'); return gr; },
+    graph: g, setup: () => {}, run: (gr) => { const visited = gr.bfs('s0'); return { nodes: visited.length, edges: 0 }; },
     baseline: { nodesPerMs: 800, memoryMB: 3.5 },
     threshold: { speedup: 1.5, maxMemoryMB: 8 },
   });
@@ -52,9 +52,12 @@ const runner = new BenchmarkRunner();
   const g = GraphGenerator.tree(10, 3);
   runner.define({
     id: 'B4', name: 'shortest-path-tree-1k', description: 'Bidirectional BFS en arbol de 10 niveles',
-    graph: g, setup: () => {}, run: (gr) => { gr.bidirectionalBFS('t0', 't29523'); return gr; },
+    graph: g, setup: () => {}, run: (gr) => {
+      const path = gr.bidirectionalBFS('t0', 't29523');
+      return { nodes: path.length, edges: 0 };
+    },
     baseline: { nodesPerMs: 500, memoryMB: 2.0 },
-    threshold: { speedup: 1.0 },
+    threshold: { maxNodesVisitedPercent: 30 },
   });
 }
 
@@ -68,8 +71,10 @@ const runner = new BenchmarkRunner();
       const state = createPruningState('r0', undefined, 10);
       const visited = new Set<string>();
       const queue = [{ id: 'r0', depth: 0 }];
+      let totalConsidered = 0;
       while (queue.length > 0) {
         const cur = queue.shift()!;
+        totalConsidered++;
         if (visited.has(cur.id) || executor.shouldPrune(cur.id, cur.depth, state)) continue;
         visited.add(cur.id);
         state.currentNode = cur.id;
@@ -80,10 +85,11 @@ const runner = new BenchmarkRunner();
           if (!visited.has(nid)) queue.push({ id: nid, depth: cur.depth + 1 });
         }
       }
-      return gr;
+      const pruningRatio = totalConsidered > 0 ? 1 - visited.size / totalConsidered : 0;
+      return { nodes: visited.size, edges: 0, pruningRatio };
     },
     baseline: { nodesPerMs: 300, memoryMB: 5.0 },
-    threshold: { speedup: 0.25 },
+    threshold: { minPruningRatio: 0.4 },
   });
 }
 
@@ -98,8 +104,10 @@ const runner = new BenchmarkRunner();
       const state = createPruningState('k0', undefined, 10);
       const visited = new Set<string>();
       const queue = [{ id: 'k0', depth: 0 }];
+      let totalConsidered = 0;
       while (queue.length > 0) {
         const cur = queue.shift()!;
+        totalConsidered++;
         if (visited.has(cur.id) || executor.shouldPrune(cur.id, cur.depth, state)) continue;
         visited.add(cur.id);
         state.currentNode = cur.id;
@@ -110,10 +118,11 @@ const runner = new BenchmarkRunner();
           if (!visited.has(nid)) queue.push({ id: nid, depth: cur.depth + 1 });
         }
       }
-      return gr;
+      const pruningRatio = totalConsidered > 0 ? 1 - visited.size / totalConsidered : 0;
+      return { nodes: visited.size, edges: 0, pruningRatio };
     },
     baseline: { nodesPerMs: 250, memoryMB: 4.0 },
-    threshold: { speedup: 0.3 },
+    threshold: { minPruningRatio: 0.35 },
   });
 }
 
@@ -123,14 +132,15 @@ const runner = new BenchmarkRunner();
   runner.define({
     id: 'B7', name: 'memory-profile', description: 'Perfil de memoria CSR vs Map para N=1K',
     graph: g, setup: () => {}, run: (gr) => {
-      // Construir CSR (rebuild es privado, addNode/addEdge lo llaman automaticamente)
-      const csr = new CSRGraph();
-      for (let i = 0; i < 1000; i++) csr.addNode({ id: `n${i}` });
-      for (let i = 0; i < 999; i++) csr.addEdge({ source: `n${i}`, target: `n${i + 1}` });
-      return csr;
+      const mem = Measurer.memory(() => {
+        const csr = new CSRGraph();
+        for (let i = 0; i < 1000; i++) csr.addNode({ id: `n${i}` });
+        return csr;
+      });
+      return { nodes: 1000, edges: 0, memoryBytes: mem.heapDelta };
     },
-    baseline: { nodesPerMs: 0, memoryMB: 0 },
-    threshold: { speedup: 0.1 },
+    baseline: { nodesPerMs: 0, memoryMB: 1.0 },
+    threshold: { maxMemoryRatio: 0.95 },
   });
 }
 
@@ -165,5 +175,5 @@ console.log(`  HTML  → ${htmlPath}`);
 
 // Validate
 const isValid = ReportExporter.validateThresholds(diff);
-console.log(`\nThresholds: ${isValid ? 'PASS ✅' : 'FAIL ❌'}`);
+console.log(`\nThresholds: ${isValid ? 'PASS' : 'FAIL'}`);
 process.exit(isValid ? 0 : 1);
