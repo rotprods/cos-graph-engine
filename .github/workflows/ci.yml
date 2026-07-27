@@ -1,38 +1,64 @@
-name: Template CI
+name: CI — AI Agency OS
 
 on:
+  pull_request:
+    branches: [main]
   push:
-    branches:
-      - main
-  workflow_dispatch:
+    branches: [main]
 
 jobs:
   validate:
-    runs-on: arc-runners-frontend
-    name: Validate template
-    # The app project lives in app/ (ci/ holds the deploy config, AGENTS.md +
-    # skills/ stay at root). Every build step runs there.
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: app
+
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Typecheck
+      - name: TypeScript type check
         run: bun run typecheck
 
-      # Deploys always ship the design inspector: apps-ci / apps-ci-dev export
-      # HF_DESIGN_INSPECTOR=1 before `bun run build`. Validate that exact
-      # artifact here — one build, not a separate plain + design pair.
-      - name: Build (design inspector on, as deploys ship it)
-        env:
-          HF_DESIGN_INSPECTOR: "1"
+      - name: Lint
+        run: bun run lint
+
+      - name: Run tests
+        run: bun test
+
+      - name: Build
         run: bun run build
 
-      - name: Package tests
-        run: bun run test:packages
+  code-review:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: AI Code Review
+        uses: rotprods/ai-code-review@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Opcional: OpenAI API key para review más profundo
+          # openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Higgsfield
+        run: |
+          echo "Deploying via Higgsfield API..."
+          # curl -X POST "https://api.higgsfield.app/deploy" \
+          #   -H "Authorization: Bearer ${{ secrets.HIGGSFIELD_TOKEN }}" \
+          #   -d "{\"website_id\": \"${{ secrets.WEBSITE_ID }}\"}"
