@@ -1,0 +1,17 @@
+{
+  "name": "@cos/orchestration",
+  "version": "0.1.0",
+  "description": "Orchestration layer: multi-agent, workflow engine, policy engine, human-in-the-loop",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@cos/core": "0.1.0",
+    "@cos/runtime": "0.1.0",
+    "@cos/cognition": "0.1.0",
+    "@cos/memory": "0.1.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@cos/cognition",
+  "version": "0.1.0",
+  "description": "Cognition layer: reasoning engines (CoT, ToT, GoT, debate, reflection), planning, evaluation, world models",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@cos/core": "0.1.0",
+    "@cos/runtime": "0.1.0",
+    "@cos/memory": "0.1.0",
+    "@cos/knowledge": "0.1.0"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@cos/knowledge",
+  "version": "0.1.0",
+  "description": "Knowledge layer: property graph, knowledge graph, embedding system, ontology, semantic graph",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@cos/core": "0.1.0",
+    "@cos/runtime": "0.1.0",
+    "@cos/memory": "0.1.0"
+  }
+}

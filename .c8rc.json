@@ -1,0 +1,11 @@
+{
+  "all": true,
+  "include": ["packages/**"],
+  "exclude": ["node_modules", "scripts", "**/*.test.ts", "**/*.spec.ts"],
+  "reporter": ["text", "html", "lcov"],
+  "check-coverage": true,
+  "branches": 55,
+  "functions": 65,
+  "lines": 63,
+  "statements": 63
+}

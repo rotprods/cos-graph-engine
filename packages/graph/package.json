@@ -1,0 +1,1 @@
+{"name":"@cos/graph","version":"2.0.0","description":"COS Graph Engine — 20-level graph engine with visual, execution, knowledge, ML, streaming, and persistence layers","main":"src/index.ts","dependencies":{"@cos/core":"0.1.0"}}

@@ -1,0 +1,14 @@
+{
+  "entryPoints": ["packages/graph/src/*.ts"],
+  "out": "docs/api",
+  "includeVersion": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "theme": "default",
+  "name": "COS Graph Engine API",
+  "readme": "none",
+  "sort": ["source-order"],
+  "categorizeByGroup": true,
+  "categoryOrder": ["Visual", "Execution", "State", "Dependency", "Call", "Control Flow", "DataFlow", "Compute", "Knowledge", "Semantic", "Embedding", "GraphRAG", "Memory", "Agent", "Tool", "Workflow", "Network", "Social", "Biological", "Molecular"],
+  "skipErrorChecking": true
+}

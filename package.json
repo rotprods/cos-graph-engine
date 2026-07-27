@@ -1,0 +1,52 @@
+{
+  "name": "cognitive-operating-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A production-grade Cognitive Operating System (COS) built from first principles",
+  "workspaces": [
+    "packages/core",
+    "packages/runtime",
+    "packages/memory",
+    "packages/knowledge",
+    "packages/cognition",
+    "packages/execution",
+    "packages/orchestration",
+    "packages/observability",
+    "packages/api",
+    "packages/infrastructure",
+    "packages/deployment",
+    "packages/graph"
+  ],
+  "scripts": {
+    "start": "npx tsx packages/deployment/src/launch.ts",
+    "test": "npx tsx scripts/run-tests.ts",
+    "test:all": "npx tsx scripts/run-tests.ts && npx tsx scripts/test-level1-diamond.ts && npx tsx scripts/test-level1-mutation.ts && npx tsx scripts/test-level3-consistency.ts && npx tsx scripts/test-level3-mutation.ts && npx tsx scripts/test-level7-compute.ts && npx tsx scripts/test-levels-12-19.ts && npx tsx scripts/test-pipeline-l45l6.ts && npx tsx scripts/test-pipeline-l891011.ts && npx tsx scripts/test-pipeline-l12131415.ts && npx tsx scripts/test-pipeline-l16171819.ts && npx tsx scripts/test-cli-visualizer.ts",
+    "test:l1": "npx tsx scripts/test-level1-diamond.ts && npx tsx scripts/test-level1-mutation.ts",
+    "test:l3": "npx tsx scripts/test-level3-consistency.ts && npx tsx scripts/test-level3-mutation.ts",
+    "test:l7": "npx tsx scripts/test-level7-compute.ts",
+    "test:mutation": "npx tsx scripts/test-level1-mutation.ts && npx tsx scripts/test-level3-mutation.ts",
+    "benchmark": "npx tsx scripts/benchmark-perf.ts",
+    "benchmark:report": "npx tsx scripts/benchmark-perf.ts && npx tsx scripts/generate-benchmark-report.ts",
+    "coverage": "c8 npm run test:all 2>&1",
+    "docs:api": "npx typedoc",
+    "ci": "npm run test:all 2>&1",
+    "build": "bash scripts/build.sh",
+    "cos": "npx tsx packages/deployment/src/commander.ts",
+    "cos:cli": "npx tsx packages/deployment/src/cli.ts",
+    "cos:graph": "npx tsx packages/graph/src/cli.ts",
+    "cos:visualizer": "npx tsx packages/graph/src/visualizer.ts",
+    "help": "npx tsx packages/deployment/src/cli.ts --help",
+    "release": "npm run build && echo 'Ready for npm publish'"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.0",
+    "@types/node": "^26.1.1",
+    "c8": "^12.0.0",
+    "md-to-pdf": "^5.2.5",
+    "pdfkit": "^0.19.1",
+    "typedoc": "^0.28.20"
+  }
+}

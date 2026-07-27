@@ -1,0 +1,47 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "composite": true,
+    "paths": {
+      "@cos/core": ["./packages/core/src"],
+      "@cos/runtime": ["./packages/runtime/src"],
+      "@cos/memory": ["./packages/memory/src"],
+      "@cos/knowledge": ["./packages/knowledge/src"],
+      "@cos/cognition": ["./packages/cognition/src"],
+      "@cos/execution": ["./packages/execution/src"],
+      "@cos/orchestration": ["./packages/orchestration/src"],
+      "@cos/observability": ["./packages/observability/src"],
+      "@cos/api": ["./packages/api/src"],
+      "@cos/infrastructure": ["./packages/infrastructure/src"],
+      "@cos/deployment": ["./packages/deployment/src"]
+    }
+  },
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/runtime" },
+    { "path": "./packages/memory" },
+    { "path": "./packages/knowledge" },
+    { "path": "./packages/cognition" },
+    { "path": "./packages/execution" },
+    { "path": "./packages/orchestration" },
+    { "path": "./packages/observability" },
+    { "path": "./packages/api" },
+    { "path": "./packages/infrastructure" },
+    { "path": "./packages/deployment" }
+  ]
+}

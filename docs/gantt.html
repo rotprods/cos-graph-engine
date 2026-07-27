@@ -1,0 +1,1275 @@
+<!DOCTYPE html><html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>COS Gantt Chart — 17 Sprints</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a0f; font-family:'Segoe UI','Helvetica Neue',Arial,sans-serif; color:#e0e0e0; padding:30px; }
+h1 { font-size:22px; font-weight:300; letter-spacing:2px; color:#888; margin-bottom:4px; }
+h2 { font-size:13px; font-weight:300; color:#555; margin-bottom:30px; }
+.legend { display:flex; gap:25px; margin-bottom:25px; flex-wrap:wrap; font-size:11px; }
+.legend div { display:flex; align-items:center; gap:6px; }
+.legend .swatch { width:14px; height:14px; border-radius:3px; }
+.legend .swatch.critical { background:#ff4444; }
+.legend .swatch.normal { background:#4ecca3; }
+.legend .swatch.milestone { background:#ffd700; width:14px; height:14px; border-radius:50%; }
+.legend .swatch.phase0 { background:#4ecca3; }
+.legend .swatch.phase1 { background:#0f3460; }
+.legend .swatch.phase2a { background:#3282b8; }
+.legend .swatch.phase2b { background:#00adb5; }
+.legend .swatch.phase3 { background:#e23e57; }
+.legend .swatch.phase4 { background:#f39c12; }
+.legend .swatch.phase5 { background:#53d769; }
+.gantt-wrap { overflow-x:auto; }
+.gantt { min-width:1600px; position:relative; }
+.header { display:grid; grid-template-columns:40px 200px 900px; gap:0; position:sticky; top:0; z-index:10; }
+.week-header { display:grid; grid-template-columns:repeat(17,53px); }
+.week-header div { font-size:10px; color:#666; padding:4px 0; text-align:center; border-bottom:1px solid #222; }
+.sprint-row { display:grid; grid-template-columns:40px 200px 900px; font-size:10px; border-bottom:1px solid #111; }
+.task-num { color:#555; padding:2px 4px; text-align:right; }
+.task-name { padding:2px 8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.task-name .owner-badge { display:inline-block; font-size:8px; padding:1px 4px; border-radius:2px; margin-left:4px; opacity:0.7; }
+.task-name .critical-mark { color:#ff4444; }
+.task-name .test-mark { color:#ffd700; }
+.task-name .doc-mark { color:#53d769; }
+.task-bars { display:grid; grid-template-columns:repeat(17,53px); position:relative; }
+.task-bar { height:16px; margin:1px 2px; border-radius:2px; position:relative; min-width:4px; }
+.task-bar.critical { background:#ff4444; box-shadow:0 0 6px rgba(255,68,68,0.4); }
+.task-bar.normal { opacity:0.85; }
+.task-bar:hover { opacity:1; transform:scaleY(1.2); cursor:pointer; }
+.task-bar .tooltip { display:none; position:absolute; bottom:22px; left:0; background:#1a1a1a; border:1px solid #333; padding:6px 8px; border-radius:4px; font-size:10px; white-space:nowrap; z-index:100; max-width:400px; }
+.task-bar:hover .tooltip { display:block; }
+.phase-header { display:contents; }
+.phase-header .phase-label { grid-column:1/3; padding:6px 8px; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; }
+.phase-header .phase-bars { display:grid; grid-template-columns:repeat(17,53px); }
+.phase-header .phase-bars div { height:3px; margin-top:6px; }
+.milestone-marker { position:absolute; top:0; width:2px; height:100%; background:#ffd700; z-index:5; opacity:0.6; }
+.stats { margin-top:30px; display:grid; grid-template-columns:repeat(5,1fr); gap:15px; font-size:12px; }
+.stat-card { background:#111; border:1px solid #222; border-radius:6px; padding:12px; }
+.stat-card .num { font-size:24px; font-weight:600; }
+.stat-card .label { color:#666; margin-top:2px; }
+.mvp-badge { display:inline-block; background:#ffd700; color:#000; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:600; margin-left:8px; }
+</style></head><body>
+<h1>Cognitive Operating System — Implementation Gantt</h1>
+<h2>17 sprints · 7 phases · 107 tasks · 420 story points</h2>
+<div class="legend">
+  <div><div class="swatch critical"></div> Critical Path (🔥)</div>
+  <div><div class="swatch normal"></div> Standard Task</div>
+  <div><div class="swatch milestone"></div> Milestone</div>
+  <div><div class="swatch phase0"></div> Phase 0: Foundation</div>
+  <div><div class="swatch phase1"></div> Phase 1: MVP Runtime</div>
+  <div><div class="swatch phase2a"></div> Phase 2a: Memory</div>
+  <div><div class="swatch phase2b"></div> Phase 2b: Knowledge</div>
+  <div><div class="swatch phase3"></div> Phase 3: Cognition</div>
+  <div><div class="swatch phase4"></div> Phase 4: Execution/Orch</div>
+  <div><div class="swatch phase5"></div> Phase 5: Production</div>
+</div>
+<div class="gantt-wrap"><div class="gantt"><div class="header"><div></div><div></div><div class="week-header"><div>W1</div><div>W2</div><div>W3 🎯</div><div>W4</div><div>W5</div><div>W6</div><div>W7 🎯</div><div>W8</div><div>W9</div><div>W10 🎯</div><div>W11</div><div>W12</div><div>W13 🎯</div><div>W14</div><div>W15</div><div>W16</div><div>W17 🎯</div></div></div><div class="phase-header">
+    <div class="phase-label" style="background:#1a1a2e;color:#e0e0e0">PHASE 0: FOUNDATION</div>
+    <div class="phase-bars"><div style="background:#4ecca3;opacity:0.3"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">1.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Define all core type primitives: EntityId, Timestamp, Version, Metadat
+        <span class="owner-badge" style="background:#4ecca3">Core 3pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">1.1: Define all core type primitives: EntityId, Timestamp, Version, Metadat | Core | 3sp | Deps: none</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">1.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Define MemoryEntry, MemoryLayer, MemoryQuery, MemoryStoreStats, IMemor
+        <span class="owner-badge" style="background:#4ecca3">Core 3pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">1.2: Define MemoryEntry, MemoryLayer, MemoryQuery, MemoryStoreStats, IMemor | Core | 3sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">1.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Define GraphNode, GraphEdge, GraphQuery, GraphPath, GraphStats, IPrope
+        <span class="owner-badge" style="background:#4ecca3">Core 3pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">1.3: Define GraphNode, GraphEdge, GraphQuery, GraphPath, GraphStats, IPrope | Core | 3sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">1.4</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Define CogEvent, EventHandler, SubscribeOptions, IEventBus, Subscripti
+        <span class="owner-badge" style="background:#4ecca3">Core 2pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">1.4: Define CogEvent, EventHandler, SubscribeOptions, IEventBus, Subscripti | Core | 2sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">1.5</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Define CogCellDefinition, CogCellState, CellLifecycle, CellContext, Ce
+        <span class="owner-badge" style="background:#4ecca3">Core 3pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">1.5: Define CogCellDefinition, CogCellState, CellLifecycle, CellContext, Ce | Core | 3sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">1.8</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Define Task, TaskStatus, SchedulerStats, IScheduler
+        <span class="owner-badge" style="background:#4ecca3">Core 2pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">1.8: Define Task, TaskStatus, SchedulerStats, IScheduler | Core | 2sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">1.9</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement CellError, ValidationError, TimeoutError, PermissionDeniedEr
+        <span class="owner-badge" style="background:#4ecca3">Core 3pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">1.9: Implement CellError, ValidationError, TimeoutError, PermissionDeniedEr | Core | 3sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">1.10</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement BaseCell with lifecycle state machine, process(), getHealth(
+        <span class="owner-badge" style="background:#4ecca3">Core 5pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">1.10: Implement BaseCell with lifecycle state machine, process(), getHealth( | Core | 5sp | Deps: 1.5, 1.9</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">1.6</div>
+      <div class="task-name">
+        
+        
+        
+        Define ToolDefinition, ToolResult, ITool
+        <span class="owner-badge" style="background:#4ecca3">Core 2pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar normal" style="background:#4ecca3;width:49px">
+          <div class="tooltip">1.6: Define ToolDefinition, ToolResult, ITool | Core | 2sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">1.7</div>
+      <div class="task-name">
+        
+        
+        
+        Define PolicyRule, PolicyCondition, PolicyDecision, IPolicyEngine
+        <span class="owner-badge" style="background:#4ecca3">Core 2pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar normal" style="background:#4ecca3;width:49px">
+          <div class="tooltip">1.7: Define PolicyRule, PolicyCondition, PolicyDecision, IPolicyEngine | Core | 2sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">1.11</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Unit tests: types construct correctly, all errors round-trip through J
+        <span class="owner-badge" style="background:#4ecca3">Core 3pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar normal" style="background:#4ecca3;width:49px">
+          <div class="tooltip">1.11: Unit tests: types construct correctly, all errors round-trip through J | Core | 3sp | Deps: 1.10</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">1.12</div>
+      <div class="task-name">
+        
+        
+        <span class="doc-mark">📄</span>
+        Write core/README.md with type reference guide
+        <span class="owner-badge" style="background:#4ecca3">Core 1pt</span>
+      </div>
+      <div class="task-bars"><div class="task-bar normal" style="background:#4ecca3;width:49px">
+          <div class="tooltip">1.12: Write core/README.md with type reference guide | Core | 1sp | Deps: 1.1-1.11</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="phase-header">
+    <div class="phase-label" style="background:#16213e;color:#e0e0e0">PHASE 1: MVP RUNTIME</div>
+    <div class="phase-bars"><div style="background:transparent;opacity:0"></div><div style="background:#0f3460;opacity:0.3"></div><div style="background:#0f3460;opacity:0.3"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">2.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement EventBus: publish() with auto-ID/timestamp/traceId/spanId, s
+        <span class="owner-badge" style="background:#0f3460">Runtime 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">2.1: Implement EventBus: publish() with auto-ID/timestamp/traceId/spanId, s | Runtime | 5sp | Deps: 1.4, 1.9</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">2.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement StateManager: get(), set(), update() with immutability, snap
+        <span class="owner-badge" style="background:#0f3460">Runtime 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">2.2: Implement StateManager: get(), set(), update() with immutability, snap | Runtime | 3sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">2.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement Scheduler: enqueue() with priority ordering, dequeue() by ty
+        <span class="owner-badge" style="background:#0f3460">Runtime 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">2.3: Implement Scheduler: enqueue() with priority ordering, dequeue() by ty | Runtime | 8sp | Deps: 1.8, 1.9</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">2.4</div>
+      <div class="task-name">
+        
+        
+        
+        Write Scheduler polling loop: start()/stop() with configurable interva
+        <span class="owner-badge" style="background:#0f3460">Runtime 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div class="task-bar normal" style="background:#0f3460;width:49px">
+          <div class="tooltip">2.4: Write Scheduler polling loop: start()/stop() with configurable interva | Runtime | 3sp | Deps: 2.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">2.5</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Unit tests: EventBus with 10 subscribers, 1000 events, priority orderi
+        <span class="owner-badge" style="background:#0f3460">Runtime 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div class="task-bar normal" style="background:#0f3460;width:49px">
+          <div class="tooltip">2.5: Unit tests: EventBus with 10 subscribers, 1000 events, priority orderi | Runtime | 5sp | Deps: 2.1-2.4</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">3.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement CellHost: register() validates and inits cells, start() star
+        <span class="owner-badge" style="background:#0f3460">Runtime 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">3.1: Implement CellHost: register() validates and inits cells, start() star | Runtime | 8sp | Deps: 1.10, 2.1, 2.2, 2.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">3.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement CellHost.executeTask: routes scheduler tasks to target cells
+        <span class="owner-badge" style="background:#0f3460">Runtime 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">3.2: Implement CellHost.executeTask: routes scheduler tasks to target cells | Runtime | 3sp | Deps: 3.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">3.5</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement runtime package index, package.json with @cos/core dependenc
+        <span class="owner-badge" style="background:#0f3460">Runtime 2pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">3.5: Implement runtime package index, package.json with @cos/core dependenc | Runtime | 2sp | Deps: 2.1, 2.2, 2.3, 3.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">3.3</div>
+      <div class="task-name">
+        
+        
+        
+        Build MVP cognitive cell: echo processor that wraps input in CellOutpu
+        <span class="owner-badge" style="background:#4ecca3">Core 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div class="task-bar normal" style="background:#0f3460;width:49px">
+          <div class="tooltip">3.3: Build MVP cognitive cell: echo processor that wraps input in CellOutpu | Core | 3sp | Deps: 1.10</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">3.4</div>
+      <div class="task-name">
+        
+        
+        
+        Build MVP bootstrap: register cell, define agent, define policy, start
+        <span class="owner-badge" style="background:#0f3460">Runtime 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div class="task-bar normal" style="background:#0f3460;width:49px">
+          <div class="tooltip">3.4: Build MVP bootstrap: register cell, define agent, define policy, start | Runtime | 5sp | Deps: 3.3, 3.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">3.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Integration test: full boot → process 10 inputs → verify events, state
+        <span class="owner-badge" style="background:#0f3460">Runtime 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div class="task-bar normal" style="background:#0f3460;width:49px">
+          <div class="tooltip">3.6: Integration test: full boot → process 10 inputs → verify events, state | Runtime | 5sp | Deps: 3.4</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">3.7</div>
+      <div class="task-name">
+        
+        
+        <span class="doc-mark">📄</span>
+        Write runtime/README.md with architecture, usage, EventBus/Scheduler/C
+        <span class="owner-badge" style="background:#0f3460">Runtime 2pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div class="task-bar normal" style="background:#0f3460;width:49px">
+          <div class="tooltip">3.7: Write runtime/README.md with architecture, usage, EventBus/Scheduler/C | Runtime | 2sp | Deps: 3.6</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="phase-header">
+    <div class="phase-label" style="background:#1b262c;color:#e0e0e0">PHASE 2a: MEMORY SYSTEM</div>
+    <div class="phase-bars"><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:#3282b8;opacity:0.3"></div><div style="background:#3282b8;opacity:0.3"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">4.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement InMemoryStore with layer index, tag index, store(), retrieve
+        <span class="owner-badge" style="background:#3282b8">Memory 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">4.1: Implement InMemoryStore with layer index, tag index, store(), retrieve | Memory | 8sp | Deps: 1.2</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">4.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement MemoryManager.store() with auto-importance scoring, default 
+        <span class="owner-badge" style="background:#3282b8">Memory 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">4.3: Implement MemoryManager.store() with auto-importance scoring, default  | Memory | 5sp | Deps: 4.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">4.2</div>
+      <div class="task-name">
+        
+        
+        
+        Implement TTL sweeper: setInterval sweep, check entry.age vs entry.ttl
+        <span class="owner-badge" style="background:#3282b8">Memory 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div class="task-bar normal" style="background:#3282b8;width:49px">
+          <div class="tooltip">4.2: Implement TTL sweeper: setInterval sweep, check entry.age vs entry.ttl | Memory | 3sp | Deps: 4.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">4.4</div>
+      <div class="task-name">
+        
+        
+        
+        Implement MemoryManager.retrieve(), query() with layer/tag/importance/
+        <span class="owner-badge" style="background:#3282b8">Memory 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div class="task-bar normal" style="background:#3282b8;width:49px">
+          <div class="tooltip">4.4: Implement MemoryManager.retrieve(), query() with layer/tag/importance/ | Memory | 5sp | Deps: 4.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">4.5</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Unit tests: store across all 12 layers, retrieve respects TTL, query w
+        <span class="owner-badge" style="background:#3282b8">Memory 4pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div class="task-bar normal" style="background:#3282b8;width:49px">
+          <div class="tooltip">4.5: Unit tests: store across all 12 layers, retrieve respects TTL, query w | Memory | 4sp | Deps: 4.1-4.4</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">5.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement MemoryManager.consolidate(threshold): query short_term entri
+        <span class="owner-badge" style="background:#3282b8">Memory 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">5.1: Implement MemoryManager.consolidate(threshold): query short_term entri | Memory | 5sp | Deps: 4.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">5.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement MemoryManager.forget(threshold, maxAge): query entries sorte
+        <span class="owner-badge" style="background:#3282b8">Memory 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">5.2: Implement MemoryManager.forget(threshold, maxAge): query entries sorte | Memory | 5sp | Deps: 4.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">5.5</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Integrate MemoryManager with CellHost: cells get memory partitions, st
+        <span class="owner-badge" style="background:#3282b8">Memory 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">5.5: Integrate MemoryManager with CellHost: cells get memory partitions, st | Memory | 3sp | Deps: 3.1, 4.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">5.3</div>
+      <div class="task-name">
+        
+        
+        
+        Implement MemoryManager.crossLink(sourceId, targetId, relation): store
+        <span class="owner-badge" style="background:#3282b8">Memory 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#3282b8;width:49px">
+          <div class="tooltip">5.3: Implement MemoryManager.crossLink(sourceId, targetId, relation): store | Memory | 3sp | Deps: 4.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">5.4</div>
+      <div class="task-name">
+        
+        
+        
+        Implement MemoryManager compression: summarize old entries (placeholde
+        <span class="owner-badge" style="background:#3282b8">Memory 2pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#3282b8;width:49px">
+          <div class="tooltip">5.4: Implement MemoryManager compression: summarize old entries (placeholde | Memory | 2sp | Deps: 4.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">5.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Integration test: store 100 entries → consolidate → verify long_term h
+        <span class="owner-badge" style="background:#3282b8">Memory 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#3282b8;width:49px">
+          <div class="tooltip">5.6: Integration test: store 100 entries → consolidate → verify long_term h | Memory | 5sp | Deps: 5.1-5.5</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">5.7</div>
+      <div class="task-name">
+        
+        
+        <span class="doc-mark">📄</span>
+        Write memory/README.md with layer reference, TTL table, query examples
+        <span class="owner-badge" style="background:#3282b8">Memory 1pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#3282b8;width:49px">
+          <div class="tooltip">5.7: Write memory/README.md with layer reference, TTL table, query examples | Memory | 1sp | Deps: 5.6</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="phase-header">
+    <div class="phase-label" style="background:#222831;color:#e0e0e0">PHASE 2b: KNOWLEDGE LAYER</div>
+    <div class="phase-bars"><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:#00adb5;opacity:0.3"></div><div style="background:#00adb5;opacity:0.3"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">6.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement PropertyGraph: addNode/createNode, getNode, updateNode, dele
+        <span class="owner-badge" style="background:#00adb5">Knowledge 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">6.1: Implement PropertyGraph: addNode/createNode, getNode, updateNode, dele | Knowledge | 8sp | Deps: 1.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">6.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement PropertyGraph: addEdge, getEdge, updateEdge, deleteEdge with
+        <span class="owner-badge" style="background:#00adb5">Knowledge 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">6.2: Implement PropertyGraph: addEdge, getEdge, updateEdge, deleteEdge with | Knowledge | 5sp | Deps: 6.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">6.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement PropertyGraph: queryNodes, queryEdges with type/label/tags/p
+        <span class="owner-badge" style="background:#00adb5">Knowledge 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">6.3: Implement PropertyGraph: queryNodes, queryEdges with type/label/tags/p | Knowledge | 5sp | Deps: 6.1, 6.2</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">6.4</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement KnowledgeGraph: addStatement creates subject+object nodes + 
+        <span class="owner-badge" style="background:#00adb5">Knowledge 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">6.4: Implement KnowledgeGraph: addStatement creates subject+object nodes +  | Knowledge | 5sp | Deps: 6.1, 6.2, 6.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">6.5</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Unit tests: add 1000 nodes, 5000 edges, query by type/tag, traverse at
+        <span class="owner-badge" style="background:#00adb5">Knowledge 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#00adb5;width:49px">
+          <div class="tooltip">6.5: Unit tests: add 1000 nodes, 5000 edges, query by type/tag, traverse at | Knowledge | 3sp | Deps: 6.1-6.4</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">7.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement EmbeddingSystem: store(sourceId, vector, sourceType, model),
+        <span class="owner-badge" style="background:#00adb5">Knowledge 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">7.1: Implement EmbeddingSystem: store(sourceId, vector, sourceType, model), | Knowledge | 5sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">7.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement OntologySystem: defineClass(name, desc, parent, properties),
+        <span class="owner-badge" style="background:#00adb5">Knowledge 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">7.3: Implement OntologySystem: defineClass(name, desc, parent, properties), | Knowledge | 5sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">7.2</div>
+      <div class="task-name">
+        
+        
+        
+        Implement cosine similarity calculator, textToEmbedding hashing (hash-
+        <span class="owner-badge" style="background:#00adb5">Knowledge 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#00adb5;width:49px">
+          <div class="tooltip">7.2: Implement cosine similarity calculator, textToEmbedding hashing (hash- | Knowledge | 5sp | Deps: 7.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">7.4</div>
+      <div class="task-name">
+        
+        
+        
+        Implement OntologySystem.validate(instance, className): check required
+        <span class="owner-badge" style="background:#00adb5">Knowledge 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#00adb5;width:49px">
+          <div class="tooltip">7.4: Implement OntologySystem.validate(instance, className): check required | Knowledge | 3sp | Deps: 7.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">7.5</div>
+      <div class="task-name">
+        
+        
+        
+        Integrate KnowledgeGraph + EmbeddingSystem + OntologySystem: knowledge
+        <span class="owner-badge" style="background:#00adb5">Knowledge 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#00adb5;width:49px">
+          <div class="tooltip">7.5: Integrate KnowledgeGraph + EmbeddingSystem + OntologySystem: knowledge | Knowledge | 3sp | Deps: 6.4, 7.1, 7.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">7.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Integration test: define ontology → create knowledge graph → embed → s
+        <span class="owner-badge" style="background:#00adb5">Knowledge 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#00adb5;width:49px">
+          <div class="tooltip">7.6: Integration test: define ontology → create knowledge graph → embed → s | Knowledge | 3sp | Deps: 7.5</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">7.7</div>
+      <div class="task-name">
+        
+        
+        <span class="doc-mark">📄</span>
+        Write knowledge/README.md with graph API, embedding usage, ontology re
+        <span class="owner-badge" style="background:#00adb5">Knowledge 1pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#00adb5;width:49px">
+          <div class="tooltip">7.7: Write knowledge/README.md with graph API, embedding usage, ontology re | Knowledge | 1sp | Deps: 7.6</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="phase-header">
+    <div class="phase-label" style="background:#1a1a2e;color:#e0e0e0">PHASE 3: COGNITION</div>
+    <div class="phase-bars"><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:#e23e57;opacity:0.3"></div><div style="background:#e23e57;opacity:0.3"></div><div style="background:#e23e57;opacity:0.3"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">8.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement ChainOfThoughtEngine: reason(input) produces N steps with mo
+        <span class="owner-badge" style="background:#e23e57">Cognition 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">8.1: Implement ChainOfThoughtEngine: reason(input) produces N steps with mo | Cognition | 8sp | Deps: 1.1, 1.9</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">8.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement TreeOfThoughtsEngine: reason(input) with branching factor, m
+        <span class="owner-badge" style="background:#e23e57">Cognition 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">8.2: Implement TreeOfThoughtsEngine: reason(input) with branching factor, m | Cognition | 8sp | Deps: 1.1, 1.9</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">8.3</div>
+      <div class="task-name">
+        
+        
+        
+        implement ThoughtNode structure, BFS with beam search, value scoring, 
+        <span class="owner-badge" style="background:#e23e57">Cognition 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#e23e57;width:49px">
+          <div class="tooltip">8.3: implement ThoughtNode structure, BFS with beam search, value scoring,  | Cognition | 5sp | Deps: 8.2</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">8.4</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Unit tests: CoT produces exactly N steps with correct structure, ToT e
+        <span class="owner-badge" style="background:#e23e57">Cognition 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#e23e57;width:49px">
+          <div class="tooltip">8.4: Unit tests: CoT produces exactly N steps with correct structure, ToT e | Cognition | 3sp | Deps: 8.1, 8.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">9.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement ReflectionEngine: reason(input) with critiqueAspects, score 
+        <span class="owner-badge" style="background:#e23e57">Cognition 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">9.1: Implement ReflectionEngine: reason(input) with critiqueAspects, score  | Cognition | 5sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">9.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement ReasoningEngineRegistry: register(engine), get(type), getAll
+        <span class="owner-badge" style="background:#e23e57">Cognition 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">9.2: Implement ReasoningEngineRegistry: register(engine), get(type), getAll | Cognition | 3sp | Deps: 8.1, 8.2, 9.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">9.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement PlanningEngine.createPlan(goal): decompose goal into steps u
+        <span class="owner-badge" style="background:#e23e57">Cognition 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">9.3: Implement PlanningEngine.createPlan(goal): decompose goal into steps u | Cognition | 8sp | Deps: 8.1, 9.2</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">9.4</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement PlanningEngine.executePlan(planId): topological execution, s
+        <span class="owner-badge" style="background:#e23e57">Cognition 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">9.4: Implement PlanningEngine.executePlan(planId): topological execution, s | Cognition | 5sp | Deps: 9.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">9.5</div>
+      <div class="task-name">
+        
+        
+        
+        Implement Plan.getPlan, getPlansByGoal, plan status reporting
+        <span class="owner-badge" style="background:#e23e57">Cognition 2pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#e23e57;width:49px">
+          <div class="tooltip">9.5: Implement Plan.getPlan, getPlansByGoal, plan status reporting | Cognition | 2sp | Deps: 9.3, 9.4</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">9.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Unit tests: Reflection on 5 aspects, Registry dispatches correctly, Pl
+        <span class="owner-badge" style="background:#e23e57">Cognition 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#e23e57;width:49px">
+          <div class="tooltip">9.6: Unit tests: Reflection on 5 aspects, Registry dispatches correctly, Pl | Cognition | 3sp | Deps: 9.1-9.5</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">10.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement EvaluationSystem: evaluate(subject, input, criteria) uses Re
+        <span class="owner-badge" style="background:#e23e57">Cognition 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">10.1: Implement EvaluationSystem: evaluate(subject, input, criteria) uses Re | Cognition | 5sp | Deps: 9.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">10.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement LearningSystem: recordExample(input, output, expectedOutput,
+        <span class="owner-badge" style="background:#e23e57">Cognition 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">10.2: Implement LearningSystem: recordExample(input, output, expectedOutput, | Cognition | 5sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">10.4</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Integrate Evaluation → Learning pipeline: evaluation results automatic
+        <span class="owner-badge" style="background:#e23e57">Cognition 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">10.4: Integrate Evaluation → Learning pipeline: evaluation results automatic | Cognition | 5sp | Deps: 10.1, 10.2</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">10.3</div>
+      <div class="task-name">
+        
+        
+        
+        Implement LearningSystem.getPatterns(threshold), getRecentExamples, ap
+        <span class="owner-badge" style="background:#e23e57">Cognition 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#e23e57;width:49px">
+          <div class="tooltip">10.3: Implement LearningSystem.getPatterns(threshold), getRecentExamples, ap | Cognition | 3sp | Deps: 10.2</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">10.5</div>
+      <div class="task-name">
+        
+        
+        
+        Integrate Learning → Reasoning: patterns influence reasoning engine se
+        <span class="owner-badge" style="background:#e23e57">Cognition 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#e23e57;width:49px">
+          <div class="tooltip">10.5: Integrate Learning → Reasoning: patterns influence reasoning engine se | Cognition | 3sp | Deps: 10.4, 9.2</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">10.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Integration test: evaluate → learn → pattern extract → pattern influen
+        <span class="owner-badge" style="background:#e23e57">Cognition 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#e23e57;width:49px">
+          <div class="tooltip">10.6: Integration test: evaluate → learn → pattern extract → pattern influen | Cognition | 3sp | Deps: 10.4, 10.5</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">10.7</div>
+      <div class="task-name">
+        
+        
+        <span class="doc-mark">📄</span>
+        Write cognition/README.md with engine reference, planning guide, evalu
+        <span class="owner-badge" style="background:#e23e57">Cognition 1pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#e23e57;width:49px">
+          <div class="tooltip">10.7: Write cognition/README.md with engine reference, planning guide, evalu | Cognition | 1sp | Deps: 10.6</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="phase-header">
+    <div class="phase-label" style="background:#16213e;color:#e0e0e0">PHASE 4: EXECUTION & ORCHESTRATION</div>
+    <div class="phase-bars"><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:#f39c12;opacity:0.3"></div><div style="background:#f39c12;opacity:0.3"></div><div style="background:#f39c12;opacity:0.3"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">11.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement ToolRegistry: register(tool), get(name), getAll(), execute(n
+        <span class="owner-badge" style="background:#f39c12">Execution 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">11.1: Implement ToolRegistry: register(tool), get(name), getAll(), execute(n | Execution | 3sp | Deps: 1.6</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">11.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement FileSystemTool: read(path), write(path, content), delete(pat
+        <span class="owner-badge" style="background:#f39c12">Execution 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">11.2: Implement FileSystemTool: read(path), write(path, content), delete(pat | Execution | 5sp | Deps: 11.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">11.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement HTTPTool: GET/POST/PUT/DELETE/PATCH with headers, body, time
+        <span class="owner-badge" style="background:#f39c12">Execution 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">11.3: Implement HTTPTool: GET/POST/PUT/DELETE/PATCH with headers, body, time | Execution | 5sp | Deps: 11.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">11.5</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Add rate limiting and retry logic to ToolRegistry: maxPerMinute/maxPer
+        <span class="owner-badge" style="background:#f39c12">Execution 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">11.5: Add rate limiting and retry logic to ToolRegistry: maxPerMinute/maxPer | Execution | 5sp | Deps: 11.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">11.4</div>
+      <div class="task-name">
+        
+        
+        
+        Implement SearchTool: query(text, source, limit) with source filter (k
+        <span class="owner-badge" style="background:#f39c12">Execution 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#f39c12;width:49px">
+          <div class="tooltip">11.4: Implement SearchTool: query(text, source, limit) with source filter (k | Execution | 3sp | Deps: 11.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">11.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Unit tests: register 3 tools, execute 100 calls, verify rate limiting,
+        <span class="owner-badge" style="background:#f39c12">Execution 2pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#f39c12;width:49px">
+          <div class="tooltip">11.6: Unit tests: register 3 tools, execute 100 calls, verify rate limiting, | Execution | 2sp | Deps: 11.1-11.5</div>
+        </div><div></div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">12.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement CodeSandbox: execute(code, language, context) with timeout, 
+        <span class="owner-badge" style="background:#f39c12">Execution 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">12.1: Implement CodeSandbox: execute(code, language, context) with timeout,  | Execution | 8sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">12.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement execution cell: CogCell that wraps ToolRegistry, routes proc
+        <span class="owner-badge" style="background:#f39c12">Execution 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">12.3: Implement execution cell: CogCell that wraps ToolRegistry, routes proc | Execution | 5sp | Deps: 11.1, 12.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">12.2</div>
+      <div class="task-name">
+        
+        
+        
+        Implement CodeSandbox validation: code size limit, module whitelist, n
+        <span class="owner-badge" style="background:#f39c12">Execution 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#f39c12;width:49px">
+          <div class="tooltip">12.2: Implement CodeSandbox validation: code size limit, module whitelist, n | Execution | 5sp | Deps: 12.1</div>
+        </div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">12.4</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Integration test: execution cell with 3 tools, sandbox with valid/inva
+        <span class="owner-badge" style="background:#f39c12">Execution 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#f39c12;width:49px">
+          <div class="tooltip">12.4: Integration test: execution cell with 3 tools, sandbox with valid/inva | Execution | 3sp | Deps: 12.3</div>
+        </div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">12.5</div>
+      <div class="task-name">
+        
+        
+        <span class="doc-mark">📄</span>
+        Write execution/README.md with tool API, sandbox limitations, executio
+        <span class="owner-badge" style="background:#f39c12">Execution 1pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#f39c12;width:49px">
+          <div class="tooltip">12.5: Write execution/README.md with tool API, sandbox limitations, executio | Execution | 1sp | Deps: 12.4</div>
+        </div><div></div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">13.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement AgentSystem: defineAgent(name, purpose, cellIds, options), e
+        <span class="owner-badge" style="background:#f1c40f">Orchestration 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">13.1: Implement AgentSystem: defineAgent(name, purpose, cellIds, options), e | Orchestration | 5sp | Deps: 3.1</div>
+        </div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">13.2</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement WorkflowEngine: define(name, desc, steps), execute(workflowI
+        <span class="owner-badge" style="background:#f1c40f">Orchestration 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">13.2: Implement WorkflowEngine: define(name, desc, steps), execute(workflowI | Orchestration | 8sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">13.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement WorkflowEngine step types: cell, condition, parallel, loop, 
+        <span class="owner-badge" style="background:#f1c40f">Orchestration 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">13.3: Implement WorkflowEngine step types: cell, condition, parallel, loop,  | Orchestration | 5sp | Deps: 13.2</div>
+        </div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">13.5</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement PolicyEngine: addRule, removeRule, getRules, evaluate(action
+        <span class="owner-badge" style="background:#f1c40f">Orchestration 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">13.5: Implement PolicyEngine: addRule, removeRule, getRules, evaluate(action | Orchestration | 5sp | Deps: 1.7</div>
+        </div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">13.4</div>
+      <div class="task-name">
+        
+        
+        
+        Implement WorkflowEngine.approveStep(executionId): resume workflow fro
+        <span class="owner-badge" style="background:#f1c40f">Orchestration 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#f39c12;width:49px">
+          <div class="tooltip">13.4: Implement WorkflowEngine.approveStep(executionId): resume workflow fro | Orchestration | 3sp | Deps: 13.3</div>
+        </div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">13.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Integration test: define agent → execute → define workflow → run → hum
+        <span class="owner-badge" style="background:#f1c40f">Orchestration 2pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#f39c12;width:49px">
+          <div class="tooltip">13.6: Integration test: define agent → execute → define workflow → run → hum | Orchestration | 2sp | Deps: 13.1-13.5</div>
+        </div><div></div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">13.7</div>
+      <div class="task-name">
+        
+        
+        <span class="doc-mark">📄</span>
+        Write orchestration/README.md with agent API, workflow DSL, policy exa
+        <span class="owner-badge" style="background:#f1c40f">Orchestration 1pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#f39c12;width:49px">
+          <div class="tooltip">13.7: Write orchestration/README.md with agent API, workflow DSL, policy exa | Orchestration | 1sp | Deps: 13.6</div>
+        </div><div></div><div></div><div></div><div></div></div></div><div class="phase-header">
+    <div class="phase-label" style="background:#0f3460;color:#e0e0e0">PHASE 5: PRODUCTION SYSTEMS</div>
+    <div class="phase-bars"><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:transparent;opacity:0"></div><div style="background:#53d769;opacity:0.3"></div><div style="background:#53d769;opacity:0.3"></div><div style="background:#53d769;opacity:0.3"></div><div style="background:#53d769;opacity:0.3"></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">14.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement PostgreSQL adapter: IStorageAdapter with get/set/delete/list
+        <span class="owner-badge" style="background:#e67e22">Infra 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">14.1: Implement PostgreSQL adapter: IStorageAdapter with get/set/delete/list | Infra | 5sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">14.4</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement Configuration system: layered resolver (defaults → env → fil
+        <span class="owner-badge" style="background:#e67e22">Infra 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">14.4: Implement Configuration system: layered resolver (defaults → env → fil | Infra | 5sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">14.2</div>
+      <div class="task-name">
+        
+        
+        
+        Implement Redis adapter: IStorageAdapter with get/set/delete/list/clea
+        <span class="owner-badge" style="background:#e67e22">Infra 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">14.2: Implement Redis adapter: IStorageAdapter with get/set/delete/list/clea | Infra | 3sp | Deps: 1.1</div>
+        </div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">14.3</div>
+      <div class="task-name">
+        
+        
+        
+        Implement Qdrant adapter: vector storage/search with collection manage
+        <span class="owner-badge" style="background:#e67e22">Infra 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">14.3: Implement Qdrant adapter: vector storage/search with collection manage | Infra | 3sp | Deps: 7.1</div>
+        </div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">14.5</div>
+      <div class="task-name">
+        
+        
+        
+        Implement config schema for all COS components, validation rules, sens
+        <span class="owner-badge" style="background:#e67e22">Infra 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">14.5: Implement config schema for all COS components, validation rules, sens | Infra | 3sp | Deps: 14.4</div>
+        </div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">14.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Unit tests: all 4 adapters pass contract tests, config resolves/O over
+        <span class="owner-badge" style="background:#e67e22">Infra 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">14.6: Unit tests: all 4 adapters pass contract tests, config resolves/O over | Infra | 3sp | Deps: 14.1-14.5</div>
+        </div><div></div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">15.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement COSServer: wire all 11 subsystems, process(request) routing,
+        <span class="owner-badge" style="background:#9b59b6">API 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">15.1: Implement COSServer: wire all 11 subsystems, process(request) routing, | API | 8sp | Deps: 3.1, 4.3, 6.4, 7.1, 7.3, 9.2, 10.1, 10.2, 11.1, 13.1, 13.2, 13.5, 14.4</div>
+        </div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">15.3</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement JWT authentication middleware: verify token, extract user, a
+        <span class="owner-badge" style="background:#9b59b6">API 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">15.3: Implement JWT authentication middleware: verify token, extract user, a | API | 5sp | Deps: 1.1</div>
+        </div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">15.5</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement TelemetrySystem: recordEvent, recordMetric, queryEvents, que
+        <span class="owner-badge" style="background:#1abc9c">Observability 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">15.5: Implement TelemetrySystem: recordEvent, recordMetric, queryEvents, que | Observability | 5sp | Deps: 1.1</div>
+        </div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">15.2</div>
+      <div class="task-name">
+        
+        
+        
+        Implement process() routing: if reasoning specified → reasoning engine
+        <span class="owner-badge" style="background:#9b59b6">API 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">15.2: Implement process() routing: if reasoning specified → reasoning engine | API | 3sp | Deps: 15.1</div>
+        </div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">15.4</div>
+      <div class="task-name">
+        
+        
+        
+        Implement API key authentication: key lookup, rate limiting per key, e
+        <span class="owner-badge" style="background:#9b59b6">API 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">15.4: Implement API key authentication: key lookup, rate limiting per key, e | API | 3sp | Deps: 15.3</div>
+        </div><div></div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">15.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Integration test: COSServer boots, process() with 3 routing paths, aut
+        <span class="owner-badge" style="background:#9b59b6">API 2pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">15.6: Integration test: COSServer boots, process() with 3 routing paths, aut | API | 2sp | Deps: 15.1-15.5</div>
+        </div><div></div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">16.4</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Implement CLI: cos start, cos stop, cos status, cos process, cos confi
+        <span class="owner-badge" style="background:#53d769">DevOps 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">16.4: Implement CLI: cos start, cos stop, cos status, cos process, cos confi | DevOps | 5sp | Deps: 15.1</div>
+        </div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">16.1</div>
+      <div class="task-name">
+        
+        
+        
+        Write Dockerfile: multi-stage build, Node.js 18 base, distroless runti
+        <span class="owner-badge" style="background:#53d769">DevOps 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">16.1: Write Dockerfile: multi-stage build, Node.js 18 base, distroless runti | DevOps | 5sp | Deps: 15.1</div>
+        </div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">16.2</div>
+      <div class="task-name">
+        
+        
+        
+        Write docker-compose.yml: cos-server, postgres, redis, qdrant services
+        <span class="owner-badge" style="background:#53d769">DevOps 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">16.2: Write docker-compose.yml: cos-server, postgres, redis, qdrant services | DevOps | 3sp | Deps: 16.1</div>
+        </div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">16.3</div>
+      <div class="task-name">
+        
+        
+        
+        Write Kubernetes manifests: deployment, service, configmap, secret, hp
+        <span class="owner-badge" style="background:#53d769">DevOps 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">16.3: Write Kubernetes manifests: deployment, service, configmap, secret, hp | DevOps | 5sp | Deps: 16.1</div>
+        </div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">16.5</div>
+      <div class="task-name">
+        
+        
+        
+        Implement CLI completion: bash/zsh completion scripts, help text for a
+        <span class="owner-badge" style="background:#53d769">DevOps 2pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">16.5: Implement CLI completion: bash/zsh completion scripts, help text for a | DevOps | 2sp | Deps: 16.4</div>
+        </div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">16.6</div>
+      <div class="task-name">
+        
+        <span class="test-mark">🧪</span>
+        
+        Smoke test: Docker container starts, CLI processes input, health endpo
+        <span class="owner-badge" style="background:#53d769">DevOps 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">16.6: Smoke test: Docker container starts, CLI processes input, health endpo | DevOps | 3sp | Deps: 16.1, 16.4</div>
+        </div><div></div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">16.7</div>
+      <div class="task-name">
+        
+        
+        <span class="doc-mark">📄</span>
+        Write deployment/README.md with Docker, K8s, CLI instructions
+        <span class="owner-badge" style="background:#53d769">DevOps 1pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">16.7: Write deployment/README.md with Docker, K8s, CLI instructions | DevOps | 1sp | Deps: 16.6</div>
+        </div><div></div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">17.1</div>
+      <div class="task-name">
+        <span class="critical-mark">🔥</span>
+        
+        
+        Full system integration test: COSServer boots with all 11 subsystems, 
+        <span class="owner-badge" style="background:#9b59b6">API 8pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar critical" style="background:#ff4444;width:49px">
+          <div class="tooltip">17.1: Full system integration test: COSServer boots with all 11 subsystems,  | API | 8sp | Deps: 15.1, 16.1</div>
+        </div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">17.2</div>
+      <div class="task-name">
+        
+        
+        
+        Resilience testing: kill a dependency, verify system degrades graceful
+        <span class="owner-badge" style="background:#53d769">DevOps 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">17.2: Resilience testing: kill a dependency, verify system degrades graceful | DevOps | 5sp | Deps: 17.1</div>
+        </div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">17.3</div>
+      <div class="task-name">
+        
+        
+        
+        Performance benchmark: measure p50/p95/p99 latency (process), throughp
+        <span class="owner-badge" style="background:#53d769">DevOps 5pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">17.3: Performance benchmark: measure p50/p95/p99 latency (process), throughp | DevOps | 5sp | Deps: 17.1</div>
+        </div></div></div><div class="sprint-row" style="background:transparent">
+      <div class="task-num">17.4</div>
+      <div class="task-name">
+        
+        
+        
+        Security audit: verify auth middleware, policy enforcement, sandbox is
+        <span class="owner-badge" style="background:#9b59b6">API 3pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">17.4: Security audit: verify auth middleware, policy enforcement, sandbox is | API | 3sp | Deps: 15.3, 15.4, 13.5</div>
+        </div></div></div><div class="sprint-row" style="background:rgba(255,255,255,0.02)">
+      <div class="task-num">17.5</div>
+      <div class="task-name">
+        
+        
+        <span class="doc-mark">📄</span>
+        Write full CHANGELOG.md, README.md with quick start, architecture over
+        <span class="owner-badge" style="background:#53d769">DevOps 2pt</span>
+      </div>
+      <div class="task-bars"><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div></div><div class="task-bar normal" style="background:#53d769;width:49px">
+          <div class="tooltip">17.5: Write full CHANGELOG.md, README.md with quick start, architecture over | DevOps | 2sp | Deps: 17.1</div>
+        </div></div></div></div></div><div class="stats">
+  <div class="stat-card"><div class="num" style="color:#4ecca3">107</div><div class="label">Total Tasks</div></div>
+  <div class="stat-card"><div class="num" style="color:#ff4444">51</div><div class="label">Critical Path Tasks</div></div>
+  <div class="stat-card"><div class="num" style="color:#ffd700">428</div><div class="label">Story Points</div></div>
+  <div class="stat-card"><div class="num" style="color:#53d769">17</div><div class="label">Sprints / Weeks</div></div>
+  <div class="stat-card"><div class="num" style="color:#f39c12">7</div><div class="label">Phases</div></div>
+</div><div style="margin-top:25px;">
+  <h3 style="color:#888;font-size:13px;font-weight:400;margin-bottom:10px;">Key Milestones</h3>
+  <table style="font-size:11px;border-collapse:collapse;width:100%;max-width:800px;">
+    <tr style="color:#555;border-bottom:1px solid #222;"><td style="padding:4px 8px;width:60px;">Week</td><td style="padding:4px 8px;">Milestone</td></tr>
+    <tr><td style="padding:4px 8px;color:#ffd700;">1</td><td style="padding:4px 8px;">Phase 0 Gate: Core types, errors, BaseCell compile and pass tests</td></tr>
+    <tr><td style="padding:4px 8px;color:#ffd700;">3</td><td style="padding:4px 8px;"><b>🚀 MVP COMPLETE</b> — system boots, processes input, observable events</td></tr>
+    <tr><td style="padding:4px 8px;color:#ffd700;">5</td><td style="padding:4px 8px;">Memory Gate: 12 layers operational, consolidation/forgetting working</td></tr>
+    <tr><td style="padding:4px 8px;color:#ffd700;">7</td><td style="padding:4px 8px;">Knowledge Gate: Property graph, embeddings, ontology all operational</td></tr>
+    <tr><td style="padding:4px 8px;color:#ffd700;">10</td><td style="padding:4px 8px;">Cognition Gate: CoT, ToT, Reflection, Planning, Eval, Learning all working</td></tr>
+    <tr><td style="padding:4px 8px;color:#ffd700;">13</td><td style="padding:4px 8px;">Execution Gate: Tools, Sandbox, Agents, Workflows, Policies all operational</td></tr>
+    <tr><td style="padding:4px 8px;color:#ffd700;">17</td><td style="padding:4px 8px;"><b>🚀 PRODUCTION RELEASE</b> — API, Auth, Docker, CLI, benchmarks passed</td></tr>
+  </table>
+</div></body></html>

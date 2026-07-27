@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" style="background:#0d1117;font-family:system-ui,-apple-system,sans-serif;">
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#58a6ff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Title -->
+  <text x="400" y="30" fill="#c9d1d9" font-size="18" font-weight="600" text-anchor="middle">COS Training Performance</text>
+  <text x="400" y="48" fill="#8b949e" font-size="12" text-anchor="middle">30 iterations · 44 evaluations · 34 patterns learned · Improvement: +2.2 points</text>
+
+  <!-- Chart area -->
+  <rect x="80" y="60" width="660" height="460" fill="none" stroke="#21262d" stroke-width="1"/>
+
+  <!-- Grid lines -->
+  <line x1="80" y1="520" x2="740" y2="520" stroke="#21262d" stroke-width="1"/>
+      <text x="72" y="524" fill="#8b949e" font-size="11" text-anchor="end">60</text>
+  <line x1="80" y1="405" x2="740" y2="405" stroke="#21262d" stroke-width="1"/>
+      <text x="72" y="409" fill="#8b949e" font-size="11" text-anchor="end">65</text>
+  <line x1="80" y1="290" x2="740" y2="290" stroke="#21262d" stroke-width="1"/>
+      <text x="72" y="294" fill="#8b949e" font-size="11" text-anchor="end">70</text>
+  <line x1="80" y1="175" x2="740" y2="175" stroke="#21262d" stroke-width="1"/>
+      <text x="72" y="179" fill="#8b949e" font-size="11" text-anchor="end">75</text>
+  <line x1="80" y1="60" x2="740" y2="60" stroke="#21262d" stroke-width="1"/>
+      <text x="72" y="64" fill="#8b949e" font-size="11" text-anchor="end">80</text>
+
+  <!-- X-axis labels -->
+  <text x="80" y="536" fill="#8b949e" font-size="9" text-anchor="middle" transform="rotate(-45,80,536)">I5</text>
+  <text x="212" y="536" fill="#8b949e" font-size="9" text-anchor="middle" transform="rotate(-45,212,536)"></text>
+  <text x="344" y="536" fill="#8b949e" font-size="9" text-anchor="middle" transform="rotate(-45,344,536)">I15</text>
+  <text x="476" y="536" fill="#8b949e" font-size="9" text-anchor="middle" transform="rotate(-45,476,536)"></text>
+  <text x="608" y="536" fill="#8b949e" font-size="9" text-anchor="middle" transform="rotate(-45,608,536)">I25</text>
+  <text x="740" y="536" fill="#8b949e" font-size="9" text-anchor="middle" transform="rotate(-45,740,536)">I30</text>
+
+  <!-- Area under curve -->
+  <polygon points="80,449.09644630116156 212,381.6332600327392 344,372.35061995389833 476,378.7150920812838 608,392.59353212608295 740,397.89016129066977 740,520 80,520" fill="url(#grad)"/>
+
+  <!-- Line -->
+  <polyline points="80,449.09644630116156 212,381.6332600327392 344,372.35061995389833 476,378.7150920812838 608,392.59353212608295 740,397.89016129066977" fill="none" stroke="#58a6ff" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- Data points -->
+  <circle cx="80" cy="449.09644630116156" r="4.5" fill="#0d1117" stroke="#3fb950" stroke-width="2"/>
+      <text x="80" y="439.09644630116156" fill="#3fb950" font-size="9" text-anchor="middle">63.1</text>
+  <circle cx="212" cy="381.6332600327392" r="4.5" fill="#0d1117" stroke="#d29922" stroke-width="2"/>
+      <text x="212" y="371.6332600327392" fill="#d29922" font-size="9" text-anchor="middle">66.0</text>
+  <circle cx="344" cy="372.35061995389833" r="4.5" fill="#0d1117" stroke="#d29922" stroke-width="2"/>
+      <text x="344" y="362.35061995389833" fill="#d29922" font-size="9" text-anchor="middle">66.4</text>
+  <circle cx="476" cy="378.7150920812838" r="4.5" fill="#0d1117" stroke="#d29922" stroke-width="2"/>
+      <text x="476" y="368.7150920812838" fill="#d29922" font-size="9" text-anchor="middle">66.1</text>
+  <circle cx="608" cy="392.59353212608295" r="4.5" fill="#0d1117" stroke="#d29922" stroke-width="2"/>
+      <text x="608" y="382.59353212608295" fill="#d29922" font-size="9" text-anchor="middle">65.5</text>
+  <circle cx="740" cy="397.89016129066977" r="4.5" fill="#0d1117" stroke="#d29922" stroke-width="2"/>
+      <text x="740" y="387.89016129066977" fill="#d29922" font-size="9" text-anchor="middle">65.3</text>
+
+  <!-- Baseline reference line -->
+  <line x1="80" y1="449.09644630116156" x2="740" y2="449.09644630116156" stroke="#8b949e" stroke-width="1" stroke-dasharray="6,4" opacity="0.5"/>
+  <text x="744" y="453.09644630116156" fill="#8b949e" font-size="9" opacity="0.7">baseline 63.1</text>
+
+  <!-- Legend -->
+  <rect x="90" y="560" width="10" height="10" rx="2" fill="#58a6ff"/>
+  <text x="106" y="569" fill="#8b949e" font-size="11">Score</text>
+  <line x1="180" y1="565" x2="210" y2="565" stroke="#8b949e" stroke-width="1" stroke-dasharray="6,4"/>
+  <text x="216" y="569" fill="#8b949e" font-size="11">Baseline</text>
+
+  <!-- Trend indicators -->
+  <circle cx="320" cy="565" r="4" fill="#0d1117" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="330" y="569" fill="#8b949e" font-size="11">Improving</text>
+  <circle cx="420" cy="565" r="4" fill="#0d1117" stroke="#d29922" stroke-width="1.5"/>
+  <text x="430" y="569" fill="#8b949e" font-size="11">Stable</text>
+  <circle cx="510" cy="565" r="4" fill="#0d1117" stroke="#f85149" stroke-width="1.5"/>
+  <text x="520" y="569" fill="#8b949e" font-size="11">Declining</text>
+</svg>

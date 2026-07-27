@@ -1,0 +1,1 @@
+{"name":"@cos/observability","version":"0.1.0","description":"Observability layer: telemetry, events, metrics","main":"dist/index.js","types":"dist/index.d.ts","scripts":{"build":"tsc","test":"jest"},"dependencies":{"@cos/core":"0.1.0"}}

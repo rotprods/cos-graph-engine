@@ -1,0 +1,14 @@
+{
+  "name": "@cos/runtime",
+  "version": "0.1.0",
+  "description": "Runtime layer: CogCell host, EventBus, Scheduler, State Manager",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@cos/core": "0.1.0"
+  }
+}

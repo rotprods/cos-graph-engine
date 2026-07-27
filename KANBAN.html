@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COS Graph Engine — Progreso Global</title>
+<style>
+  :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #c9d1d9; --muted: #8b949e; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 1rem; }
+
+  .header { max-width: 1400px; margin: 0 auto 1.5rem; }
+  .header h1 { font-size: 1.5rem; font-weight: 600; }
+  .header .subtitle { color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }
+
+  .summary { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; max-width: 1400px; margin-left: auto; margin-right: auto; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; min-width: 120px; flex: 1; }
+  .card .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+  .card .value { font-size: 1.25rem; font-weight: 600; margin-top: 0.15rem; }
+  .card .value.green { color: #3fb950; }
+  .card .value.orange { color: #d29922; }
+  .card .value.blue { color: #58a6ff; }
+  .card .value.purple { color: #bc8cff; }
+  .card .value.red { color: #f85149; }
+
+  .board { display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 1rem; align-items: flex-start; }
+  .column { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; min-width: 240px; max-width: 280px; flex-shrink: 0; }
+  .column-header { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; justify-content: space-between; }
+  .column-header .count { background: #21262d; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; }
+  .column-body { padding: 0.5rem; min-height: 60px; }
+
+  .ticket { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.6rem; margin-bottom: 0.4rem; cursor: default; }
+  .ticket .id { font-size: 0.65rem; color: var(--muted); }
+  .ticket .title { font-size: 0.8rem; margin-top: 0.15rem; font-weight: 500; }
+  .ticket .meta { font-size: 0.65rem; color: var(--muted); margin-top: 0.3rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .ticket .meta .tag { padding: 0.1rem 0.35rem; border-radius: 3px; font-size: 0.6rem; }
+  .tag.p0 { background: #f85149; color: #fff; }
+  .tag.p1 { background: #d29922; color: #000; }
+  .tag.p2 { background: #58a6ff; color: #fff; }
+  .tag.p3 { background: #8b949e; color: #000; }
+  .tag.a { background: #3fb950; }
+  .tag.b { background: #bc8cff; }
+  .tag.c { background: #58a6ff; }
+  .tag.d { background: #d29922; }
+  .tag.completed { background: #21262d; color: #3fb950; }
+  .tag.f3 { background: #1f6feb; }
+  .tag.f4 { background: #f0883e; }
+  .tag.f5 { background: #f85149; }
+  .tag.f6 { background: #bc8cff; }
+  .tag.f7 { background: #d29922; }
+
+  .ticket.done { opacity: 0.6; border-color: #3fb950; }
+  .ticket.done .title { color: #3fb950; }
+  .ticket.active { border-color: #58a6ff; }
+
+  .section-title { max-width: 1400px; margin: 2rem auto 0.75rem; font-size: 1rem; font-weight: 600; color: var(--text); }
+  .section-title .sub { font-size: 0.75rem; color: var(--muted); font-weight: 400; }
+
+  .timeline { max-width: 1400px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; }
+  .timeline table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+  .timeline th { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+  .timeline td { padding: 0.5rem; border-bottom: 1px solid #21262d; }
+  .timeline .bar { height: 20px; border-radius: 3px; position: relative; min-width: 4px; display: inline-block; }
+  .timeline .bar-label { font-size: 0.6rem; color: #fff; padding: 0 0.4rem; line-height: 20px; white-space: nowrap; }
+  .bar-green { background: #3fb950; }
+  .bar-orange { background: #d29922; }
+  .bar-blue { background: #58a6ff; }
+  .bar-purple { background: #bc8cff; }
+  .bar-gray { background: #30363d; }
+
+  .deps { max-width: 1400px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-size: 0.8rem; line-height: 1.8; }
+  .deps code { background: #21262d; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.75rem; }
+  .deps .arrow { color: var(--muted); margin: 0 0.3rem; }
+
+  @media (max-width: 768px) {
+    .board { flex-direction: column; }
+    .column { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>COS Graph Engine — Global Kanban</h1>
+  <div class="subtitle">8 fases · 58 tickets totales · 6/8 fases completadas (75%) · Fase 7 activa</div>
+</div>
+
+<!-- ===== METRICAS ===== -->
+<div class="summary">
+  <div class="card">
+    <div class="label">Tests</div>
+    <div class="value green">~459</div>
+  </div>
+  <div class="card">
+    <div class="label">Fases Completadas</div>
+    <div class="value green">6/8</div>
+  </div>
+  <div class="card">
+    <div class="label">Tickets Totales</div>
+    <div class="value blue">58</div>
+  </div>
+  <div class="card">
+    <div class="label">Progreso</div>
+    <div class="value purple">75%</div>
+  </div>
+  <div class="card">
+    <div class="label">Fase Actual</div>
+    <div class="value orange">F7: Rendimiento</div>
+  </div>
+  <div class="card">
+    <div class="label">Fallas</div>
+    <div class="value green">0</div>
+  </div>
+</div>
+
+<!-- ===== TIMELINE ===== -->
+<div class="section-title">Linea de Tiempo</div>
+<div class="timeline">
+<table>
+  <tr><th>Fase</th><th>Progreso</th><th>Tickets</th></tr>
+  <tr><td>F1: Refactor</td><td><div class="bar bar-green" style="width:100%"><span class="bar-label">100%</span></div></td><td>15/15</td></tr>
+  <tr><td>F2: Entrega</td><td><div class="bar bar-green" style="width:100%"><span class="bar-label">100%</span></div></td><td>5/5</td></tr>
+  <tr><td>F3: Consolidacion</td><td><div class="bar bar-green" style="width:100%"><span class="bar-label">100%</span></div></td><td>8/8</td></tr>
+  <tr><td>F4: SMB</td><td><div class="bar bar-green" style="width:100%"><span class="bar-label">100%</span></div></td><td>5/5</td></tr>
+  <tr><td>F5: Homogeneizacion</td><td><div class="bar bar-green" style="width:100%"><span class="bar-label">100%</span></div></td><td>6/6</td></tr>
+  <tr><td>F6: Expansion de Tests</td><td><div class="bar bar-green" style="width:100%"><span class="bar-label">100%</span></div></td><td>10/10</td></tr>
+  <tr><td>F7: Rendimiento</td><td><div class="bar bar-orange" style="width:5%"><span class="bar-label">0%</span></div></td><td>0/4</td></tr>
+  <tr><td>F8: Release</td><td><div class="bar bar-gray" style="width:5%"><span class="bar-label">0%</span></div></td><td>0/6</td></tr>
+</table>
+</div>
+
+<!-- ===== KANBAN BOARD ===== -->
+<div class="section-title">Fase 7: Rendimiento</div>
+<div class="board">
+
+  <!-- Columna: Pendiente -->
+  <div class="column">
+    <div class="column-header">📋 Pendiente <span class="count">4</span></div>
+    <div class="column-body">
+      <div class="ticket active">
+        <div class="id">T-7.1</div>
+        <div class="title">Benchmarks L0-L3</div>
+        <div class="meta"><span class="tag p0">P0</span><span class="tag f7">F7</span><span class="tag">6h</span></div>
+      </div>
+      <div class="ticket">
+        <div class="id">T-7.2</div>
+        <div class="title">Benchmarks L4-L11</div>
+        <div class="meta"><span class="tag p0">P0</span><span class="tag f7">F7</span><span class="tag">8h</span></div>
+      </div>
+      <div class="ticket">
+        <div class="id">T-7.3</div>
+        <div class="title">Benchmarks L12-L19</div>
+        <div class="meta"><span class="tag p0">P0</span><span class="tag f7">F7</span><span class="tag">6h</span></div>
+      </div>
+      <div class="ticket">
+        <div class="id">T-7.4</div>
+        <div class="title">Benchmark Report Dinamico</div>
+        <div class="meta"><span class="tag p1">P1</span><span class="tag f7">F7</span><span class="tag">4h</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Columna: En Progreso -->
+  <div class="column">
+    <div class="column-header">⚡ En Progreso <span class="count">0</span></div>
+    <div class="column-body"></div>
+  </div>
+
+  <!-- Columna: Completado Fase 7 -->
+  <div class="column">
+    <div class="column-header">✅ Completado F7 <span class="count">0</span></div>
+    <div class="column-body"></div>
+  </div>
+
+</div>
+
+<!-- ===== FASES COMPLETADAS ===== -->
+<div class="section-title">Fases Completadas <span class="sub">6/8</span></div>
+<div class="deps">
+  <strong>F1: Refactor</strong> <span style="color:#3fb950">✅ 15/15</span> — L1, L3, L7 refactorizados, 14 fixes + 1 bug<br>
+  <strong>F2: Entrega</strong> <span style="color:#3fb950">✅ 5/5</span> — CI pipeline, benchmark report, CHANGELOG, release notes<br>
+  <strong>F3: Consolidacion</strong> <span style="color:#3fb950">✅ 8/8</span> — npm scripts, auto-release, coverage, README, CONTRIBUTING, API ref<br>
+  <strong>F4: SMB</strong> <span style="color:#3fb950">✅ 5/5</span> — L7+L12 SMB integracion, 28 tests, AI Employee, docs<br>
+  <strong>F5: Homogeneizacion</strong> <span style="color:#3fb950">✅ 6/6</span> — Mutation API L4-L19, serializacion, adjacency maps<br>
+  <strong>F6: Expansion de Tests</strong> <span style="color:#3fb950">✅ 10/10</span> — L0+L2 refactor, ~289 tests nuevos, CI actualizado<br>
+</div>
+
+<!-- ===== DEPENDENCIAS ===== -->
+<div class="section-title">Dependencias Fase 7</div>
+<div class="deps">
+  <code>T-6.0a</code> <span class="arrow">→</span> <code>T-7.1</code> <span class="arrow">→</span> <code>T-7.2</code> <span class="arrow">→</span> <code>T-7.3</code> <span class="arrow">→</span> <code>T-7.4</code><br>
+  <code>T-6.0b</code> <span class="arrow">→</span> <code>T-7.1</code>
+</div>
+
+</body>
+</html>

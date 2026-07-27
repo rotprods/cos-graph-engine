@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>COS Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;padding:20px}
+h1{font-size:24px;font-weight:300;color:#58a6ff;margin-bottom:4px;display:flex;align-items:center;gap:12px}
+h1 small{font-size:12px;color:#8b949e;font-weight:400}
+#status-bar{display:flex;gap:12px;margin:16px 0;flex-wrap:wrap}
+.status-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;flex:1;min-width:180px}
+.status-card .label{font-size:10px;text-transform:uppercase;color:#8b949e;letter-spacing:1px}
+.status-card .value{font-size:28px;font-weight:600;margin-top:4px}
+.status-card .sub{font-size:11px;color:#8b949e;margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;margin-top:16px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
+.card h2{font-size:13px;font-weight:600;padding:12px 16px;background:#1c2128;border-bottom:1px solid #30363d;display:flex;justify-content:space-between;align-items:center}
+.card h2 small{font-size:10px;color:#8b949e;font-weight:400}
+.card-body{padding:16px}
+.card-body pre{font-size:11px;color:#8b949e;overflow:auto;max-height:200px}
+.stat-row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid #21262d}
+.stat-row:last-child{border-bottom:none}
+.stat-row .key{color:#8b949e}
+.stat-row .val{color:#c9d1d9;font-weight:500}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.badge-green{background:#003d1f;color:#3fb950}
+.badge-red{background:#3d0000;color:#f85149}
+.badge-yellow{background:#3d2e00;color:#d29922}
+.badge-blue{background:#00263d;color:#58a6ff}
+.engine-list{display:flex;flex-wrap:wrap;gap:6px}
+.engine-tag{background:#1f2937;color:#c9d1d9;padding:4px 10px;border-radius:4px;font-size:11px;border:1px solid #30363d}
+#error-bar{display:none;background:#3d0000;color:#f85149;padding:10px 16px;border-radius:6px;margin-bottom:16px;font-size:13px}
+#error-bar.show{display:block}
+.kv-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.gauge{height:6px;background:#21262d;border-radius:3px;margin-top:6px;overflow:hidden}
+.gauge-fill{height:100%;border-radius:3px;transition:width .5s}
+.pulse{animation:pulse 2s infinite}
+@keyframes pulse{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
+.memory-bar{margin:2px 0;display:flex;align-items:center;gap:8px;font-size:11px}
+.memory-bar .bar{flex:1;height:8px;background:#21262d;border-radius:4px;overflow:hidden}
+.memory-bar .fill{height:100%;border-radius:4px;min-width:2px}
+.chart{display:flex;gap:2px;align-items:flex-end;height:60px;margin-top:8px}
+.chart .col{flex:1;border-radius:2px 2px 0 0;min-height:4px;transition:height .5s}
+button{background:#238636;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-size:12px;cursor:pointer}
+button:hover{background:#2ea043}
+input{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:6px 12px;border-radius:6px;font-size:12px;width:100%;margin:4px 0}
+.refresh-btn{background:none;border:1px solid #30363d;color:#8b949e;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer}
+.refresh-btn:hover{background:#1c2128}
+</style>
+</head>
+<body>
+<div id="error-bar"></div>
+<h1>🧠 Cognitive Operating System <small id="subtitle">loading...</small></h1>
+<div id="status-bar"></div>
+<div class="grid" id="grid"></div>
+
+<script>
+const API = window.location.origin;
+
+async function fetchJSON(path){
+  const r=await fetch(API+path);
+  if(!r.ok)throw new Error(r.status+' '+r.statusText);
+  return r.json();
+}
+
+function showError(msg){
+  const e=document.getElementById('error-bar');
+  e.textContent='⚠ '+msg;e.classList.add('show');
+  setTimeout(()=>e.classList.remove('show'),5000);
+}
+
+function statRow(k,v){return '<div class="stat-row"><span class="key">'+k+'</span><span class="val">'+v+'</span></div>'}
+
+function badge(v){
+  if(v==='healthy'||v==='ok'||v==='completed') return '<span class="badge badge-green">'+v+'</span>';
+  if(v==='degraded'||v==='warning') return '<span class="badge badge-yellow">'+v+'</span>';
+  if(v==='unhealthy'||v==='error'||v==='failed') return '<span class="badge badge-red">'+v+'</span>';
+  return '<span class="badge badge-blue">'+v+'</span>';
+}
+
+function card(title,content,extra=''){return '<div class="card"><h2>'+title+extra+'</h2><div class="card-body">'+content+'</div></div>'}
+
+async function refresh(){
+  try{
+    const[health,stats,mem,kg,si,cells]=await Promise.all([
+      fetchJSON('/health'),fetchJSON('/stats'),fetchJSON('/memory'),
+      fetchJSON('/knowledge'),fetchJSON('/self-improve'),fetchJSON('/cells')
+    ]);
+    
+    const sys=health.system||{};
+    document.getElementById('subtitle').textContent='updated '+new Date().toLocaleTimeString();
+    
+    // Status bar
+    const sb=document.getElementById('status-bar');
+    sb.innerHTML=
+      '<div class="status-card"><div class="label">System Status</div><div class="value">'+badge(sys.status||'unknown')+'</div><div class="sub">'+(sys.message||'')+'</div></div>'+
+      '<div class="status-card"><div class="label">Cells</div><div class="value">'+(sys.metrics?.cells||0)+'</div><div class="sub">cognitive units</div></div>'+
+      '<div class="status-card"><div class="label">Memory</div><div class="value">'+(mem.totalEntries||0)+'</div><div class="sub">entries across '+
+        Object.entries(mem.byLayer||{}).filter(([_,c])=>c>0).length+' layers</div></div>'+
+      '<div class="status-card"><div class="label">Score</div><div class="value">'+(si.averageScore?Math.round(si.averageScore*100):0)+'<span style="font-size:14px">/100</span></div>'+
+        '<div class="sub">trend: '+badge(si.scoreTrend||'stable')+'</div></div>';
+
+    // Grid
+    const g=document.getElementById('grid');
+    
+    // Cell info
+    let cellHtml='';
+    if(cells&&cells.length){
+      cellHtml='<table style="width:100%;font-size:11px;border-collapse:collapse">';
+      cells.forEach(c=>{
+        const s=c.health?.status||'unknown';
+        cellHtml+='<tr style="border-bottom:1px solid #21262d"><td style="padding:4px">'+badge(s)+'</td><td style="padding:4px">'+c.name+'</td><td style="padding:4px;color:#8b949e">'+c.type+'</td></tr>';
+      });
+      cellHtml+='</table>';
+    }else cellHtml='<div style="color:#8b949e;font-size:12px">No cells registered</div>';
+    
+    // Memory by layer
+    let memHtml='';
+    if(mem.byLayer){
+      const max=Math.max(...Object.values(mem.byLayer),1);
+      const colors=['#4ecca3','#3282b8','#00adb5','#e23e57','#f39c12','#53d769','#1abc9c','#9b59b6','#e67e22','#3498db','#f1c40f','#2ecc71'];
+      let i=0;
+      for(const[layer,count]of Object.entries(mem.byLayer)){
+        if(count>0){
+          const pct=(count/max*100).toFixed(0);
+          memHtml+='<div class="memory-bar"><span style="width:80px">'+layer.replace('_',' ')+'</span><div class="bar"><div class="fill" style="width:'+pct+'%;background:'+colors[i%colors.length]+'"></div></div><span>'+count+'</span></div>';
+          i++;
+        }
+      }
+    }
+    
+    // Knowledge graph
+    let kgHtml='<div style="font-size:12px">'+statRow('Total statements',kg.length||0)+statRow('Nodes',(kg.nodeCount||0))+(kg.byNodeType?Object.entries(kg.byNodeType).map(([t,c])=>statRow('  '+t,c)).join(''):'')+'</div>';
+    
+    // Self-improvement details
+    let siHtml='<div style="font-size:12px">'+statRow('Evaluations',si.totalEvaluations||0)+statRow('Average score',(si.averageScore?Math.round(si.averageScore*100)+'/100':'N/A'))+statRow('Trend',badge(si.scoreTrend||'stable'));
+    if(si.weaknesses&&si.weaknesses.length) siHtml+=statRow('Top weakness',si.weaknesses[0]);
+    if(si.patterns) siHtml+=statRow('Patterns',si.patterns.length);
+    siHtml+='</div>';
+    if(si.suggestions&&si.suggestions.length){
+      siHtml+='<div style="margin-top:8px;font-size:11px">';
+      si.suggestions.slice(0,3).forEach(s=>siHtml+='<div style="padding:2px 0;color:#8b949e">→ '+s+'</div>');
+      siHtml+='</div>';
+    }
+    
+    // Reasoning engines
+    const engHtml='<div class="engine-list">'+['chain_of_thought','tree_of_thoughts','reflection','graph_of_thoughts','debate'].map(e=>'<span class="engine-tag">'+e.replace(/_/g,' ')+'</span>').join('')+'</div>';
+    
+    // API Playground
+    const apiHtml='<div style="font-size:12px"><label style="color:#8b949e">Input</label><input id="play-input" value="hello COS" placeholder="Enter input..."/><div style="display:flex;gap:8px;margin-top:8px"><button onclick="playProcess()">Process</button><button onclick="playReason()" style="background:#1f6feb">Reason</button><button onclick="playDebate()" style="background:#8957e5">Debate</button></div><pre id="play-output" style="margin-top:8px;background:#0d1117;padding:8px;border-radius:4px;border:1px solid #30363d;min-height:40px;font-size:11px">Output will appear here...</pre></div>';
+    
+    g.innerHTML=
+      card('🧩 Cognitive Cells',cellHtml,'<span class="badge badge-blue">'+cells.length+'</span>')+
+      card('🧠 Reasoning Engines',engHtml,'<span class="badge badge-green">5</span>')+
+      card('💾 Memory Layers',memHtml,'<span class="badge badge-blue">'+Object.values(mem.byLayer||{}).filter(c=>c>0).length+' active</span>')+
+      card('🔗 Knowledge Graph',kgHtml,'<span class="badge badge-green">'+(kg.length||0)+'</span>')+
+      card('📈 Self-Improvement',siHtml,'<span class="badge '+(si.scoreTrend==='improving'?'badge-green':'badge-yellow')+'">'+((si.averageScore||0)*100).toFixed(0)+'</span>')+
+      card('🎮 API Playground',apiHtml);
+    
+  }catch(e){showError(e.message)}
+}
+
+async function play(url,body){
+  const o=document.getElementById('play-output');
+  o.textContent='Processing...';
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json();
+    o.textContent=JSON.stringify(d,null,2);
+  }catch(e){o.textContent='Error: '+e.message}
+}
+function playProcess(){const i=document.getElementById('play-input').value;play('/process',{input:i})}
+function playReason(){const i=document.getElementById('play-input').value;play('/process',{input:{problem:i,steps:3},reasoning:'chain_of_thought'})}
+function playDebate(){const i=document.getElementById('play-input').value;play('/process',{input:{topic:i,rounds:2},reasoning:'debate'})}
+
+refresh();
+setInterval(refresh,5000);
+</script>
+</body>
+</html>

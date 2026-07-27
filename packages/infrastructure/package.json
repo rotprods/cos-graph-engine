@@ -1,0 +1,1 @@
+{"name":"@cos/infrastructure","version":"0.1.0","description":"Infrastructure layer: config, persistence, secrets","main":"dist/index.js","types":"dist/index.d.ts","scripts":{"build":"tsc","test":"jest"},"dependencies":{"@cos/core":"0.1.0","@cos/memory":"0.1.0"}}

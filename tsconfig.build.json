@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "paths": {
+      "@cos/core": ["./packages/core/src"],
+      "@cos/runtime": ["./packages/runtime/src"],
+      "@cos/memory": ["./packages/memory/src"],
+      "@cos/knowledge": ["./packages/knowledge/src"],
+      "@cos/cognition": ["./packages/cognition/src"],
+      "@cos/execution": ["./packages/execution/src"],
+      "@cos/orchestration": ["./packages/orchestration/src"],
+      "@cos/observability": ["./packages/observability/src"],
+      "@cos/api": ["./packages/api/src"],
+      "@cos/infrastructure": ["./packages/infrastructure/src"],
+      "@cos/deployment": ["./packages/deployment/src"]
+    }
+  },
+  "include": [
+    "packages/core/src/**/*.ts",
+    "packages/runtime/src/**/*.ts",
+    "packages/memory/src/**/*.ts",
+    "packages/knowledge/src/**/*.ts",
+    "packages/cognition/src/**/*.ts",
+    "packages/execution/src/**/*.ts",
+    "packages/orchestration/src/**/*.ts",
+    "packages/observability/src/**/*.ts",
+    "packages/api/src/**/*.ts",
+    "packages/infrastructure/src/**/*.ts",
+    "packages/deployment/src/**/*.ts"
+  ]
+}

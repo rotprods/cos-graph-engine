@@ -1,0 +1,1 @@
+{"name":"@cos/deployment","version":"0.1.0","description":"Deployment layer: bootstrap, CLI, launch, commander","main":"dist/index.js","types":"dist/index.d.ts","scripts":{"build":"tsc","test":"jest"},"dependencies":{"@cos/core":"0.1.0","@cos/runtime":"0.1.0","@cos/api":"0.1.0","@cos/infrastructure":"0.1.0"}}

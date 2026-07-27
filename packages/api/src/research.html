@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>COS Research Assistant</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0d1117;color:#c9d1d9;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;padding:20px}
+h1{font-size:20px;font-weight:300;color:#58a6ff;margin-bottom:4px;display:flex;align-items:center;gap:10px}
+h1 small{font-size:11px;color:#8b949e;font-weight:400}
+.subtitle{color:#8b949e;font-size:12px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;overflow:hidden}
+.card h2{font-size:12px;font-weight:600;padding:10px 14px;background:#1c2128;border-bottom:1px solid #30363d;display:flex;justify-content:space-between;align-items:center}
+.card-body{padding:14px;font-size:13px;line-height:1.6}
+.card-body pre{font-size:11px;color:#8b949e;overflow:auto;max-height:200px;background:#0d1117;padding:8px;border-radius:4px;margin-top:8px}
+#input-area{display:flex;gap:8px;margin-bottom:16px}
+#question{flex:1;background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:10px 14px;border-radius:6px;font-size:13px;outline:none}
+#question:focus{border-color:#58a6ff}
+#research-btn{background:#238636;color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600}
+#research-btn:hover{background:#2ea043}
+#research-btn:disabled{background:#21262d;color:#484f58;cursor:not-allowed}
+.stat-row{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;border-bottom:1px solid #21262d}
+.stat-row:last-child{border-bottom:none}
+.stat-row .key{color:#8b949e}
+.stat-row .val{color:#c9d1d9;font-weight:500}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.badge-green{background:#003d1f;color:#3fb950}
+.badge-blue{background:#00263d;color:#58a6ff}
+.status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.status-dot.green{background:#3fb950}
+.status-dot.yellow{background:#d29922}
+.thinking{display:inline-flex;align-items:center;gap:4px;padding:8px 0;color:#8b949e;font-size:12px}
+.thinking .dot{width:5px;height:5px;background:#58a6ff;border-radius:50%;animation:bounce 1.4s infinite}
+.thinking .dot:nth-child(2){animation-delay:.2s}
+.thinking .dot:nth-child(3){animation-delay:.4s}
+@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+#trace{font-family:monospace;font-size:11px;line-height:1.8}
+#trace .step{color:#58a6ff}
+#trace .result{color:#3fb950}
+#trace .meta{color:#8b949e}
+</style>
+</head>
+<body>
+<h1>🔬 COS Research Assistant <small>Cognitive Operating System Demo</small></h1>
+<div class="subtitle">Ask a research question. The COS will reason, search memory, query knowledge, and generate a structured analysis.</div>
+
+<div id="input-area">
+  <input id="question" type="text" placeholder="e.g., Analyze the COS architecture, what are its key subsystems?" autofocus>
+  <button id="research-btn" onclick="research()">Research</button>
+</div>
+
+<div class="grid">
+  <div class="card" style="grid-column:1/-1">
+    <h2>📋 Research Report</h2>
+    <div class="card-body" id="report">
+      <div style="color:#8b949e">Enter a research question above to begin.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🧠 Reasoning Trace</h2>
+    <div class="card-body" id="trace"><div style="color:#8b949e;font-size:11px">Waiting for input...</div></div>
+  </div>
+
+  <div class="card">
+    <h2>💾 Knowledge & Memory</h2>
+    <div class="card-body" id="knowledge">
+      <div style="color:#8b949e;font-size:11px">Knowledge graph and memory stats will appear here.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+let sessionId = 'sess-' + Date.now();
+
+async function research() {
+  const q = document.getElementById('question').value.trim();
+  if (!q) return;
+  document.getElementById('research-btn').disabled = true;
+  document.getElementById('report').innerHTML = '<div class="thinking"><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;Running cognitive pipeline...</div>';
+  document.getElementById('trace').innerHTML = '<div class="thinking"><span class="dot"></span><span class="dot"></span><span class="dot"></span>&nbsp;Reasoning...</div>';
+
+  try {
+    const res = await fetch('/research', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, sessionId }),
+    });
+    const data = await res.json();
+
+    // Report
+    let reportHtml = `<div style="font-size:14px;font-weight:600;margin-bottom:8px">${data.report?.title || 'Research Analysis'}</div>`;
+    reportHtml += `<div>${(data.report?.summary || data.report || '').substring(0, 2000)}</div>`;
+    if (data.report?.conclusions) {
+      reportHtml += '<div style="margin-top:12px;font-weight:600">Conclusions:</div><ul style="margin-top:4px;padding-left:20px">';
+      data.report.conclusions.forEach((c: string) => reportHtml += `<li style="font-size:12px;margin:2px 0">${c}</li>`);
+      reportHtml += '</ul>';
+    }
+    reportHtml += '<div style="margin-top:12px;font-size:11px;color:#8b949e;border-top:1px solid #21262d;padding-top:8px">';
+    reportHtml += `<span class="badge badge-blue">conf: ${(data.confidence*100).toFixed(0)}%</span> `;
+    reportHtml += `<span class="badge badge-green">${data.reasoning?.length || 0} steps</span> `;
+    reportHtml += `<span class="badge badge-blue">${data.memory?.entries || 0} memories</span>`;
+    reportHtml += '</div>';
+    document.getElementById('report').innerHTML = reportHtml;
+
+    // Trace
+    let traceHtml = '';
+    if (data.reasoning) {
+      data.reasoning.forEach((step: any, i: number) => {
+        traceHtml += `<div class="step">Step ${i + 1}: ${step.output?.substring(0, 80) || ''}</div>`;
+        if (step.confidence) traceHtml += `<div class="meta">  confidence: ${(step.confidence*100).toFixed(0)}%</div>`;
+      });
+    }
+    if (data.llmTrace) {
+      traceHtml += `<div class="result" style="margin-top:8px">🤖 LLM: ${(data.llmTrace.content || '').substring(0, 200)}</div>`;
+    }
+    document.getElementById('trace').innerHTML = traceHtml || '<div style="color:#8b949e">No reasoning trace available</div>';
+
+    // Knowledge
+    let kgHtml = '<div style="font-size:12px">';
+    if (data.knowledge) {
+      kgHtml += '<div style="font-weight:600;margin-bottom:6px">Knowledge Graph</div>';
+      if (Array.isArray(data.knowledge)) {
+        data.knowledge.slice(0, 5).forEach((k: any) => {
+          kgHtml += `<div class="stat-row"><span class="key">${k.subject || '?'}</span><span class="val">${k.predicate || '→'} ${k.object || '?'}</span></div>`;
+        });
+      }
+    }
+    if (data.memory) {
+      kgHtml += '<div style="font-weight:600;margin-top:10px;margin-bottom:6px">Memory</div>';
+      kgHtml += `<div class="stat-row"><span class="key">Entries</span><span class="val">${data.memory.entries || 0}</span></div>`;
+      kgHtml += `<div class="stat-row"><span class="key">Layers active</span><span class="val">${data.memory.layers || 0}</span></div>`;
+    }
+    if (data.selfImprovement) {
+      kgHtml += '<div style="font-weight:600;margin-top:10px;margin-bottom:6px">Self-Improvement</div>';
+      kgHtml += `<div class="stat-row"><span class="key">Score</span><span class="val">${(data.selfImprovement.score*100).toFixed(0)}/100</span></div>`;
+      kgHtml += `<div class="stat-row"><span class="key">Trend</span><span class="val"><span class="status-dot ${data.selfImprovement.trend === 'improving' ? 'green' : 'yellow'}"></span>${data.selfImprovement.trend}</span></div>`;
+    }
+    kgHtml += '</div>';
+    document.getElementById('knowledge').innerHTML = kgHtml;
+
+  } catch (e) {
+    document.getElementById('report').innerHTML = `<div style="color:#f85149">Error: ${e.message}</div>`;
+  }
+  document.getElementById('research-btn').disabled = false;
+}
+
+document.getElementById('question').addEventListener('keydown', (e) => { if (e.key === 'Enter') research(); });
+</script>
+</body>
+</html>

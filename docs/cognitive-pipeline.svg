@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" style="background:#0d1117;font-family:system-ui,-apple-system,sans-serif;">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#58a6ff"/></marker>
+    <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#238636" stop-opacity="0.2"/><stop offset="100%" stop-color="#238636" stop-opacity="0"/></linearGradient>
+  </defs>
+
+  <text x="450" y="30" fill="#c9d1d9" font-size="18" font-weight="600" text-anchor="middle">Cognitive Pipeline — Chat &amp; Research Flow</text>
+
+  <!-- Step 1: Input -->
+  <rect x="300" y="55" width="300" height="36" rx="18" fill="#238636" opacity="0.9"/>
+  <text x="450" y="78" fill="#fff" font-size="13" font-weight="600" text-anchor="middle">📝 User Input</text>
+
+  <line x1="450" y1="91" x2="450" y2="115" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 2: Memory Search -->
+  <rect x="250" y="115" width="400" height="44" rx="6" fill="#1c2128" stroke="#1f6feb" stroke-width="1.5"/>
+  <text x="450" y="135" fill="#58a6ff" font-size="12" font-weight="600" text-anchor="middle">1. Memory Search</text>
+  <text x="450" y="151" fill="#8b949e" font-size="10" text-anchor="middle">episodic memory  relevant past interactions</text>
+
+  <line x1="450" y1="159" x2="450" y2="183" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 3: Knowledge Query -->
+  <rect x="250" y="183" width="400" height="44" rx="6" fill="#1c2128" stroke="#8957e5" stroke-width="1.5"/>
+  <text x="450" y="203" fill="#a371f7" font-size="12" font-weight="600" text-anchor="middle">2. Knowledge Graph Query</text>
+  <text x="450" y="219" fill="#8b949e" font-size="10" text-anchor="middle">declarative knowledge  facts + relationships</text>
+
+  <line x1="450" y1="227" x2="450" y2="251" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 4: Reasoning -->
+  <rect x="250" y="251" width="400" height="44" rx="6" fill="#1c2128" stroke="#d29922" stroke-width="1.5"/>
+  <text x="450" y="271" fill="#e3b341" font-size="12" font-weight="600" text-anchor="middle">3. Reasoning (Chain of Thought)</text>
+  <text x="450" y="287" fill="#8b949e" font-size="10" text-anchor="middle">5-step decomposition  structured analysis</text>
+
+  <line x1="450" y1="295" x2="450" y2="319" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 5: LLM Generation -->
+  <rect x="250" y="319" width="400" height="44" rx="6" fill="#1c2128" stroke="#f0883e" stroke-width="1.5"/>
+  <text x="450" y="339" fill="#f0883e" font-size="12" font-weight="600" text-anchor="middle">4. LLM Generation</text>
+  <text x="450" y="355" fill="#8b949e" font-size="10" text-anchor="middle">SimulatedProvider or OpenAI  natural language response</text>
+
+  <line x1="450" y1="363" x2="450" y2="387" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 6: Store -->
+  <rect x="250" y="387" width="400" height="44" rx="6" fill="#1c2128" stroke="#3fb950" stroke-width="1.5"/>
+  <text x="450" y="407" fill="#3fb950" font-size="12" font-weight="600" text-anchor="middle">5. Memory Storage</text>
+  <text x="450" y="423" fill="#8b949e" font-size="10" text-anchor="middle">episodic layer  {question, answer, tags, importance}</text>
+
+  <line x1="450" y1="431" x2="450" y2="455" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 7: Self-Improvement -->
+  <rect x="250" y="455" width="400" height="44" rx="6" fill="#1c2128" stroke="#f85149" stroke-width="1.5"/>
+  <text x="450" y="475" fill="#f85149" font-size="12" font-weight="600" text-anchor="middle">6. Self-Improvement</text>
+  <text x="450" y="491" fill="#8b949e" font-size="10" text-anchor="middle">recordOutput()  auto-evaluate  extract patterns</text>
+
+  <line x1="450" y1="499" x2="450" y2="523" stroke="#58a6ff" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- Step 8: Response -->
+  <rect x="300" y="523" width="300" height="36" rx="18" fill="#238636" opacity="0.9"/>
+  <text x="450" y="546" fill="#fff" font-size="13" font-weight="600" text-anchor="middle">📋 Response</text>
+
+  <!-- Side annotation -->
+  <rect x="700" y="115" width="180" height="180" rx="6" fill="#1c2128" stroke="#30363d"/>
+  <text x="790" y="135" fill="#8b949e" font-size="10" font-weight="600" text-anchor="middle">Pipeline Stats</text>
+  <text x="715" y="155" fill="#8b949e" font-size="10">Memory: episodic layer</text>
+  <text x="715" y="171" fill="#8b949e" font-size="10">Knowledge: 4 statements</text>
+  <text x="715" y="187" fill="#8b949e" font-size="10">Reasoning: CoT, 5 steps</text>
+  <text x="715" y="203" fill="#8b949e" font-size="10">LLM: SimulatedProvider</text>
+  <text x="715" y="219" fill="#8b949e" font-size="10">Store: 2 entries/request</text>
+  <text x="715" y="235" fill="#8b949e" font-size="10">Self-Improve: auto</text>
+  <text x="715" y="255" fill="#8b949e" font-size="10">Latency: ~50ms</text>
+  <text x="715" y="271" fill="#8b949e" font-size="10">Confidence: 80-90%</text>
+
+  <!-- Bottom annotation -->
+  <text x="450" y="595" fill="#484f58" font-size="10" text-anchor="middle">End-to-end latency: 50-200ms (Simulated) · 1-5s (OpenAI) · Pipeline runs automatically for every request</text>
+</svg>

@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>COS Graph Engine v2.1+ Roadmap</title>
+  <style>
+    html {
+      line-height: 1.5;
+      font-family: Georgia, serif;
+      font-size: 20px;
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 1em;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, 'Lucida Console', Consolas, monospace;
+      font-size: 85%;
+      margin: 0;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+
+  <style>
+    @page { margin: 15mm 12mm 20mm 12mm; }
+    body { font-family: 'Helvetica', 'Arial', sans-serif; font-size: 10pt; line-height: 1.5; color: #333; }
+    h1 { font-size: 18pt; color: #1a1a2e; border-bottom: 2px solid #e94560; padding-bottom: 6px; }
+    h2 { font-size: 14pt; color: #1a1a2e; margin-top: 20px; page-break-before: always; }
+    h2:first-of-type { page-break-before: avoid; }
+    h3 { font-size: 12pt; color: #16213e; margin-top: 14px; }
+    h4 { font-size: 10pt; color: #0f3460; }
+    table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 8pt; }
+    th, td { border: 1px solid #ddd; padding: 4px 6px; text-align: left; }
+    th { background: #f5f5f5; font-weight: bold; }
+    code { background: #f4f4f4; padding: 1px 3px; border-radius: 2px; font-size: 8pt; font-family: 'Courier New', monospace; }
+    pre { background: #f8f8f8; border: 1px solid #eee; padding: 6px; font-size: 7pt; line-height: 1.2; border-radius: 3px; }
+    blockquote { border-left: 3px solid #e94560; margin: 8px 0; padding: 4px 10px; background: #fafafa; font-size: 9pt; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 14px 0; }
+    pre code { background: none; padding: 0; font-size: 7pt; }
+    .mermaid { display: none; }
+  </style>
+  </head>
+<body>
+<header id="title-block-header">
+<h1 class="title">COS Graph Engine v2.1+ Roadmap</h1>
+</header>
+<h1 id="cos-graph-engine-v2.1-roadmap">COS Graph Engine v2.1+ Roadmap</h1>
+<blockquote>
+<p><strong>Estado actual</strong>: v2.0.0 completado — 20 fases, 68 tickets, 1145 tests, 0 failures <strong>Landing page</strong>: https://cos-graph-engine.higgsfield.app <strong>Zero-dep rule</strong>: Sin dependencias externas excepto Stripe, SendGrid, LangChain, Algolia</p>
+</blockquote>
+<hr />
+<h2 id="indice">Indice</h2>
+<ol type="1">
+<li><a href="#resumen-ejecutivo">Resumen Ejecutivo</a></li>
+<li><a href="#fase-1--performance-foundations">Fase 1 — Performance Foundations</a></li>
+<li><a href="#fase-2--wasm-acceleration">Fase 2 — WASM Acceleration</a></li>
+<li><a href="#fase-3--telemetry--observability">Fase 3 — Telemetry &amp; Observability</a></li>
+<li><a href="#fase-4--web-visualization">Fase 4 — Web Visualization</a></li>
+<li><a href="#fase-5--deployment--operations">Fase 5 — Deployment &amp; Operations</a></li>
+<li><a href="#fase-6--ecosystem--dx">Fase 6 — Ecosystem &amp; DX</a></li>
+<li><a href="#gantt-chart">Gantt Chart</a></li>
+<li><a href="#dependency-graph">Dependency Graph</a></li>
+<li><a href="#milestones">Milestones</a></li>
+<li><a href="#metricas-clave">Metricas Clave</a></li>
+</ol>
+<hr />
+<h2 id="resumen-ejecutivo">Resumen Ejecutivo</h2>
+<p>COS Graph Engine v2.1+ transforma el motor de grafos de 20 niveles en un sistema <strong>production-grade</strong>: rendimiento 2x via CSR + WASM, observabilidad integrada, visualizacion web en tiempo real, despliegue Kubernetes-ready, y un ecosistema de paquetes publicables.</p>
+<table>
+<thead>
+<tr class="header">
+<th>Fase</th>
+<th>Nombre</th>
+<th>Tickets</th>
+<th>Dependencia</th>
+<th>Esfuerzo estimado</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>Performance Foundations</td>
+<td>3</td>
+<td>—</td>
+<td>3-4 dias</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>WASM Acceleration</td>
+<td>3</td>
+<td>Fase 1</td>
+<td>4-5 dias</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>Telemetry &amp; Observability</td>
+<td>3</td>
+<td>Fase 1</td>
+<td>2-3 dias</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>Web Visualization</td>
+<td>3</td>
+<td>Fase 1</td>
+<td>3-4 dias</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>Deployment &amp; Operations</td>
+<td>3</td>
+<td>Fases 1-4</td>
+<td>4-5 dias</td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td>Ecosystem &amp; DX</td>
+<td>3</td>
+<td>Fases 1-5</td>
+<td>3-4 dias</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Total</strong>: 18 tickets, ~20-25 dias</p>
+<hr />
+<h2 id="fase-1-performance-foundations">Fase 1 — Performance Foundations</h2>
+<blockquote>
+<p><strong>Objetivo</strong>: Reemplazar <code>Map&lt;string, string[]&gt;</code> por CSR (Compressed Sparse Row) + bidirectional pruning. 2x speedup en BFS/DFS/shortest path. <strong>Dependencias</strong>: Ninguna <strong>Duracion</strong>: 3-4 dias</p>
+</blockquote>
+<h3 id="t-1.1-csr-storage-completado">T-1.1 — CSR Storage ✅ COMPLETADO</h3>
+<p>Archivos: <code>packages/graph/src/csr.ts</code>, <code>scripts/test-csr.ts</code> (77 tests, 0 failures)</p>
+<p><strong>Clases</strong>:</p>
+<table>
+<colgroup>
+<col style="width: 21%" />
+<col style="width: 31%" />
+<col style="width: 46%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Clase</th>
+<th>Propsito</th>
+<th>Metodos clave</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>CSRGraph&lt;N, E&gt;</code></td>
+<td>Grafo CSR completo con tipado generico</td>
+<td><code>addNode/removeNode</code>, <code>addEdge/removeEdge</code>, <code>neighbors()</code>, <code>bfs()</code>, <code>dfs()</code>, <code>bidirectionalBFS()</code>, <code>degree()</code>, <code>toJSON/fromJSON</code>, <code>clear()</code></td>
+</tr>
+<tr class="even">
+<td><code>CompressedAdjacency</code></td>
+<td>Drop-in replacement para <code>Map&lt;string, string[]&gt;</code> en niveles existentes</td>
+<td><code>addEdge/removeEdge</code>, <code>neighbors()</code>, <code>hasEdge()</code>, <code>nodeCount()</code>, <code>edgeCount()</code>, <code>degree()</code>, <code>clear()</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Estructura CSR</strong>:</p>
+<pre><code>indices[]:  [tgt0, tgt1, tgt2, tgt3, ...]  // flat array de targets
+indptr[]:   [0,   2,   4,   5,    ...]       // row pointers
+nodeIds[]:  [n0,  n1,  n2,   n3,   ...]     // row -&gt; node ID</code></pre>
+<p><strong>Algoritmos incluidos</strong>:</p>
+<ul>
+<li>BFS secuencial estandar</li>
+<li>Bidirectional BFS (meet-in-the-middle) con maxDepth configurable</li>
+<li>DFS iterativo (stack)</li>
+<li>Reverse neighbors scan</li>
+</ul>
+<p><strong>Performance</strong>: rebuild O(N + E), neighbors O(degree), BFS O(N + E)</p>
+<h3 id="t-1.2-bidirectional-pruning">T-1.2 — Bidirectional Pruning</h3>
+<p><strong>Archivo</strong>: <code>packages/graph/src/pruning.ts</code></p>
+<p><strong>Objetivo</strong>: Estrategias de poda configurables para BFS, DFS y shortest path que reducen el espacio de busqueda hasta un 60%. Integracion en los 20 niveles existentes via <code>traverse()</code> y <code>shortestPath()</code>.</p>
+<hr />
+<h4 id="arquitectura">Arquitectura</h4>
+<div class="sourceCode" id="cb2"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co">// pruning.ts</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> PruningStrategy {</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Nombre unico de la estrategia */</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  name<span class="op">:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Decide si un nodo debe ser podado (true = no explorar) */</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">shouldPrune</span>(</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    nodeId<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    depth<span class="op">:</span> <span class="dt">number</span><span class="op">,</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>    state<span class="op">:</span> <span class="bu">Readonly</span><span class="op">&lt;</span>PruningState<span class="op">&gt;</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>  )<span class="op">:</span> <span class="dt">boolean</span><span class="op">;</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Hook opcional: se ejecuta al expandir un nodo */</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  onExpand<span class="op">?</span>(nodeId<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> depth<span class="op">:</span> <span class="dt">number</span><span class="op">,</span> state<span class="op">:</span> PruningState)<span class="op">:</span> <span class="kw">void</span><span class="op">;</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Hook opcional: se ejecuta al encontrar el target */</span></span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  onTargetFound<span class="op">?</span>(nodeId<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> state<span class="op">:</span> PruningState)<span class="op">:</span> <span class="kw">void</span><span class="op">;</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Reset del estado interno entre ejecuciones */</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">reset</span>()<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> PruningState {</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  visited<span class="op">:</span> <span class="bu">Set</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">&gt;;</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>  depth<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>  maxDepth<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>  target<span class="op">?:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a>  costSoFar<span class="op">:</span> <span class="bu">Map</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">number</span><span class="op">&gt;;</span></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a>  currentNode<span class="op">:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true" tabindex="-1"></a>  source<span class="op">:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true" tabindex="-1"></a>  bidirectional<span class="op">:</span> <span class="dt">boolean</span><span class="op">;</span></span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true" tabindex="-1"></a>  metadata<span class="op">:</span> <span class="bu">Map</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">unknown</span><span class="op">&gt;;</span></span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<hr />
+<h4 id="estrategias-de-poda">Estrategias de Poda</h4>
+<table>
+<colgroup>
+<col style="width: 5%" />
+<col style="width: 18%" />
+<col style="width: 16%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Strategy</th>
+<th>Archivo</th>
+<th>Mecanismo</th>
+<th>Reduccion</th>
+<th>Algoritmo</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td><code>MaxDepthPruning</code></td>
+<td>built-in</td>
+<td>Corta en depth &gt;= maxDepth</td>
+<td>—</td>
+<td>O(1)</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td><code>VisitedPruning</code></td>
+<td>built-in</td>
+<td>Skip si ya visitado</td>
+<td>30-50% ciclicos</td>
+<td>O(1) Set lookup</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td><code>TargetDirectionPruning</code></td>
+<td>built-in</td>
+<td>Heuristica: si el target esta en subarbol inverso</td>
+<td>20-40% dirigidos</td>
+<td>O(1) precomputed</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td><code>CostBoundPruning</code></td>
+<td>built-in</td>
+<td>Poda si costo acumulado &gt; mejor conocido</td>
+<td>15-30%</td>
+<td>O(1) Map lookup</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td><code>BeamPruning</code></td>
+<td>built-in</td>
+<td>Solo top-K candidatos por nivel</td>
+<td>40-60%</td>
+<td>O(K) sort</td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td><code>LandmarkPruning</code></td>
+<td>built-in</td>
+<td>Distancia aproximada via landmarks precomputados</td>
+<td>35-50%</td>
+<td>O(L) L=landmarks</td>
+</tr>
+<tr class="odd">
+<td>7</td>
+<td><code>EarlyExitPruning</code></td>
+<td>built-in</td>
+<td>Corta BFS cuando encuentra target</td>
+<td>50-80% path queries</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h4 id="desglose-de-implementacion">Desglose de Implementacion</h4>
+<p><strong>Sub-ticket 1.2a — Core Pruning Engine</strong> (4-5h)</p>
+<ul>
+<li><code>PruningStrategy</code> interface + <code>PruningState</code> type</li>
+<li><code>PruningExecutor</code> — orquesta estrategias en pipeline:</li>
+</ul>
+<div class="sourceCode" id="cb3"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PruningExecutor {</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">constructor</span>(strategies<span class="op">:</span> PruningStrategy[])<span class="op">;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Ejecuta todas las estrategias en orden. Si alguna prunea, devuelve true. */</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">shouldPrune</span>(nodeId<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> depth<span class="op">:</span> <span class="dt">number</span><span class="op">,</span> state<span class="op">:</span> PruningState)<span class="op">:</span> <span class="dt">boolean</span><span class="op">;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Hook de expansion de nodo */</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">onExpand</span>(nodeId<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> depth<span class="op">:</span> <span class="dt">number</span><span class="op">,</span> state<span class="op">:</span> PruningState)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Hook de target encontrado */</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">onTargetFound</span>(nodeId<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> state<span class="op">:</span> PruningState)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Reset de todas las estrategias */</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">reset</span>()<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<ul>
+<li><code>PruningResult</code> — reporte de poda por ejecucion:</li>
+</ul>
+<div class="sourceCode" id="cb4"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> PruningResult {</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  totalNodes<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>  expandedNodes<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  prunedNodes<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  prunedBy<span class="op">:</span> <span class="bu">Map</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">number</span><span class="op">&gt;;</span> <span class="co">// strategy name -&gt; count</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  pruningRatio<span class="op">:</span> <span class="dt">number</span><span class="op">;</span> <span class="co">// pruned / total</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  duration<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Sub-ticket 1.2b — Estrategias Built-in</strong> (4-5h)</p>
+<ul>
+<li><code>MaxDepthPruning</code> — constructor toma <code>maxDepth</code></li>
+<li><code>VisitedPruning</code> — Set interno, <code>reset()</code> limpia</li>
+<li><code>TargetDirectionPruning</code> — precomputa <code>ancestors</code> via reverse BFS limitado, prunea si target no es alcanzable desde este nodo</li>
+<li><code>CostBoundPruning</code> — para weighted graphs, prunea si <code>costSoFar.get(nodeId) &gt; bestPath</code></li>
+<li><code>BeamPruning</code> — mantiene <code>topK</code> candidatos por nivel, ordenados por heuristica</li>
+<li><code>LandmarkPruning</code> — selecciona L landmarks aleatorios, precomputa distancia a cada landmark, estima distancia via triangulacion</li>
+<li><code>EarlyExitPruning</code> — corta BFS completo cuando target es encontrado</li>
+</ul>
+<p><strong>Sub-ticket 1.2c — Integracion CSFGraph</strong> (2-3h)</p>
+<p>El <code>CSRGraph</code> existente recibe metodos que aceptan <code>PruningStrategy[]</code>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CSRGraph {</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** BFS con poda */</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bfsWithPruning</span>(</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    source<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    strategies<span class="op">:</span> PruningStrategy[]<span class="op">,</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    maxDepth<span class="op">?:</span> <span class="dt">number</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>  )<span class="op">:</span> { nodes<span class="op">:</span> <span class="bu">Array</span><span class="op">&lt;</span>{ id<span class="op">:</span> <span class="dt">string</span><span class="op">;</span> depth<span class="op">:</span> <span class="dt">number</span> }<span class="op">&gt;;</span> result<span class="op">:</span> PruningResult }<span class="op">;</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** DFS con poda */</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dfsWithPruning</span>(</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    source<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>    strategies<span class="op">:</span> PruningStrategy[]<span class="op">,</span></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    maxDepth<span class="op">?:</span> <span class="dt">number</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>  )<span class="op">:</span> { nodes<span class="op">:</span> <span class="bu">Array</span><span class="op">&lt;</span>{ id<span class="op">:</span> <span class="dt">string</span><span class="op">;</span> depth<span class="op">:</span> <span class="dt">number</span> }<span class="op">&gt;;</span> result<span class="op">:</span> PruningResult }<span class="op">;</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>  <span class="co">/** Bidirectional BFS con poda en ambos lados */</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bidirectionalBFSWithPruning</span>(</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    source<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>    target<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>    strategies<span class="op">:</span> PruningStrategy[]<span class="op">,</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>    maxDepth<span class="op">?:</span> <span class="dt">number</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>  )<span class="op">:</span> { path<span class="op">:</span> <span class="bu">Array</span><span class="op">&lt;</span>{ id<span class="op">:</span> <span class="dt">string</span><span class="op">;</span> depth<span class="op">:</span> <span class="dt">number</span> }<span class="op">&gt;</span> <span class="op">|</span> <span class="dt">null</span><span class="op">;</span> result<span class="op">:</span> PruningResult }<span class="op">;</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Sub-ticket 1.2d — Integracion en Niveles L0-L19</strong> (3-4h)</p>
+<p>Cada uno de los 20 niveles recibe:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co">// Mixin aplicado a cada nivel via decorator o herencia</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> PrunableGraphMixin {</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">traverse</span>(</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    source<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    options<span class="op">?:</span> {</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>      strategies<span class="op">?:</span> PruningStrategy[]<span class="op">;</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>      maxDepth<span class="op">?:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>      trace<span class="op">?:</span> <span class="dt">boolean</span><span class="op">;</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  )<span class="op">:</span> <span class="bu">Promise</span><span class="op">&lt;</span>TraversalResult<span class="op">&gt;;</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">shortestPath</span>(</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>    source<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>    target<span class="op">:</span> <span class="dt">string</span><span class="op">,</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>    options<span class="op">?:</span> {</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>      strategies<span class="op">?:</span> PruningStrategy[]<span class="op">;</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>      maxDepth<span class="op">?:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>  )<span class="op">:</span> <span class="bu">Promise</span><span class="op">&lt;</span>PathResult <span class="op">|</span> <span class="dt">null</span><span class="op">&gt;;</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Niveles con custom pruning</strong>:</p>
+<table>
+<colgroup>
+<col style="width: 15%" />
+<col style="width: 15%" />
+<col style="width: 36%" />
+<col style="width: 32%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Nivel</th>
+<th>Clase</th>
+<th>Pruning default</th>
+<th>Justificacion</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>L0</td>
+<td>VisualGraphEngine</td>
+<td>BeamPruning(50)</td>
+<td>Grafos visuales grandes, solo top vistas</td>
+</tr>
+<tr class="even">
+<td>L3</td>
+<td>DependencyResolver</td>
+<td>TargetDirection</td>
+<td>Sabemos que dependencia buscamos</td>
+</tr>
+<tr class="odd">
+<td>L8</td>
+<td>KnowledgeGraphEngine</td>
+<td>Landmark + EarlyExit</td>
+<td>Grafos densos de conocimiento</td>
+</tr>
+<tr class="even">
+<td>L11</td>
+<td>GraphRAGEngine</td>
+<td>CostBound + Beam(20)</td>
+<td>RAG necesita caminos de menor costo</td>
+</tr>
+<tr class="odd">
+<td>L13</td>
+<td>AgentGraphEngine</td>
+<td>EarlyExit + Visited</td>
+<td>Agentes, primer path valido basta</td>
+</tr>
+<tr class="even">
+<td>L15</td>
+<td>WorkflowGraphEngine</td>
+<td>Beam(100) + CostBound</td>
+<td>Workflows, mejor path pesado</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Sub-ticket 1.2e — Tests</strong> (3-4h)</p>
+<table>
+<colgroup>
+<col style="width: 28%" />
+<col style="width: 28%" />
+<col style="width: 44%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Grupo</th>
+<th>Tests</th>
+<th>Cobertura</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Unit: PruningExecutor</td>
+<td>8</td>
+<td>Pipeline, orden, reset, reporte</td>
+</tr>
+<tr class="even">
+<td>Unit: MaxDepthPruning</td>
+<td>5</td>
+<td>Limite exacto, -1 = sin limite</td>
+</tr>
+<tr class="odd">
+<td>Unit: VisitedPruning</td>
+<td>5</td>
+<td>Sin revisitar, reset entre runs</td>
+</tr>
+<tr class="even">
+<td>Unit: TargetDirection</td>
+<td>8</td>
+<td>Alcanzable, no alcanzable, grafo vacio</td>
+</tr>
+<tr class="odd">
+<td>Unit: CostBoundPruning</td>
+<td>6</td>
+<td>Cota exacta, supera cota, weighted</td>
+</tr>
+<tr class="even">
+<td>Unit: BeamPruning</td>
+<td>6</td>
+<td>K=1, K=5, K=100, K &gt; N nodos</td>
+</tr>
+<tr class="odd">
+<td>Unit: LandmarkPruning</td>
+<td>6</td>
+<td>1 landmark, 5 landmarks, precision</td>
+</tr>
+<tr class="even">
+<td>Unit: EarlyExitPruning</td>
+<td>4</td>
+<td>Target encontrado, no encontrado</td>
+</tr>
+<tr class="odd">
+<td>Integration: CSR + pruning</td>
+<td>10</td>
+<td>bfsWithPruning, dfsWithPruning, biBFS</td>
+</tr>
+<tr class="even">
+<td>Integration: Niveles</td>
+<td>6</td>
+<td>L0, L3, L8, L11, L13, L15 con pruning default</td>
+</tr>
+<tr class="odd">
+<td>End-to-end</td>
+<td>4</td>
+<td>Path query con pruning, benchmark sanity</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Total</strong>: 68 tests, 0 failures target</p>
+<hr />
+<h4 id="uso-tipico">Uso Tipico</h4>
+<div class="sourceCode" id="cb7"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> { CSRGraph<span class="op">,</span> MaxDepthPruning<span class="op">,</span> BeamPruning<span class="op">,</span> EarlyExitPruning } <span class="im">from</span> <span class="st">&#39;@cos/graph&#39;</span><span class="op">;</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> graph <span class="op">=</span> <span class="kw">new</span> <span class="fu">CSRGraph</span>()<span class="op">;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co">// ... poblar grafo ...</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="co">// BFS simple con max depth</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> { nodes<span class="op">,</span> result } <span class="op">=</span> graph<span class="op">.</span><span class="fu">bfsWithPruning</span>(<span class="st">&#39;root&#39;</span><span class="op">,</span> [</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">new</span> <span class="fu">MaxDepthPruning</span>(<span class="dv">5</span>)<span class="op">,</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">new</span> <span class="fu">VisitedPruning</span>()<span class="op">,</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  <span class="kw">new</span> <span class="fu">EarlyExitPruning</span>()</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>])<span class="op">;</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(<span class="vs">`Pruned </span><span class="sc">${</span>result<span class="op">.</span><span class="at">pruningRatio</span> <span class="op">*</span> <span class="dv">100</span><span class="sc">}</span><span class="vs">% of nodes`</span>)<span class="op">;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="co">// Shortest path con beam search</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> { path<span class="op">,</span> result } <span class="op">=</span> graph<span class="op">.</span><span class="fu">bidirectionalBFSWithPruning</span>(<span class="st">&#39;A&#39;</span><span class="op">,</span> <span class="st">&#39;Z&#39;</span><span class="op">,</span> [</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>  <span class="kw">new</span> <span class="fu">BeamPruning</span>(<span class="dv">100</span>)<span class="op">,</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>  <span class="kw">new</span> <span class="fu">TargetDirectionPruning</span>(graph)<span class="op">,</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>  <span class="kw">new</span> <span class="fu">EarlyExitPruning</span>()</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>]<span class="op">,</span> <span class="dv">50</span>)<span class="op">;</span></span></code></pre></div>
+<hr />
+<h4 id="metricas-de-exito">Metricas de Exito</h4>
+<table>
+<thead>
+<tr class="header">
+<th>Metrica</th>
+<th>Baseline (sin poda)</th>
+<th>Target (con poda)</th>
+<th>Mejora</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Shortest path 10K nodes</td>
+<td>4.2ms</td>
+<td>1.8ms</td>
+<td>2.3x</td>
+</tr>
+<tr class="even">
+<td>BFS 100K nodes (grid)</td>
+<td>38ms</td>
+<td>15ms</td>
+<td>2.5x</td>
+</tr>
+<tr class="odd">
+<td>Memoria por busqueda</td>
+<td>O(N)</td>
+<td>O(beam)</td>
+<td>5-10x</td>
+</tr>
+<tr class="even">
+<td>Nodos visitados (path query)</td>
+<td>100%</td>
+<td>15-30%</td>
+<td>70-85% menos</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Tests</strong>: 68 tests cubriendo cada estrategia + combinaciones</p>
+<h3 id="t-1.3-benchmark-suite">T-1.3 — Benchmark Suite</h3>
+<p><strong>Archivo</strong>: <code>scripts/benchmark.ts</code></p>
+<p>Benchmarks reproducibles que comparan CSR+pruning vs v2.0 baseline (<code>Map&lt;string, string[]&gt;</code>):</p>
+<table>
+<colgroup>
+<col style="width: 39%" />
+<col style="width: 25%" />
+<col style="width: 35%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Benchmark</th>
+<th>Grafo</th>
+<th>Metricas</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>bfs-chain</code></td>
+<td>Cadena lineal, 10K nodos</td>
+<td>Nodos visitados/ms</td>
+</tr>
+<tr class="even">
+<td><code>bfs-grid</code></td>
+<td>Grid 100x100</td>
+<td>Memoria (MB), nodos/ms</td>
+</tr>
+<tr class="odd">
+<td><code>bfs-social</code></td>
+<td>Small world, 5K nodos, grado medio 20</td>
+<td>Speedup vs Map</td>
+</tr>
+<tr class="even">
+<td><code>shortest-path</code></td>
+<td>Arbol 1000 nodos profundo</td>
+<td>Path encontrado, nodos visitados</td>
+</tr>
+<tr class="odd">
+<td><code>pruning-comparison</code></td>
+<td>Grafo aleatorio 10K nodos</td>
+<td>Cada estrategia vs baseline</td>
+</tr>
+<tr class="even">
+<td><code>memory-profile</code></td>
+<td>Varios sizes (1K-100K nodos)</td>
+<td>CSR vs Map (MB)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Formato output</strong>:</p>
+<pre><code>=== BFS Benchmark: chain-10k ===
+Map baseline:    1420 nodes/ms,  4.2 MB
+CSR no-prune:    2190 nodes/ms,  2.1 MB  (1.54x, 50% mem)
+CSR + pruning:   2840 nodes/ms,  2.1 MB  (2.00x, 50% mem)</code></pre>
+<p><strong>Target</strong>: 2x speedup combinado, &lt; 50% memoria en grafos sparse (&lt; grado 5)</p>
+<hr />
+<h2 id="fase-2-wasm-acceleration">Fase 2 — WASM Acceleration</h2>
+<blockquote>
+<p><strong>Objetivo</strong>: Compilar core math a WebAssembly real. Hot paths (PageRank, shortes paths, centrality) en WASM. <strong>Dependencias</strong>: Fase 1 (CSR arrays como entrada de WASM) <strong>Duracion</strong>: 4-5 dias</p>
+</blockquote>
+<h3 id="t-2.1-assemblyscript-pipeline">T-2.1 — AssemblyScript Pipeline</h3>
+<p><strong>Archivo</strong>: <code>packages/wasm/assembly/</code>, <code>packages/wasm/asconfig.json</code></p>
+<p>Pipeline de compilacion AssemblyScript -&gt; WASM:</p>
+<pre><code>npm run asbuild  →  build/optimized.wasm  +  build/optimized.wat</code></pre>
+<p><strong>Modulos WASM</strong>:</p>
+<table>
+<colgroup>
+<col style="width: 23%" />
+<col style="width: 26%" />
+<col style="width: 26%" />
+<col style="width: 23%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Modulo</th>
+<th>Funcion</th>
+<th>Entrada</th>
+<th>Salida</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>csr.wasm</code></td>
+<td>CSR traverse (BFS)</td>
+<td>indptr + indices en TypedArrays</td>
+<td>Array de nodos visitados</td>
+</tr>
+<tr class="even">
+<td><code>pagerank.wasm</code></td>
+<td>Power iteration</td>
+<td>CSR + damping factor</td>
+<td>Float64Array de ranks</td>
+</tr>
+<tr class="odd">
+<td><code>shortest.wasm</code></td>
+<td>Bidirectional Dijkstra</td>
+<td>CSR + source + target</td>
+<td>Path + distancia</td>
+</tr>
+<tr class="even">
+<td><code>centrality.wasm</code></td>
+<td>Betweenness centrality</td>
+<td>CSR</td>
+<td>Float64Array de centralities</td>
+</tr>
+</tbody>
+</table>
+<p><strong>API AssemblyScript</strong>:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co">// assembly/csr.ts</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">export</span> <span class="kw">function</span> <span class="fu">bfs</span>(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>  indptrPtr<span class="op">:</span> usize<span class="op">,</span> indptrLen<span class="op">:</span> i32<span class="op">,</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>  indicesPtr<span class="op">:</span> usize<span class="op">,</span> indicesLen<span class="op">:</span> i32<span class="op">,</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>  source<span class="op">:</span> i32</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>)<span class="op">:</span> <span class="dt">void</span> {</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>  <span class="co">// BFS sobre CSR arrays en memoria lineal</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<h3 id="t-2.2-wasm-loader">T-2.2 — WASM Loader</h3>
+<p><strong>Archivo</strong>: <code>packages/wasm/src/loader.ts</code></p>
+<p><strong>Interfaz</strong>:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> WASMModule {</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bfs</span>(indptr<span class="op">:</span> <span class="bu">Int32Array</span><span class="op">,</span> indices<span class="op">:</span> <span class="bu">Int32Array</span><span class="op">,</span> source<span class="op">:</span> <span class="dt">number</span>)<span class="op">:</span> <span class="bu">Int32Array</span><span class="op">;</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pageRank</span>(indptr<span class="op">:</span> <span class="bu">Int32Array</span><span class="op">,</span> indices<span class="op">:</span> <span class="bu">Int32Array</span><span class="op">,</span> damping<span class="op">:</span> <span class="dt">number</span><span class="op">,</span> iterations<span class="op">:</span> <span class="dt">number</span>)<span class="op">:</span> <span class="bu">Float64Array</span><span class="op">;</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">shortestPath</span>(indptr<span class="op">:</span> <span class="bu">Int32Array</span><span class="op">,</span> indices<span class="op">:</span> <span class="bu">Int32Array</span><span class="op">,</span> source<span class="op">:</span> <span class="dt">number</span><span class="op">,</span> target<span class="op">:</span> <span class="dt">number</span>)<span class="op">:</span> <span class="bu">Int32Array</span><span class="op">;</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> WASMLoader {</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  <span class="kw">static</span> <span class="kw">async</span> <span class="fu">load</span>()<span class="op">:</span> <span class="bu">Promise</span><span class="op">&lt;</span>WASMModule<span class="op">&gt;;</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  <span class="kw">static</span> <span class="fu">isAvailable</span>()<span class="op">:</span> <span class="dt">boolean</span><span class="op">;</span> <span class="co">// true si WebAssembly esta soportado</span></span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Fallback automatico</strong>:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> wasm <span class="op">=</span> <span class="cf">await</span> WASMLoader<span class="op">.</span><span class="fu">load</span>()<span class="op">.</span><span class="fu">catch</span>(() <span class="kw">=&gt;</span> <span class="kw">null</span>)<span class="op">;</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> bfs <span class="op">=</span> wasm <span class="op">?</span> wasm<span class="op">.</span><span class="at">bfs</span> <span class="op">:</span> jsFallbackBFS<span class="op">;</span></span></code></pre></div>
+<h3 id="t-2.3-wasm-benchmarks">T-2.3 — WASM Benchmarks</h3>
+<p><strong>Archivo</strong>: <code>scripts/benchmark-wasm.ts</code></p>
+<table>
+<thead>
+<tr class="header">
+<th>Benchmark</th>
+<th>WASM</th>
+<th>JS puro</th>
+<th>Speedup esperado</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>BFS 10K nodos</td>
+<td>0.3ms</td>
+<td>0.8ms</td>
+<td>2.5-3x</td>
+</tr>
+<tr class="even">
+<td>PageRank 5K nodos, 20 iter</td>
+<td>12ms</td>
+<td>45ms</td>
+<td>3-4x</td>
+</tr>
+<tr class="odd">
+<td>Dijkstra bidireccional 10K</td>
+<td>1.2ms</td>
+<td>3.5ms</td>
+<td>2.5-3x</td>
+</tr>
+<tr class="even">
+<td>Betweenness centrality 1K</td>
+<td>340ms</td>
+<td>1200ms</td>
+<td>3-4x</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="fase-3-telemetry-observability">Fase 3 — Telemetry &amp; Observability</h2>
+<blockquote>
+<p><strong>Objetivo</strong>: Tracing por hop, profiling por operacion, exportacion OpenTelemetry. <strong>Dependencias</strong>: Fase 1 (CSR como unidad de tracing) <strong>Duracion</strong>: 2-3 dias</p>
+</blockquote>
+<h3 id="t-3.1-per-hop-tracing">T-3.1 — Per-Hop Tracing</h3>
+<p><strong>Archivo</strong>: <code>packages/graph/src/tracing.ts</code></p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> TraceHop {</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  nodeId<span class="op">:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  depth<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  timestamp<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  cost<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  source<span class="op">:</span> <span class="dt">string</span><span class="op">;</span> <span class="co">// &#39;forward&#39; | &#39;backward&#39; | &#39;pruned&#39;</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  metadata<span class="op">?:</span> <span class="bu">Record</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="dt">unknown</span><span class="op">&gt;;</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> TraceSession {</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>  id<span class="op">:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>  hops<span class="op">:</span> TraceHop[]<span class="op">;</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>  startTime<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>  endTime<span class="op">?:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a>  totalHops<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>  prunedHops<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a>  bidirectional<span class="op">:</span> <span class="dt">boolean</span><span class="op">;</span></span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Uso</strong>:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> trace <span class="op">=</span> <span class="kw">new</span> <span class="fu">TraceSession</span>(<span class="st">&#39;bfs-knowledge&#39;</span>)<span class="op">;</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">const</span> result <span class="op">=</span> <span class="cf">await</span> graph<span class="op">.</span><span class="fu">traverse</span>(source<span class="op">,</span> { trace })<span class="op">;</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="bu">console</span><span class="op">.</span><span class="fu">log</span>(trace<span class="op">.</span><span class="fu">summary</span>())<span class="op">;</span> </span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co">// { totalHops: 1240, prunedHops: 340, bidirectional: true, duration: 12.3ms }</span></span></code></pre></div>
+<p><strong>No-op por defecto</strong>: <code>NoopTraceSession</code> que no registra nada (zero overhead cuando no se usa).</p>
+<h3 id="t-3.2-profiling-hooks">T-3.2 — Profiling Hooks</h3>
+<p><strong>Archivo</strong>: <code>packages/graph/src/profiler.ts</code></p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> ProfileSample {</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  operation<span class="op">:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  duration<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  memoryDelta<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  nodeCount<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>  edgeCount<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>  timestamp<span class="op">:</span> <span class="dt">number</span><span class="op">;</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Profiler {</span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">start</span>(name<span class="op">:</span> <span class="dt">string</span>)<span class="op">:</span> ProfileHandle<span class="op">;</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">snapshot</span>()<span class="op">:</span> ProfileSample[]<span class="op">;</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summary</span>()<span class="op">:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Prometheus exposition format</span></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">prometheusMetrics</span>()<span class="op">:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Metricas Prometheus</strong>:</p>
+<pre><code># HELP cos_graph_bfs_duration_ms BFS traversal duration
+# TYPE cos_graph_bfs_duration_ms histogram
+cos_graph_bfs_duration_ms{level=&quot;knowledge&quot;} 12.5
+
+# HELP cos_graph_memory_bytes Graph memory usage
+# TYPE cos_graph_memory_bytes gauge
+cos_graph_memory_bytes{level=&quot;knowledge&quot;} 2048576
+
+# HELP cos_graph_operations_total Total graph operations
+# TYPE cos_graph_operations_total counter
+cos_graph_operations_total{operation=&quot;add_node&quot;} 5000
+cos_graph_operations_total{operation=&quot;bfs&quot;} 1240</code></pre>
+<h3 id="t-3.3-costelemetry-plugin">T-3.3 — <span class="citation" data-cites="cos/telemetry">@cos/telemetry</span> Plugin</h3>
+<p><strong>Archivo</strong>: <code>packages/telemetry/</code></p>
+<p>Plugin que implementa la interfaz <code>Plugin</code> del sistema de plugins existente:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TelemetryPlugin <span class="kw">implements</span> <span class="bu">Plugin</span> {</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  name <span class="op">=</span> <span class="st">&#39;@cos/telemetry&#39;</span><span class="op">;</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">onBeforeOperation</span>(ctx<span class="op">:</span> OperationContext)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">onAfterOperation</span>(ctx<span class="op">:</span> OperationContext)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">onError</span>(ctx<span class="op">:</span> ErrorContext)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Exportadores</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">addExporter</span>(exporter<span class="op">:</span> TelemetryExporter)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a><span class="kw">interface</span> TelemetryExporter {</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>  <span class="im">export</span>(session<span class="op">:</span> TraceSession<span class="op">,</span> samples<span class="op">:</span> ProfileSample[])<span class="op">:</span> <span class="bu">Promise</span><span class="op">&lt;</span><span class="dt">void</span><span class="op">&gt;;</span></span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a><span class="co">// Exportadores built-in:</span></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a><span class="co">// - ConsoleExporter: log a stdout</span></span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a><span class="co">// - PrometheusExporter: /metrics HTTP endpoint</span></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a><span class="co">// - OpenTelemetryExporter: OTLP via gRPC/HTTP</span></span></code></pre></div>
+<hr />
+<h2 id="fase-4-web-visualization">Fase 4 — Web Visualization</h2>
+<blockquote>
+<p><strong>Objetivo</strong>: Renderizar grafos en el navegador — SVG (documentos estaticos), Canvas (10K+ nodos a 30fps), Web Component (drop-in). <strong>Dependencias</strong>: Fase 1 (CSR como formato de datos) <strong>Duracion</strong>: 3-4 dias</p>
+</blockquote>
+<h3 id="t-4.1-svg-renderer">T-4.1 — SVG Renderer</h3>
+<p><strong>Archivo</strong>: <code>packages/visualization/src/svg-renderer.ts</code></p>
+<p><strong>API</strong>:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SVGGraphRenderer {</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">render</span>(graph<span class="op">:</span> CSRGraph<span class="op">,</span> options<span class="op">?:</span> SVGRenderOptions)<span class="op">:</span> <span class="dt">string</span><span class="op">;</span> <span class="co">// SVG string</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">static</span> <span class="fu">forceLayout</span>(</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    nodes<span class="op">:</span> <span class="bu">Array</span><span class="op">&lt;</span>{ id<span class="op">:</span> <span class="dt">string</span><span class="op">;</span> weight<span class="op">?:</span> <span class="dt">number</span> }<span class="op">&gt;,</span> </span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    edges<span class="op">:</span> <span class="bu">Array</span><span class="op">&lt;</span>{ source<span class="op">:</span> <span class="dt">string</span><span class="op">;</span> target<span class="op">:</span> <span class="dt">string</span> }<span class="op">&gt;,</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>    iterations<span class="op">?:</span> <span class="dt">number</span><span class="op">,</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a>    width<span class="op">?:</span> <span class="dt">number</span><span class="op">,</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>    height<span class="op">?:</span> <span class="dt">number</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>  )<span class="op">:</span> <span class="bu">Map</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> { x<span class="op">:</span> <span class="dt">number</span><span class="op">;</span> y<span class="op">:</span> <span class="dt">number</span> }<span class="op">&gt;;</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Force-directed layout zero-dep</strong>:</p>
+<ul>
+<li>Repulsion Coulomb: F = k / d^2 entre todos los pares</li>
+<li>Atraccion Hooke: F = (d - restLength) entre aristas</li>
+<li>Barnes-Hut optimizacion: quadtree para reducir O(N^2) a O(N log N)</li>
+<li>Cool down: temperatura decreciente por iteracion</li>
+</ul>
+<p><strong>Output</strong>: <code>&lt;svg&gt;</code> inline que se puede insertar en HTML o descargar.</p>
+<h3 id="t-4.2-canvas-renderer">T-4.2 — Canvas Renderer</h3>
+<p><strong>Archivo</strong>: <code>packages/visualization/src/canvas-renderer.ts</code></p>
+<p><strong>API</strong>:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CanvasGraphRenderer {</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">constructor</span>(canvas<span class="op">:</span> <span class="bu">HTMLCanvasElement</span>)<span class="op">;</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">setData</span>(graph<span class="op">:</span> CSRGraph<span class="op">,</span> layout<span class="op">:</span> <span class="bu">Map</span><span class="op">&lt;</span><span class="dt">string</span><span class="op">,</span> <span class="bu">Point</span><span class="op">&gt;</span>)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Interaccion</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">onZoom</span>(callback<span class="op">:</span> (scale<span class="op">:</span> <span class="dt">number</span>) <span class="kw">=&gt;</span> <span class="dt">void</span>)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">onPan</span>(dx<span class="op">:</span> <span class="dt">number</span><span class="op">,</span> dy<span class="op">:</span> <span class="dt">number</span>)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">onClick</span>(nodeId<span class="op">:</span> <span class="dt">string</span>)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>  <span class="co">// Rendering pipeline</span></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">render</span>()<span class="op">:</span> <span class="dt">void</span><span class="op">;</span> <span class="co">// requestAnimationFrame loop</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">start</span>()<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">stop</span>()<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Quadtree culling</strong>: Solo renderiza nodos visibles en viewport actual. Soporta 10K+ nodos a 30fps.</p>
+<p><strong>Interacciones</strong>: Zoom + pan, click para seleccionar nodo, hover tooltip, drag de nodo.</p>
+<h3 id="t-4.3-cos-graph-web-component">T-4.3 — <code>&lt;cos-graph&gt;</code> Web Component</h3>
+<p><strong>Archivo</strong>: <code>packages/visualization/src/web-component.ts</code></p>
+<p><strong>Uso</strong>:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode html"><code class="sourceCode html"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">&lt;cos-graph</span> </span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="ot">  data=</span><span class="st">&quot;/api/graphs/knowledge.json&quot;</span></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a><span class="ot">  layout=</span><span class="st">&quot;force&quot;</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a><span class="ot">  theme=</span><span class="st">&quot;dark&quot;</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a><span class="ot">  width=</span><span class="st">&quot;800&quot;</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a><span class="ot">  height=</span><span class="st">&quot;600&quot;</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a><span class="ot">  interactive</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a><span class="kw">&gt;&lt;/cos-graph&gt;</span></span></code></pre></div>
+<p><strong>API JavaScript</strong>:</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode typescript"><code class="sourceCode typescript"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CosGraphElement <span class="kw">extends</span> <span class="bu">HTMLElement</span> {</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">set</span> <span class="fu">graphData</span>(data<span class="op">:</span> { nodes<span class="op">:</span> CSRNode[]<span class="op">;</span> edges<span class="op">:</span> CSRCell[] })<span class="op">;</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="kw">set</span> <span class="fu">layout</span>(type<span class="op">:</span> <span class="st">&#39;force&#39;</span> <span class="op">|</span> <span class="st">&#39;tree&#39;</span> <span class="op">|</span> <span class="st">&#39;radial&#39;</span>)<span class="op">;</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">set</span> <span class="fu">theme</span>(<span class="st">&#39;light&#39;</span> <span class="op">|</span> <span class="st">&#39;dark&#39;</span> <span class="op">|</span> custom)<span class="op">;</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">focusNode</span>(id<span class="op">:</span> <span class="dt">string</span>)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">highlightPath</span>(source<span class="op">:</span> <span class="dt">string</span><span class="op">,</span> target<span class="op">:</span> <span class="dt">string</span>)<span class="op">:</span> <span class="dt">void</span><span class="op">;</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">exportSVG</span>()<span class="op">:</span> <span class="dt">string</span><span class="op">;</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">exportPNG</span>()<span class="op">:</span> <span class="bu">Promise</span><span class="op">&lt;</span><span class="bu">Blob</span><span class="op">&gt;;</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div>
+<p><strong>Binding con niveles</strong>: Cada nivel (L0-L19) expone su estado como <code>&lt;cos-graph&gt;</code> para debugging visual.</p>
+<hr />
+<h2 id="fase-5-deployment-operations">Fase 5 — Deployment &amp; Operations</h2>
+<blockquote>
+<p><strong>Objetivo</strong>: COS listo para produccion — Kubernetes operator, single-binary, CI/CD automatizado. <strong>Dependencias</strong>: Fases 1-4 (todas las funcionalidades empaquetadas) <strong>Duracion</strong>: 4-5 dias</p>
+</blockquote>
+<h3 id="t-5.1-kubernetes-operator">T-5.1 — Kubernetes Operator</h3>
+<p><strong>Archivo</strong>: <code>deploy/k8s/operator/</code></p>
+<p><strong>CRD (Custom Resource Definition)</strong>:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">apiVersion</span><span class="kw">:</span><span class="at"> cos.io/v1</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">kind</span><span class="kw">:</span><span class="at"> GraphEngine</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="fu">metadata</span><span class="kw">:</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">name</span><span class="kw">:</span><span class="at"> knowledge-graph</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="fu">spec</span><span class="kw">:</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">levels</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">&quot;knowledge&quot;</span><span class="kw">,</span><span class="at"> </span><span class="st">&quot;semantic&quot;</span><span class="kw">,</span><span class="at"> </span><span class="st">&quot;memory&quot;</span><span class="kw">]</span></span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">size</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;medium&quot;</span></span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">persistence</span><span class="kw">:</span></span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">storageClass</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;ssd&quot;</span></span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">size</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;100Gi&quot;</span></span>
+<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">replication</span><span class="kw">:</span><span class="at"> </span><span class="dv">3</span></span>
+<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">monitoring</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span></code></pre></div>
+<p><strong>Controller</strong>:</p>
+<ul>
+<li>Reconciliation loop: desired state -&gt; actual cluster state</li>
+<li>Auto-scaling basado en node count / query rate</li>
+<li>Backup/Restore via CronJob + R2</li>
+<li>Service + Ingress generation</li>
+</ul>
+<h3 id="t-5.2-single-binary-sea">T-5.2 — Single-Binary SEA</h3>
+<p><strong>Archivo</strong>: <code>packages/cli/</code>, <code>scripts/build-sea.ts</code></p>
+<p><strong>Node.js Single Executable Application</strong>:</p>
+<pre><code>cos-engine-linux-x64    (28 MB)
+cos-engine-darwin-arm64 (24 MB)
+cos-engine-win-x64      (30 MB)</code></pre>
+<p><strong>Comandos</strong>:</p>
+<pre><code>cos-engine serve          # Iniciar servidor HTTP + GraphQL
+cos-engine repl           # REPL interactivo (REPL existente + WASM)
+cos-engine import file    # Importar grafo (GraphML, GEXF, CSV, DOT)
+cos-engine export file    # Exportar grafo
+cos-engine benchmark      # Ejecutar benchmark suite
+cos-engine status         # Estado del engine + metricas</code></pre>
+<h3 id="t-5.3-cicd-pipeline">T-5.3 — CI/CD Pipeline</h3>
+<p><strong>Archivo</strong>: <code>.github/workflows/</code></p>
+<p><strong>Workflows GitHub Actions</strong>:</p>
+<table>
+<colgroup>
+<col style="width: 38%" />
+<col style="width: 34%" />
+<col style="width: 26%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Workflow</th>
+<th>Trigger</th>
+<th>Steps</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>test.yml</code></td>
+<td>PR, push a main</td>
+<td>Lint, test (node 18/20/22), coverage</td>
+</tr>
+<tr class="even">
+<td><code>wasm.yml</code></td>
+<td>push a main</td>
+<td>Build WASM, benchmark, size check</td>
+</tr>
+<tr class="odd">
+<td><code>build.yml</code></td>
+<td>release tag</td>
+<td>Build SEA (3 platforms), Docker image</td>
+</tr>
+<tr class="even">
+<td><code>publish.yml</code></td>
+<td>release tag</td>
+<td>npm publish monorepo packages</td>
+</tr>
+<tr class="odd">
+<td><code>deploy.yml</code></td>
+<td>release tag</td>
+<td>K8s manifest generation, helm chart publish</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Quality gates</strong>:</p>
+<ul>
+<li>100% tests pasando</li>
+<li>Coverage &gt; 85%</li>
+<li>WASM size &lt; 500KB</li>
+<li>Benchmark speedup &gt; 1.5x vs v2.0</li>
+</ul>
+<hr />
+<h2 id="fase-6-ecosystem-dx">Fase 6 — Ecosystem &amp; DX</h2>
+<blockquote>
+<p><strong>Objetivo</strong>: Monorepo publicado como paquetes individuales, documentacion interactiva, release 1-command. <strong>Dependencias</strong>: Fases 1-5 (todo construido y probado) <strong>Duracion</strong>: 3-4 dias</p>
+</blockquote>
+<h3 id="t-6.1-monorepo-split">T-6.1 — Monorepo Split</h3>
+<p><strong>Estructura actual</strong> → <strong>Estructura target</strong>:</p>
+<pre><code>packages/
+  core/          → @cos/core          (tipos base, CSR, utilidades)
+  cli/           → @cos/cli           (REPL, comandos SEA)
+  api/           → @cos/api           (HTTP, GraphQL, REST)
+  ml/            → @cos/ml            (AutoML, GCN, embeddings)
+  graph/         → (absorvido por @cos/core)
+  visualization/ → @cos/vis           (SVG, Canvas, Web Component)
+  wasm/          → @cos/wasm          (modulos WASM + loader)
+  telemetry/     → @cos/telemetry     (tracing, profiling, OTLP)</code></pre>
+<p><strong>Dependencias entre paquetes</strong>:</p>
+<pre><code>@cos/core       (0 deps)
+@cos/wasm       → @cos/core
+@cos/telemetry  → @cos/core
+@cos/vis        → @cos/core + @cos/wasm
+@cos/cli        → @cos/core + @cos/wasm + @cos/telemetry + @cos/vis
+@cos/api        → @cos/core + @cos/wasm + @cos/telemetry
+@cos/ml         → @cos/core + @cos/wasm</code></pre>
+<h3 id="t-6.2-docs-site-interactivo">T-6.2 — Docs Site Interactivo</h3>
+<p><strong>Archivo</strong>: <code>docs/</code> (VitePress)</p>
+<p><strong>Secciones</strong>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Seccion</th>
+<th>Contenido</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Introduccion</td>
+<td>Que es COS, arquitectura 20 niveles, casos de uso</td>
+</tr>
+<tr class="even">
+<td>Quickstart</td>
+<td><code>npm install @cos/core</code>, ejemplo basico</td>
+</tr>
+<tr class="odd">
+<td>CSR Guide</td>
+<td>Como usar CSR para grafos grandes, benchmarks</td>
+</tr>
+<tr class="even">
+<td>WASM Guide</td>
+<td>Como activar aceleracion WASM, speedups esperados</td>
+</tr>
+<tr class="odd">
+<td>API Reference</td>
+<td>Documentacion completa de todas las clases y metodos</td>
+</tr>
+<tr class="even">
+<td>Niveles</td>
+<td>Cada nivel (L0-L19) con ejemplos de uso</td>
+</tr>
+<tr class="odd">
+<td>Visualization</td>
+<td><code>&lt;cos-graph&gt;</code> ejemplos, force-directed layout tuning</td>
+</tr>
+<tr class="even">
+<td>Deployment</td>
+<td>K8s operator, single-binary, metrica</td>
+</tr>
+</tbody>
+</table>
+<p><strong>WASM Playground</strong>: REPL en el navegador que ejecuta operaciones de grafo via WASM compilado.</p>
+<h3 id="t-6.3-release-automation">T-6.3 — Release Automation</h3>
+<p><strong>Comando unico</strong>:</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Version de todos los paquetes, genera CHANGELOG, publica</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">npm</span> run release <span class="at">--</span> <span class="at">--type</span> minor</span></code></pre></div>
+<p><strong>Pipeline</strong>:</p>
+<pre><code>1. Bump version en todos los packages (semver)
+2. Generar CHANGELOG.md (commits desde ultimo tag)
+3. Commit + tag
+4. GitHub Release
+5. npm publish (todos los paquetes @cos/*)
+6. Docker image build + push</code></pre>
+<hr />
+<h2 id="gantt-chart">Gantt Chart</h2>
+<pre class="mermaid"><code>gantt
+    title COS Graph Engine v2.1+ Roadmap
+    dateFormat  YYYY-MM-DD
+    axisFormat  %d-%b
+
+    section Fase 1 — Performance
+    T-1.1 CSR Storage           :done, f1t1, 2026-07-27, 1d
+    T-1.2 Bidirectional Pruning :active, f1t2, after f1t1, 2d
+    T-1.3 Benchmark Suite       :f1t3, after f1t2, 1d
+
+    section Fase 2 — WASM
+    T-2.1 AS Pipeline           :f2t1, after f1t3, 2d
+    T-2.2 WASM Loader           :f2t2, after f2t1, 1d
+    T-2.3 WASM Benchmarks       :f2t3, after f2t2, 1d
+
+    section Fase 3 — Telemetry
+    T-3.1 Per-Hop Tracing       :f3t1, after f1t2, 1d
+    T-3.2 Profiling Hooks       :f3t2, after f3t1, 1d
+    T-3.3 Telemetry Plugin      :f3t3, after f3t2, 1d
+
+    section Fase 4 — Visualization
+    T-4.1 SVG Renderer          :f4t1, after f1t1, 1d
+    T-4.2 Canvas Renderer       :f4t2, after f4t1, 1d
+    T-4.3 Web Component         :f4t3, after f4t2, 1d
+
+    section Fase 5 — Deployment
+    T-5.1 K8s Operator          :f5t1, after f2t2 f3t3, 2d
+    T-5.2 Single-Binary SEA     :f5t2, after f2t2 f4t3, 1d
+    T-5.3 CI/CD Pipeline        :f5t3, after f1t3, 1d
+
+    section Fase 6 — Ecosystem
+    T-6.1 Monorepo Split        :f6t1, after f5t1 f5t2 f5t3, 1d
+    T-6.2 Docs Site             :f6t2, after f6t1, 1d
+    T-6.3 Release Automation    :f6t3, after f6t1, 1d
+
+    milestone M1 — Performance  :milestone, after f1t3, 0d
+    milestone M2 — WASM Ready   :milestone, after f2t3, 0d
+    milestone M3 — Observable   :milestone, after f3t3, 0d
+    milestone M4 — Visual       :milestone, after f4t3, 0d
+    milestone M5 — Deployable   :milestone, after f5t3, 0d
+    milestone M6 — Launch       :milestone, after f6t3, 0d</code></pre>
+<p><strong>Linea de tiempo</strong>: 18 tickets en ~15-20 dias habiles. Fase 1 y 4 arrancan en paralelo (dependen solo de T-1.1). Fase 2 espera a Fase 1 completa. Fase 5 espera Fase 2 + 3 + 4. Fase 6 cierra el ciclo.</p>
+<hr />
+<h2 id="dependency-graph">Dependency Graph</h2>
+<pre class="mermaid"><code>graph TD
+    F1[&quot;Fase 1: Performance Foundations&quot;] --&gt; F2[&quot;Fase 2: WASM Acceleration&quot;]
+    F1 --&gt; F3[&quot;Fase 3: Telemetry &amp; Observability&quot;]
+    F1 --&gt; F4[&quot;Fase 4: Web Visualization&quot;]
+    F2 --&gt; F5[&quot;Fase 5: Deployment &amp; Operations&quot;]
+    F3 --&gt; F5
+    F4 --&gt; F5
+    F5 --&gt; F6[&quot;Fase 6: Ecosystem &amp; DX&quot;]
+
+    T11[&quot;T-1.1 CSR Storage ✅&quot;] --&gt; T12[&quot;T-1.2 Bidirectional Pruning&quot;]
+    T12 --&gt; T13[&quot;T-1.3 Benchmark Suite&quot;]
+    
+    T13 --&gt; T21[&quot;T-2.1 AS Pipeline&quot;]
+    T21 --&gt; T22[&quot;T-2.2 WASM Loader&quot;]
+    T22 --&gt; T23[&quot;T-2.3 WASM Benchmarks&quot;]
+    
+    T12 --&gt; T31[&quot;T-3.1 Per-Hop Tracing&quot;]
+    T31 --&gt; T32[&quot;T-3.2 Profiling Hooks&quot;]
+    T32 --&gt; T33[&quot;T-3.3 Telemetry Plugin&quot;]
+    
+    T11 --&gt; T41[&quot;T-4.1 SVG Renderer&quot;]
+    T41 --&gt; T42[&quot;T-4.2 Canvas Renderer&quot;]
+    T42 --&gt; T43[&quot;T-4.3 Web Component&quot;]
+    
+    T22 --&gt; T51[&quot;T-5.1 K8s Operator&quot;]
+    T22 --&gt; T52[&quot;T-5.2 Single-Binary SEA&quot;]
+    T33 --&gt; T51
+    T43 --&gt; T52
+    T13 --&gt; T53[&quot;T-5.3 CI/CD Pipeline&quot;]
+    
+    T51 --&gt; T61[&quot;T-6.1 Monorepo Split&quot;]
+    T52 --&gt; T61
+    T53 --&gt; T61
+    T61 --&gt; T62[&quot;T-6.2 Docs Site&quot;]
+    T61 --&gt; T63[&quot;T-6.3 Release Automation&quot;]</code></pre>
+<hr />
+<h2 id="milestones">Milestones</h2>
+<h3 id="m1-performance-core-fin-fase-1">M1 — Performance Core (fin Fase 1)</h3>
+<ul>
+<li>CSR storage operativo en todos los niveles</li>
+<li>Bidirectional pruning disponible como estrategia configurable</li>
+<li>Benchmark suite ejecutable con resultados reproducibles</li>
+<li><strong>Meta</strong>: 2x speedup BFS/DFS, &lt;50% memoria en grafos sparse</li>
+<li><strong>Tests</strong>: 77 (CSR) + 40 (pruning) + 20 (benchmark) = 137 nuevos</li>
+</ul>
+<h3 id="m2-wasm-production-ready-fin-fase-2">M2 — WASM Production-ready (fin Fase 2)</h3>
+<ul>
+<li>Hot paths compilados a WASM via AssemblyScript</li>
+<li>Loader con fallback automatico a JS</li>
+<li>Benchmarks WASM vs JS documentados</li>
+<li><strong>Meta</strong>: 3x speedup en PageRank, 2.5x en BFS, 3x en Dijkstra</li>
+</ul>
+<h3 id="m3-fully-observable-fin-fase-3">M3 — Fully Observable (fin Fase 3)</h3>
+<ul>
+<li>Tracing por hop en todas las operaciones</li>
+<li>Profiling con exportacion Prometheus</li>
+<li>Plugin <span class="citation" data-cites="cos/telemetry">@cos/telemetry</span> integrable en cualquier nivel</li>
+<li><strong>Meta</strong>: &lt; 1% overhead cuando tracing esta desactivado</li>
+</ul>
+<h3 id="m4-visualizacion-en-vivo-fin-fase-4">M4 — Visualizacion en Vivo (fin Fase 4)</h3>
+<ul>
+<li>SVG renderer para documentos estaticos</li>
+<li>Canvas renderer a 30fps con 10K+ nodos</li>
+<li>Web Component <code>&lt;cos-graph&gt;</code> listo para usar</li>
+<li><strong>Meta</strong>: 10K nodos a 30fps en movil (Chrome Android)</li>
+</ul>
+<h3 id="m5-production-deploy-fin-fase-5">M5 — Production Deploy (fin Fase 5)</h3>
+<ul>
+<li>K8s operator con CRD, controller, auto-scaling</li>
+<li>Single binary para Linux/macOS/Windows</li>
+<li>CI/CD pipeline completo con quality gates</li>
+<li><strong>Meta</strong>: Deploy a K8s en &lt; 5 minutos con helm install</li>
+</ul>
+<h3 id="m6-ecosystem-launch-fin-fase-6">M6 — Ecosystem Launch (fin Fase 6)</h3>
+<ul>
+<li>7 paquetes publicados en npm (<span class="citation" data-cites="cos">@cos</span>/*)</li>
+<li>Docs site interactivo con WASM playground</li>
+<li>Release automation: 1 comando para versionar y publicar</li>
+<li><strong>Meta</strong>: npm install <span class="citation" data-cites="cos/core">@cos/core</span> &amp;&amp; cos-engine repl</li>
+</ul>
+<hr />
+<h2 id="metricas-clave">Metricas Clave</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Metrica</th>
+<th>v2.0</th>
+<th>v2.1 Target</th>
+<th>Mejora</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>BFS 10K nodos (ms)</td>
+<td>3.5</td>
+<td>1.8</td>
+<td>2x</td>
+</tr>
+<tr class="even">
+<td>Memoria (100K nodos sparse)</td>
+<td>42 MB</td>
+<td>&lt; 10 MB</td>
+<td>4x</td>
+</tr>
+<tr class="odd">
+<td>PageRank 5K nodos (ms)</td>
+<td>45</td>
+<td>12</td>
+<td>3.75x</td>
+</tr>
+<tr class="even">
+<td>Shortest path 10K (ms)</td>
+<td>12</td>
+<td>4</td>
+<td>3x</td>
+</tr>
+<tr class="odd">
+<td>Tests totales</td>
+<td>1068</td>
+<td>1500+</td>
+<td>+40%</td>
+</tr>
+<tr class="even">
+<td>Paquetes npm</td>
+<td>0</td>
+<td>7</td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td>Deploy time</td>
+<td>manual</td>
+<td>5 min</td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td>Visualizacion</td>
+<td>—</td>
+<td>10K/30fps</td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td>WASM support</td>
+<td>simulado</td>
+<td>real</td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td>K8s support</td>
+<td>—</td>
+<td>CRD + operator</td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td>Docker image</td>
+<td>—</td>
+<td>&lt; 50 MB</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="estado-de-ejecucion">Estado de Ejecucion</h2>
+<pre><code>████████░░░░░░░░░░░░  28%  — Fase 1 en progreso
+
+T-1.1 CSR Storage      ✅  77 tests, 0 failures
+T-1.2 Pruning            🔄  Pendiente
+T-1.3 Benchmarks         ⏳  Pendiente
+Fase 2-6               ⏳  Pendiente</code></pre>
+</body>
+</html>

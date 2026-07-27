@@ -1,0 +1,15 @@
+{
+  "name": "@cos/memory",
+  "version": "0.1.0",
+  "description": "Layered memory system: working, short-term, long-term, semantic, episodic, procedural, temporal, spatial, vector, cache, reflection",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@cos/core": "0.1.0",
+    "@cos/runtime": "0.1.0"
+  }
+}

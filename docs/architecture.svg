@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 800" style="background:#0d1117;font-family:system-ui,-apple-system,sans-serif;">
+  <defs>
+    <linearGradient id="layer1" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#238636"/><stop offset="100%" stop-color="#2ea043"/></linearGradient>
+    <linearGradient id="layer2" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#1f6feb"/><stop offset="100%" stop-color="#58a6ff"/></linearGradient>
+    <linearGradient id="layer3" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#8957e5"/><stop offset="100%" stop-color="#a371f7"/></linearGradient>
+    <linearGradient id="layer4" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#d29922"/><stop offset="100%" stop-color="#e3b341"/></linearGradient>
+    <linearGradient id="layer5" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#db6d28"/><stop offset="100%" stop-color="#f0883e"/></linearGradient>
+    <linearGradient id="layer6" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#3fb950"/><stop offset="100%" stop-color="#56d364"/></linearGradient>
+  </defs>
+
+  <!-- Title -->
+  <text x="450" y="35" fill="#c9d1d9" font-size="20" font-weight="600" text-anchor="middle">Cognitive Operating System</text>
+  <text x="450" y="55" fill="#8b949e" font-size="11" text-anchor="middle">11 packages · 5 reasoning engines · 12 memory layers · 15 API endpoints</text>
+
+  <!-- Layer 0: Core -->
+  <rect x="50" y="75" width="800" height="50" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <rect x="50" y="75" width="120" height="50" rx="6" fill="url(#layer1)" opacity="0.9"/>
+  <text x="110" y="105" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Layer 0: Core</text>
+  <text x="180" y="100" fill="#c9d1d9" font-size="11">@cos/core</text>
+  <text x="180" y="116" fill="#8b949e" font-size="10">Types · Errors · BaseCell · EntityId · CellOutput</text>
+
+  <!-- Arrow -->
+  <line x1="450" y1="125" x2="450" y2="145" stroke="#30363d" stroke-width="2"/>
+
+  <!-- Layer 1: Runtime -->
+  <rect x="50" y="145" width="800" height="50" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <rect x="50" y="145" width="120" height="50" rx="6" fill="url(#layer2)" opacity="0.9"/>
+  <text x="110" y="175" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Layer 1: Runtime</text>
+  <text x="180" y="170" fill="#c9d1d9" font-size="11">@cos/runtime</text>
+  <text x="180" y="186" fill="#8b949e" font-size="10">EventBus · Scheduler · StateManager · CellHost</text>
+
+  <line x1="450" y1="195" x2="450" y2="215" stroke="#30363d" stroke-width="2"/>
+
+  <!-- Layer 2: Memory & Knowledge -->
+  <rect x="50" y="215" width="390" height="50" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <rect x="50" y="215" width="120" height="50" rx="6" fill="url(#layer3)" opacity="0.9"/>
+  <text x="110" y="245" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Layer 2a: Memory</text>
+  <text x="180" y="240" fill="#c9d1d9" font-size="11">@cos/memory</text>
+  <text x="180" y="256" fill="#8b949e" font-size="10">12 layers · TTL · Consolidation · Forgetting</text>
+
+  <rect x="460" y="215" width="390" height="50" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <rect x="460" y="215" width="120" height="50" rx="6" fill="url(#layer3)" opacity="0.9"/>
+  <text x="520" y="245" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Layer 2b: Knowledge</text>
+  <text x="590" y="240" fill="#c9d1d9" font-size="11">@cos/knowledge</text>
+  <text x="590" y="256" fill="#8b949e" font-size="10">PropertyGraph · Embeddings · Ontology</text>
+
+  <line x1="450" y1="265" x2="450" y2="285" stroke="#30363d" stroke-width="2"/>
+
+  <!-- Layer 3: Cognition -->
+  <rect x="50" y="285" width="800" height="50" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <rect x="50" y="285" width="120" height="50" rx="6" fill="url(#layer4)" opacity="0.9"/>
+  <text x="110" y="315" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Layer 3: Cognition</text>
+  <text x="180" y="310" fill="#c9d1d9" font-size="11">@cos/cognition</text>
+  <text x="180" y="326" fill="#8b949e" font-size="10">5 Reasoning Engines · Planning · Eval · Learning · Self-Improvement · LLM</text>
+
+  <line x1="450" y1="335" x2="450" y2="355" stroke="#30363d" stroke-width="2"/>
+
+  <!-- Layer 4: Execution & Orchestration -->
+  <rect x="50" y="355" width="390" height="50" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <rect x="50" y="355" width="120" height="50" rx="6" fill="url(#layer5)" opacity="0.9"/>
+  <text x="110" y="385" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Layer 4a: Execution</text>
+  <text x="180" y="380" fill="#c9d1d9" font-size="11">@cos/execution</text>
+  <text x="180" y="396" fill="#8b949e" font-size="10">Real Tools (FS/HTTP/Search) · CodeSandbox</text>
+
+  <rect x="460" y="355" width="390" height="50" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <rect x="460" y="355" width="120" height="50" rx="6" fill="url(#layer5)" opacity="0.9"/>
+  <text x="520" y="385" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Layer 4b: Orchestration</text>
+  <text x="590" y="380" fill="#c9d1d9" font-size="11">@cos/orchestration</text>
+  <text x="590" y="396" fill="#8b949e" font-size="10">Agents · Workflows · Policies · AutoLoop</text>
+
+  <line x1="450" y1="405" x2="450" y2="425" stroke="#30363d" stroke-width="2"/>
+
+  <!-- Layer 5: Production -->
+  <rect x="50" y="425" width="800" height="50" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <rect x="50" y="425" width="120" height="50" rx="6" fill="url(#layer6)" opacity="0.9"/>
+  <text x="110" y="455" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Layer 5: Production</text>
+  <text x="180" y="450" fill="#c9d1d9" font-size="11">@cos/api · @cos/infrastructure</text>
+  <text x="180" y="466" fill="#8b949e" font-size="10">HTTP API · Auth · CLI · Config · Dashboard · Chat · Persistence</text>
+
+  <line x1="450" y1="475" x2="450" y2="495" stroke="#30363d" stroke-width="2"/>
+
+  <!-- Bottom: Deployment -->
+  <rect x="50" y="495" width="800" height="50" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <rect x="50" y="495" width="120" height="50" rx="6" fill="url(#layer1)" opacity="0.9"/>
+  <text x="110" y="525" fill="#fff" font-size="12" font-weight="600" text-anchor="middle">Deployment</text>
+  <text x="180" y="520" fill="#c9d1d9" font-size="11">@cos/deployment</text>
+  <text x="180" y="536" fill="#8b949e" font-size="10">Launch · CLI · Docker · Setup Script</text>
+
+  <!-- Side panel: Reasoning Engines -->
+  <rect x="50" y="570" width="250" height="120" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <text x="60" y="590" fill="#58a6ff" font-size="12" font-weight="600">🧠 Reasoning Engines</text>
+  <text x="60" y="610" fill="#c9d1d9" font-size="11">• Chain of Thought</text>
+  <text x="60" y="626" fill="#c9d1d9" font-size="11">• Tree of Thoughts</text>
+  <text x="60" y="642" fill="#c9d1d9" font-size="11">• Reflection</text>
+  <text x="60" y="658" fill="#c9d1d9" font-size="11">• Graph of Thoughts</text>
+  <text x="60" y="674" fill="#c9d1d9" font-size="11">• Debate</text>
+
+  <!-- Side panel: Memory Layers -->
+  <rect x="325" y="570" width="250" height="120" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <text x="335" y="590" fill="#a371f7" font-size="12" font-weight="600">💾 Memory Layers</text>
+  <text x="335" y="610" fill="#c9d1d9" font-size="11">Working · Short-Term · Long-Term</text>
+  <text x="335" y="626" fill="#c9d1d9" font-size="11">Semantic · Procedural · Episodic</text>
+  <text x="335" y="642" fill="#c9d1d9" font-size="11">Temporal · Spatial · Vector</text>
+  <text x="335" y="658" fill="#c9d1d9" font-size="11">Knowledge Graph · Cache · Reflection</text>
+
+  <!-- Side panel: Stats -->
+  <rect x="600" y="570" width="250" height="120" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <text x="610" y="590" fill="#3fb950" font-size="12" font-weight="600">📊 System Stats</text>
+  <text x="610" y="610" fill="#c9d1d9" font-size="11">11 packages</text>
+  <text x="610" y="626" fill="#c9d1d9" font-size="11">35+ source files</text>
+  <text x="610" y="642" fill="#c9d1d9" font-size="11">~12,000 lines of code</text>
+  <text x="610" y="658" fill="#c9d1d9" font-size="11">15 API endpoints</text>
+  <text x="610" y="674" fill="#c9d1d9" font-size="11">3 real tools</text>
+
+  <!-- Bottom bar -->
+  <rect x="50" y="710" width="800" height="30" rx="6" fill="#1c2128" stroke="#30363d" stroke-width="1"/>
+  <text x="450" y="730" fill="#8b949e" font-size="11" text-anchor="middle">npm start → http://localhost:8080/  |  CLIs: cos status, cos process, cos improve</text>
+
+  <!-- Legend -->
+  <rect x="50" y="755" width="12" height="12" rx="2" fill="url(#layer1)"/>
+  <text x="68" y="765" fill="#8b949e" font-size="10">Foundation</text>
+  <rect x="160" y="755" width="12" height="12" rx="2" fill="url(#layer2)"/>
+  <text x="178" y="765" fill="#8b949e" font-size="10">Runtime</text>
+  <rect x="260" y="755" width="12" height="12" rx="2" fill="url(#layer3)"/>
+  <text x="278" y="765" fill="#8b949e" font-size="10">Memory/Knowledge</text>
+  <rect x="410" y="755" width="12" height="12" rx="2" fill="url(#layer4)"/>
+  <text x="428" y="765" fill="#8b949e" font-size="10">Cognition</text>
+  <rect x="530" y="755" width="12" height="12" rx="2" fill="url(#layer5)"/>
+  <text x="548" y="765" fill="#8b949e" font-size="10">Execution/Orch</text>
+  <rect x="660" y="755" width="12" height="12" rx="2" fill="url(#layer6)"/>
+  <text x="678" y="765" fill="#8b949e" font-size="10">Production</text>
+</svg>
