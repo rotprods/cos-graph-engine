@@ -43,3 +43,4 @@ export * from './playground';
 export * from './convert';
 export * from './query';
 export * from './csr';
+export * from './pruning';
