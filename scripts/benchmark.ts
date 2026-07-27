@@ -377,9 +377,8 @@ export class BenchmarkRunner {
     if (threshold.speedup && speedup < threshold.speedup) status = 'fail';
     if (threshold.maxMemoryMB && metrics.heapUsedMB > threshold.maxMemoryMB) status = 'fail';
     if (threshold.minPruningRatio && metrics.pruningRatio < threshold.minPruningRatio) status = 'fail';
-    if (threshold.maxNodesVisitedPercent && metrics.nodesPerMs > 0) {
-      // Approximate: nodes visited / total nodes
-      const visitedPercent = (metrics.nodesProcessed / (metrics.nodesProcessed || 1)) * 100;
+    if (threshold.maxNodesVisitedPercent && metrics.nodesPerMs > 0 && b.graph.nodeCount() > 0) {
+      const visitedPercent = (metrics.nodesProcessed / b.graph.nodeCount()) * 100;
       if (visitedPercent > threshold.maxNodesVisitedPercent) status = 'fail';
     }
 
