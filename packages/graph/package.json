@@ -14,9 +14,12 @@
     "test": "tsx tests/csr.test.ts && tsx tests/pruning.test.ts",
     "prepublishOnly": "npm run build"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/higgsfield-cos/graph-engine.git"
+    "url": "https://github.com/rotprods/cos-graph-engine.git"
   },
   "keywords": ["graph", "csr", "wasm", "graph-engine", "traversal", "bfs", "dfs"],
   "license": "MIT",

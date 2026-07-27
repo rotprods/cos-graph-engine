@@ -16,9 +16,12 @@
     "test": "tsx tests/loader.test.ts",
     "prepublishOnly": "npm run build"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/higgsfield-cos/graph-engine.git"
+    "url": "https://github.com/rotprods/cos-graph-engine.git"
   },
   "keywords": ["wasm", "webassembly", "assemblyscript", "bfs", "pagerank", "graph"],
   "license": "MIT",

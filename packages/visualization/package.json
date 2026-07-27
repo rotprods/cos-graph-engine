@@ -14,9 +14,12 @@
     "test": "tsx tests/svg-renderer.test.ts && tsx tests/canvas-renderer.test.ts && tsx tests/web-component.test.ts",
     "prepublishOnly": "npm run build"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/higgsfield-cos/graph-engine.git"
+    "url": "https://github.com/rotprods/cos-graph-engine.git"
   },
   "keywords": ["visualization", "svg", "canvas", "graph", "web-component", "force-directed"],
   "license": "MIT",

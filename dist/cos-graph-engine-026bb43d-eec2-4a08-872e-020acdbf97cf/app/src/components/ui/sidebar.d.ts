@@ -1,0 +1,26 @@
+declare function useSidebar(): any;
+declare const SidebarProvider: any;
+declare const Sidebar: any;
+declare const SidebarTrigger: any;
+declare const SidebarRail: any;
+declare const SidebarInset: any;
+declare const SidebarInput: any;
+declare const SidebarHeader: any;
+declare const SidebarFooter: any;
+declare const SidebarSeparator: any;
+declare const SidebarContent: any;
+declare const SidebarGroup: any;
+declare const SidebarGroupLabel: any;
+declare const SidebarGroupAction: any;
+declare const SidebarGroupContent: any;
+declare const SidebarMenu: any;
+declare const SidebarMenuItem: any;
+declare const SidebarMenuButton: any;
+declare const SidebarMenuAction: any;
+declare const SidebarMenuBadge: any;
+declare const SidebarMenuSkeleton: any;
+declare const SidebarMenuSub: any;
+declare const SidebarMenuSubItem: any;
+declare const SidebarMenuSubButton: any;
+export { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInput, SidebarInset, SidebarMenu, SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem, SidebarMenuSkeleton, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem, SidebarProvider, SidebarRail, SidebarSeparator, SidebarTrigger, useSidebar, };
+//# sourceMappingURL=sidebar.d.ts.map
