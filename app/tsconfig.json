@@ -25,7 +25,8 @@
     "noUncheckedSideEffectImports": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@higgsfield-ai/icons/*": ["./src/lib/quanta-material-icons.ts"]
+      "@higgsfield-ai/icons/*": ["./src/lib/quanta-material-icons.ts"],
+      "@cos/smb-client": ["./packages/smb-client/src/index.ts"]
     }
   }
 }
