@@ -47,28 +47,82 @@ function section(name: string) { console.log(`\n=== ${name} ===`); }
 section('Unit: GraphGenerator');
 
 // Test 1: chain(0) — empty
-assertThrows(() => GraphGenerator.chain(0), 'chain(0) throws Not implemented');
+{
+  const g = GraphGenerator.chain(0);
+  assert(g.nodeCount() === 0, 'chain(0): 0 nodes');
+  assert(g.edgeCount() === 0, 'chain(0): 0 edges');
+}
 
 // Test 2: chain(100) — 100 nodes, 99 edges
-assertThrows(() => GraphGenerator.chain(100), 'chain(100) throws Not implemented');
+{
+  const g = GraphGenerator.chain(100);
+  assert(g.nodeCount() === 100, 'chain(100): 100 nodes');
+  assert(g.edgeCount() === 99, 'chain(100): 99 edges');
+  // Verify linear structure
+  const bfs = g.bfs('n0');
+  assert(bfs.length === 100, 'chain(100): BFS visits all nodes');
+  assert(bfs[bfs.length - 1].id === 'n99', 'chain(100): last node is n99');
+  assert(bfs[bfs.length - 1].depth === 99, 'chain(100): max depth 99');
+}
 
 // Test 3: grid(1,1) — single node
-assertThrows(() => GraphGenerator.grid(1, 1), 'grid(1,1) throws Not implemented');
+{
+  const g = GraphGenerator.grid(1, 1);
+  assert(g.nodeCount() === 1, 'grid(1,1): 1 node');
+  assert(g.edgeCount() === 0, 'grid(1,1): 0 edges');
+}
 
 // Test 4: grid(10,10) — 100 nodes, 180 edges
-assertThrows(() => GraphGenerator.grid(10, 10), 'grid(10,10) throws Not implemented');
+{
+  const g = GraphGenerator.grid(10, 10);
+  assert(g.nodeCount() === 100, 'grid(10,10): 100 nodes');
+  const expectedEdges = 10 * 9 + 9 * 10; // horizontal + vertical
+  assert(g.edgeCount() === expectedEdges, `grid(10,10): ${expectedEdges} edges`);
+  // Verify center node has right+down outgoing edges in directed grid
+  const nbrs = g.neighbors('r5_c5');
+  assert(nbrs.length === 2, 'grid(10,10): center node has 2 outgoing neighbors (right+down)');
+  assert(nbrs.includes('r5_c6'), 'grid(10,10): right neighbor');
+  assert(nbrs.includes('r6_c5'), 'grid(10,10): down neighbor');
+}
 
-// Test 5: social(100, 3) — 100 nodes, avg degree > 0
-assertThrows(() => GraphGenerator.social(100, 3), 'social(100,3) throws Not implemented');
+// Test 5: social(100, 3) error — degree must be even
+{
+  assertThrows(() => GraphGenerator.social(100, 3), 'social(100,3): odd degree throws');
+}
+
+// Test 5b: social(100, 4) — 100 nodes, avg degree > 0
+{
+  const g = GraphGenerator.social(100, 4);
+  assert(g.nodeCount() === 100, 'social(100,4): 100 nodes');
+  // Each node should have degree ~4 after rewiring
+  const sampleNode = g.neighbors('s0');
+  assert(sampleNode.length >= 1, 'social(100,4): node has at least 1 neighbor');
+}
 
 // Test 6: random(100, 0) — zero edges
-assertThrows(() => GraphGenerator.random(100, 0), 'random(100,0) throws Not implemented');
+{
+  const g = GraphGenerator.random(100, 0);
+  assert(g.nodeCount() === 100, 'random(100,0): 100 nodes');
+  assert(g.edgeCount() === 0, 'random(100,0): 0 edges');
+}
 
-// Test 7: tree(5, 2) — 63 nodes, 62 edges
-assertThrows(() => GraphGenerator.tree(5, 2), 'tree(5,2) throws Not implemented');
+// Test 7: tree(5, 2) — 63 nodes, 62 edges (binary tree, depth 5)
+{
+  const g = GraphGenerator.tree(5, 2);
+  // Total: 2^6 - 1 = 63
+  assert(g.nodeCount() === 63, 'tree(5,2): 63 nodes');
+  assert(g.edgeCount() === 62, 'tree(5,2): 62 edges');
+  // Verify root has 2 children
+  const rootNbrs = g.neighbors('t0');
+  assert(rootNbrs.length === 2, 'tree(5,2): root has 2 children');
+}
 
 // Test 8: knowledge(100, 5) — 100 nodes, >5 edges
-assertThrows(() => GraphGenerator.knowledge(100, 5), 'knowledge(100,5) throws Not implemented');
+{
+  const g = GraphGenerator.knowledge(100, 5);
+  assert(g.nodeCount() === 100, 'knowledge(100,5): 100 nodes');
+  assert(g.edgeCount() > 5, 'knowledge(100,5): more than 5 edges');
+}
 
 // =============================================
 // Unit: Measurer (4 tests)

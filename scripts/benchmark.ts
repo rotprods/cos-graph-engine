@@ -77,33 +77,159 @@ export interface DiffReport {
 
 export class GraphGenerator {
   static chain(n: number): CSRGraph {
-    // TODO: T-1.3a — implementar
-    throw new Error('Not implemented: GraphGenerator.chain');
+    if (n < 0) throw new Error('n must be >= 0');
+    const graph = new CSRGraph();
+    for (let i = 0; i < n; i++) {
+      graph.addNode({ id: `n${i}` });
+    }
+    for (let i = 0; i < n - 1; i++) {
+      graph.addEdge(`n${i}`, `n${i + 1}`);
+    }
+    return graph;
   }
 
   static grid(rows: number, cols: number): CSRGraph {
-    // TODO: T-1.3a — implementar
-    throw new Error('Not implemented: GraphGenerator.grid');
+    if (rows <= 0 || cols <= 0) throw new Error('rows and cols must be > 0');
+    const graph = new CSRGraph();
+    const id = (r: number, c: number) => `r${r}_c${c}`;
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        graph.addNode({ id: id(r, c) });
+      }
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (c + 1 < cols) graph.addEdge(id(r, c), id(r, c + 1));
+        if (r + 1 < rows) graph.addEdge(id(r, c), id(r + 1, c));
+      }
+    }
+    return graph;
   }
 
   static social(n: number, degree: number): CSRGraph {
-    // TODO: T-1.3a — implementar
-    throw new Error('Not implemented: GraphGenerator.social');
+    if (n <= 0) throw new Error('n must be > 0');
+    if (degree % 2 !== 0) throw new Error('degree must be even');
+    const graph = new CSRGraph();
+    const k = Math.floor(degree / 2);
+    const id = (i: number) => `s${i}`;
+
+    for (let i = 0; i < n; i++) graph.addNode({ id: id(i) });
+
+    // Ring lattice: each node connects to k neighbors on each side
+    for (let i = 0; i < n; i++) {
+      for (let j = 1; j <= k; j++) {
+        const target = (i + j) % n;
+        graph.addEdge(id(i), id(target));
+        graph.addEdge(id(target), id(i));
+      }
+    }
+
+    // Rewire with probability 0.1 (Watts-Strogatz)
+    for (let i = 0; i < n; i++) {
+      for (let j = 1; j <= k; j++) {
+        const target = (i + j) % n;
+        if (Math.random() < 0.1) {
+          graph.removeEdge(id(i), id(target));
+          graph.removeEdge(id(target), id(i));
+          let newTarget: number;
+          do {
+            newTarget = Math.floor(Math.random() * n);
+          } while (newTarget === i || graph.hasEdge(id(i), id(newTarget)));
+          graph.addEdge(id(i), id(newTarget));
+          graph.addEdge(id(newTarget), id(i));
+        }
+      }
+    }
+    return graph;
   }
 
   static random(n: number, edgeProb: number): CSRGraph {
-    // TODO: T-1.3a — implementar
-    throw new Error('Not implemented: GraphGenerator.random');
+    if (n < 0) throw new Error('n must be >= 0');
+    if (edgeProb < 0 || edgeProb > 1) throw new Error('edgeProb must be in [0, 1]');
+    const graph = new CSRGraph();
+    const id = (i: number) => `r${i}`;
+
+    for (let i = 0; i < n; i++) graph.addNode({ id: id(i) });
+
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (Math.random() < edgeProb) {
+          graph.addEdge(id(i), id(j));
+        }
+      }
+    }
+    return graph;
   }
 
   static tree(depth: number, branching: number): CSRGraph {
-    // TODO: T-1.3a — implementar
-    throw new Error('Not implemented: GraphGenerator.tree');
+    if (depth < 0) throw new Error('depth must be >= 0');
+    if (branching <= 0) throw new Error('branching must be > 0');
+    const graph = new CSRGraph();
+    if (depth === 0) {
+      graph.addNode({ id: 'root' });
+      return graph;
+    }
+
+    // Total nodes: sum_{d=0}^{depth} branching^d = (branching^{depth+1} - 1) / (branching - 1)
+    const totalNodes = Math.floor((Math.pow(branching, depth + 1) - 1) / (branching - 1));
+    const id = (i: number) => `t${i}`;
+
+    for (let i = 0; i < totalNodes; i++) graph.addNode({ id: id(i) });
+
+    // For each node i, children are at branching*i+1 to branching*i+branching
+    for (let i = 0; i < totalNodes; i++) {
+      for (let b = 1; b <= branching; b++) {
+        const child = branching * i + b;
+        if (child < totalNodes) {
+          graph.addEdge(id(i), id(child));
+        }
+      }
+    }
+    return graph;
   }
 
   static knowledge(n: number, clusters: number): CSRGraph {
-    // TODO: T-1.3a — implementar
-    throw new Error('Not implemented: GraphGenerator.knowledge');
+    if (n <= 0) throw new Error('n must be > 0');
+    if (clusters <= 0) throw new Error('clusters must be > 0');
+    const graph = new CSRGraph();
+    const clusterSize = Math.max(1, Math.floor(n / clusters));
+    const actualClusters = Math.ceil(n / clusterSize);
+    const id = (i: number) => `k${i}`;
+
+    for (let i = 0; i < n; i++) graph.addNode({ id: id(i) });
+
+    // Assign each node to a cluster
+    const nodeCluster: number[] = [];
+    for (let i = 0; i < n; i++) {
+      nodeCluster.push(Math.min(Math.floor(i / clusterSize), actualClusters - 1));
+    }
+
+    // Intra-cluster edges (density 0.3)
+    for (let c = 0; c < actualClusters; c++) {
+      const clusterNodes: number[] = [];
+      for (let i = 0; i < n; i++) {
+        if (nodeCluster[i] === c) clusterNodes.push(i);
+      }
+      for (let a = 0; a < clusterNodes.length; a++) {
+        for (let b = a + 1; b < clusterNodes.length; b++) {
+          if (Math.random() < 0.3) {
+            graph.addEdge(id(clusterNodes[a]), id(clusterNodes[b]));
+          }
+        }
+      }
+    }
+
+    // Inter-cluster edges (density 0.01)
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (nodeCluster[i] !== nodeCluster[j] && Math.random() < 0.01) {
+          graph.addEdge(id(i), id(j));
+        }
+      }
+    }
+
+    return graph;
   }
 }
 
