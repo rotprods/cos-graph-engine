@@ -124,8 +124,7 @@ Interfaces:
 - [x] T-3.1: Integracion en CSRGraph (bfs, dfs, shortestPath)
 - [x] T-3.2: Trace Collector — CircularBuffer + TraceCollectorImpl + NoopTraceCollector + JSON export
 - [x] T-3.2b: Profiler + ProfilingHook + Prometheus export + CSR integration
-- [ ] T-3.3: @cos/telemetry package con dashboard HTTP
-- [ ] T-3.3: Export JSON/CSV + OTLPExporter opcional
+- [x] T-3.3: @cos/telemetry — Dashboard HTTP + Export JSON/CSV + OTLPExporter
 - [ ] QA-3: Todos los tests pasan, regression 427+ tests
 - [ ] Commit: `git add -A && git commit -m "v2.1 Fase 3: Telemetry & Observability — COMPLETE"`
 - [ ] Tag: `v2.1.0-alpha.3` (cuando haya push)
