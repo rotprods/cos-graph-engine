@@ -5,6 +5,33 @@
 
 ---
 
+## Tabla Resumen
+
+| Nivel | Nombre | Eslogan | Problema Real | Industria |
+|-------|--------|---------|---------------|-----------|
+| L0 | Visual Graph | "Solo quiero dibujar algo" | Diagramas manuales, no versionables, rotos en cada cambio | Producto, Docs, Arquitectura |
+| L1 | Execution Graph | "Planifica y ejecuta tareas en orden" | Pipelines sin orden topologico, deadlocks, saturacion de CPU | CI/CD, Data Processing, Rendering |
+| L2 | State Graph | "Maquina de estados para workflows" | FSMs manuales con bugs de transiciones, estados huerfanos | Onboarding, IoT, Deploy |
+| L3 | Dependency Graph | "Quien depende de quien" | Ciclos de dependencia, stack overflows en instalacion | Package managers, Microservicios |
+| L4 | Call Graph | "Trazabilidad de llamadas" | Sin tracing, horas de logs, $1000+/mes en X-Ray | Serverless, APIs, Microservicios |
+| L5 | CFG | "Analisis de flujo de control" | Sin CFG, analisis estatico imposible | Compiladores, Linters, Fuzzers |
+| L6 | DataFlow Graph | "Pipelines de datos" | Pipelines spaghetti, datos corruptos aguas abajo | ETL, ML, Video Processing |
+| L7 | Compute Graph | "Redes neuronales en el navegador" | TF.js 8MB+, ONNX no corre en edge | Edge ML, Navegador, IoT |
+| L8 | Knowledge Graph | "Ontologias del mundo real" | Respuestas de IA planas, sin contexto | Asistentes, Busqueda, Recomendacion |
+| L9 | Semantic Graph | "Relaciones de significado" | Busqueda literal, no entiende sinonimos | Chatbots, NLP, Busqueda |
+| L10 | Embedding Graph | "Vectores que entienden significado" | Busqueda O(n) en millones de vectores | RAG, Vector Search, Clustering |
+| L11 | GraphRAG | "RAG aumentado con grafos" | RAG naive pierde contexto relacional | LLM Apps, Preguntas/respuestas |
+| L12 | Memory Graph | "Memoria que no se olvida" | Agentes sin memoria de largo plazo, contexto perdido | Agentes IA, Chatbots, Asistentes |
+| L13 | Agent Graph | "Ecosistema de agentes" | Agentes aislados, sin delegacion ni coordinacion | Multi-agente, Swarms, Automatizacion |
+| L14 | Tool Graph | "Routing inteligente de herramientas" | Fallback ad-hoc, rate limiting manual | API Gateways, Agent Toolkits |
+| L15 | Workflow Graph | "Automatizacion de procesos" | Pipelines ad-hoc sin errores, timeouts, notificaciones | CI/CD, Onboarding, Marketing |
+| L16 | Network Graph | "Topologia de infraestructura" | Horas de dashboards para encontrar causa raiz | DevOps, SRE, Cloud Migration |
+| L17 | Social Graph | "Redes de personas e influencia" | Recomendaciones genericas, sin estructura real | RRSS, Influencers, Fraude |
+| L18 | Biological Graph | "Circuitos neuronales y proteinas" | Experimentos en silos, sin simulacion | Neurociencia, Drug discovery |
+| L19 | Molecular Graph | "Atomos, enlaces, y farmacos" | $2.6B y 15 anos por molecula, herramientas fragmentadas | Farmaceutica, Materiales, Biotech |
+
+---
+
 ## L0 — Visual Graph: "Solo quiero dibujar algo"
 
 ### Problema Real
