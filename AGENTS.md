@@ -123,7 +123,7 @@ Interfaces:
 - [x] T-3.1: TraceSession + NoopTraceSession + TraceableGraph implementados
 - [x] T-3.1: Integracion en CSRGraph (bfs, dfs, shortestPath)
 - [x] T-3.2: Trace Collector — CircularBuffer + TraceCollectorImpl + NoopTraceCollector + JSON export
-- [ ] T-3.2: ProfilingHook integrado en CSRGraph + PruningExecutor
+- [x] T-3.2b: Profiler + ProfilingHook + Prometheus export + CSR integration
 - [ ] T-3.3: @cos/telemetry package con dashboard HTTP
 - [ ] T-3.3: Export JSON/CSV + OTLPExporter opcional
 - [ ] QA-3: Todos los tests pasan, regression 427+ tests

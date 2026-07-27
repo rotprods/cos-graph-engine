@@ -33,6 +33,17 @@ export interface TraceSession {
 }
 
 // ============================================================
+// Minimal ProfilingHook interface for CSR integration
+// Structural typing: compatible with @cos/observability ProfilingHook
+// ============================================================
+
+export interface ProfilingHook {
+  onStart(source: string, operation: string): void;
+  onNodeVisit(nodeId: string, depth: number, elapsed: number): void;
+  onComplete(operation: string, duration: number, nodesVisited: number): void;
+}
+
+// ============================================================
 // CSR Node/Edge types
 // ============================================================
 
@@ -216,7 +227,8 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
   bfs(
     source: string,
     maxDepth: number = Infinity,
-    traceSession?: TraceSession
+    traceSession?: TraceSession,
+    profilingHook?: ProfilingHook
   ): Array<{ id: string; depth: number }> {
     if (!this._nodeIndex.has(source)) return [];
 
@@ -228,9 +240,13 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
     visited.add(source);
     let hopIndex = 0;
 
+    if (profilingHook) profilingHook.onStart(source, 'bfs');
+
     while (queue.length > 0) {
       const current = queue.shift()!;
       result.push(current);
+
+      if (profilingHook) profilingHook.onNodeVisit(current.id, current.depth, performance.now());
 
       if (traceSession) {
         traceSession.addHop({
@@ -267,6 +283,8 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
       }
     }
 
+    if (profilingHook) profilingHook.onComplete('bfs', performance.now(), result.length);
+
     return result;
   }
 
@@ -275,11 +293,12 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
    * Up to 2x faster for deep graphs vs standard BFS.
    * Returns shortest path or null.
    */
-  bidirectionalBFS(
+bidirectionalBFS(
     source: string,
     target: string,
     maxDepth: number = 20,
-    traceSession?: TraceSession
+    traceSession?: TraceSession,
+    profilingHook?: ProfilingHook
   ): Array<{ id: string; depth: number }> | null {
     if (!this._nodeIndex.has(source) || !this._nodeIndex.has(target)) return null;
     if (source === target) {
@@ -292,7 +311,7 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
     this._ensureIndices();
 
     // Forward BFS
-    const fVisited = new Map<string, number>(); // node -> depth
+    const fVisited = new Map<string, number>();
     const fQueue: Array<{ id: string; depth: number }> = [{ id: source, depth: 0 }];
     fVisited.set(source, 0);
 
@@ -310,6 +329,8 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
     let meeting: string | null = null;
     let fIdx = 0, bIdx = 0;
 
+    if (profilingHook) profilingHook.onStart(source, 'bidirectionalBFS');
+
     if (traceSession) {
       traceSession.addHop({ nodeId: source, depth: 0, source: 'forward' });
       traceSession.addHop({ nodeId: target, depth: 0, source: 'backward' });
@@ -319,6 +340,7 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
       // Expand forward
       if (fIdx < fQueue.length) {
         const cur = fQueue[fIdx++];
+        if (profilingHook) profilingHook.onNodeVisit(cur.id, cur.depth, performance.now());
         if (cur.depth >= maxDepth) {
           if (traceSession) {
             const nbrs = this.neighbors(cur.id);
@@ -351,6 +373,7 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
       // Expand backward
       if (bIdx < bQueue.length) {
         const cur = bQueue[bIdx++];
+        if (profilingHook) profilingHook.onNodeVisit(cur.id, cur.depth, performance.now());
         if (cur.depth >= maxDepth) {
           if (traceSession) {
             const revNbrs = this.reverseNeighbors(cur.id);
@@ -380,6 +403,8 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
         if (meeting) break;
       }
     }
+
+    if (profilingHook) profilingHook.onComplete('bidirectionalBFS', performance.now(), fVisited.size + bVisited.size);
 
     if (!meeting) return null;
 
@@ -416,7 +441,8 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
   dfs(
     source: string,
     maxDepth: number = Infinity,
-    traceSession?: TraceSession
+    traceSession?: TraceSession,
+    profilingHook?: ProfilingHook
   ): Array<{ id: string; depth: number }> {
     if (!this._nodeIndex.has(source)) return [];
 
@@ -425,11 +451,15 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
     const result: Array<{ id: string; depth: number }> = [];
     const stack: Array<{ id: string; depth: number }> = [{ id: source, depth: 0 }];
 
+    if (profilingHook) profilingHook.onStart(source, 'dfs');
+
     while (stack.length > 0) {
       const current = stack.pop()!;
       if (visited.has(current.id)) continue;
       visited.add(current.id);
       result.push(current);
+
+      if (profilingHook) profilingHook.onNodeVisit(current.id, current.depth, performance.now());
 
       if (traceSession) {
         traceSession.addHop({ nodeId: current.id, depth: current.depth, source: 'forward' });
@@ -455,6 +485,8 @@ export class CSRGraph<N extends CSRNode = CSRNode, E extends CSRCell = CSRCell> 
         }
       }
     }
+
+    if (profilingHook) profilingHook.onComplete('dfs', performance.now(), result.length);
 
     return result;
   }
