@@ -6,17 +6,11 @@
     "module": "ESNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": ["vite/client"],
-
-    /* Bundler mode */
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false,
     "noEmit": true,
-    // Lets the root route import app-meta.json (page metadata committed by the
-    // marketplace meta API) at build time.
     "resolveJsonModule": true,
-
-    /* Linting */
     "skipLibCheck": true,
     "strict": true,
     "noUnusedLocals": false,
@@ -26,7 +20,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@higgsfield-ai/icons/*": ["./src/lib/quanta-material-icons.ts"],
-      "@cos/smb-client": ["./packages/smb-client/src/index.ts"]
+      "@cos/smb-client": ["./packages/smb-client/src/index.ts"],
+      "@agency/auth-unified": ["./packages/auth-unified/src/index.ts"]
     }
   }
 }
