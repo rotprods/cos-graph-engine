@@ -150,10 +150,12 @@ Todos los tickets del roadmap v2.1 han sido ejecutados y verificados.
 | Metrica | Valor |
 |---------|-------|
 | Version | 2.1.0 |
-| Tests totales | 552 |
-| Failures | 0 |
-| Fases completadas | 6/6 ✅ |
-| Tickets completados | 18/18 ✅ |
-| Commit actual | `15314db` |
-| Sandbox | Ephemeral — ultimo commit pendiente |
-| Remote | `origin` → `https://github.com/higgsfield-cos/graph-engine.git` (sin credenciales) |
+| Tests totales | **600** |
+| Failures | **0** |
+| Fases completadas | 11/15 |
+| Commits | 30+ |
+| Version | 2.1.1-dev |
+| LoC | 28,000+ |
+| Commit actual | `1a1fc65` |
+| Sandbox | Ephemeral — commit frecuente |
+| Remote | `origin` → `https://github.com/rotprods/cos-graph-engine.git` (push OK) |
