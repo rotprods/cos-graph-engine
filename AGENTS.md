@@ -131,40 +131,29 @@ Interfaces:
 
 ---
 
-## Fase Activa: Fase 5 — Deployment & Operations 🔄
+## Fase Activa: Fase 6 — Ecosystem & DX 🔄
 
-> **Objetivo**: Docker, Kubernetes, CI/CD pipeline.
-
-### Checkpoints
-
-- [x] T-5.1: Docker — Dockerfile + docker-compose.yml + .dockerignore + Prometheus/Grafana
-- [x] T-5.2: Kubernetes — namespace, configmap, deployment, service, hpa, ingress, kustomize
-- [x] T-5.3: CI/CD — CI (12 jobs), Deploy (docker + k8s + smoke), Release (test + bump + gh-release)
-
----
-
-## Fase 6 — Ecosystem & DX (PENDING)
-
-> **Objetivo**: npm packages, API docs site, release automation.
+> **Objetivo**: npm packages, API docs, release automation.
 
 ### Checkpoints
 
-- [ ] T-6.1: npm packages (@cos/graph, @cos/observability, @cos/wasm, @cos/vis, @cos/telemetry)
-- [ ] T-6.2: API docs site
-- [ ] T-6.3: Release automation
+- [x] T-6.1: npm packages — @cos/graph, @cos/observability, @cos/wasm, @cos/visualization
+- [x] T-6.2: API docs — TypeDoc entry points, READMEs, LICENSE files
+- [x] T-6.3: Release automation — version-bump.js, publish:all scripts, CHANGELOG v2.1.0
 
 ---
 
-## Estado del Proyecto
+## 🎉 Proyecto COMPLETO — 6/6 Fases, 18/18 Tickets
+
+Todos los tickets del roadmap v2.1 han sido ejecutados y verificados.
 
 | Metrica | Valor |
 |---------|-------|
-| Version | 2.0.0 (codigo v2.1) |
+| Version | 2.1.0 |
 | Tests totales | 552 |
 | Failures | 0 |
-| Fases completadas | 5/6 |
-| Tickets completados | 15/18 |
-| Commit actual | `37ec3b1` |
-| Proxima fase | Fase 6: Ecosystem & DX |
-| Sandbox | Ephemeral — commit despues de cada fase |
+| Fases completadas | 6/6 ✅ |
+| Tickets completados | 18/18 ✅ |
+| Commit actual | `15314db` |
+| Sandbox | Ephemeral — ultimo commit pendiente |
 | Remote | `origin` → `https://github.com/higgsfield-cos/graph-engine.git` (sin credenciales) |

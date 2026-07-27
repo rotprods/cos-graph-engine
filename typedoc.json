@@ -1,14 +1,26 @@
 {
-  "entryPoints": ["packages/graph/src/*.ts"],
+  "entryPoints": [
+    "packages/graph/src/*.ts",
+    "packages/observability/src/*.ts",
+    "packages/visualization/src/*.ts",
+    "packages/wasm/src/*.ts"
+  ],
   "out": "docs/api",
   "includeVersion": true,
   "excludePrivate": true,
   "excludeProtected": true,
   "theme": "default",
-  "name": "COS Graph Engine API",
-  "readme": "none",
+  "name": "COS Graph Engine v2.1 — API Reference",
+  "readme": "docs/API-REFERENCE.md",
   "sort": ["source-order"],
   "categorizeByGroup": true,
-  "categoryOrder": ["Visual", "Execution", "State", "Dependency", "Call", "Control Flow", "DataFlow", "Compute", "Knowledge", "Semantic", "Embedding", "GraphRAG", "Memory", "Agent", "Tool", "Workflow", "Network", "Social", "Biological", "Molecular"],
+  "categoryOrder": [
+    "CSR", "Pruning", "WASM", "Tracing", "Collector", "Profiler",
+    "Dashboard", "SVG", "Canvas", "Web Component",
+    "Visual", "Execution", "State", "Dependency", "Call", "Control Flow",
+    "DataFlow", "Compute", "Knowledge", "Semantic", "Embedding", "GraphRAG",
+    "Memory", "Agent", "Tool", "Workflow", "Network", "Social",
+    "Biological", "Molecular"
+  ],
   "skipErrorChecking": true
 }

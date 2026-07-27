@@ -1,1 +1,29 @@
-{"name":"@cos/graph","version":"2.0.0","description":"COS Graph Engine — 20-level graph engine with visual, execution, knowledge, ML, streaming, and persistence layers","main":"src/index.ts","dependencies":{"@cos/core":"0.1.0"}}
+{
+  "name": "@cos/graph",
+  "version": "2.1.0",
+  "description": "COS Graph Engine — 20-level graph engine with CSR, WASM, pruning, visualization, and observability",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx tests/csr.test.ts && tsx tests/pruning.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/higgsfield-cos/graph-engine.git"
+  },
+  "keywords": ["graph", "csr", "wasm", "graph-engine", "traversal", "bfs", "dfs"],
+  "license": "MIT",
+  "dependencies": {
+    "@cos/core": "0.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

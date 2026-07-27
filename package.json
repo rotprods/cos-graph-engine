@@ -1,8 +1,8 @@
 {
   "name": "cognitive-operating-system",
-  "version": "0.1.0",
+  "version": "2.1.0",
   "private": true,
-  "description": "A production-grade Cognitive Operating System (COS) built from first principles",
+  "description": "COS Graph Engine — Production-grade graph engine with CSR, WASM, pruning, observability, visualization, and deployment",
   "workspaces": [
     "packages/core",
     "packages/runtime",
@@ -15,19 +15,28 @@
     "packages/api",
     "packages/infrastructure",
     "packages/deployment",
-    "packages/graph"
+    "packages/graph",
+    "packages/visualization",
+    "packages/wasm"
   ],
   "scripts": {
     "asbuild": "cd packages/wasm && npx asc assembly/index.ts --outFile build/optimized.wasm --optimizeLevel 3 --shrinkLevel 1 --exportRuntime",
     "wasm:build": "npm run asbuild",
     "test": "npx tsx scripts/run-tests.ts",
     "test:all": "npx tsx scripts/run-tests.ts && npx tsx scripts/test-level1-diamond.ts && npx tsx scripts/test-level1-mutation.ts && npx tsx scripts/test-level3-consistency.ts && npx tsx scripts/test-level3-mutation.ts && npx tsx scripts/test-level7-compute.ts && npx tsx scripts/test-levels-12-19.ts && npx tsx scripts/test-pipeline-l45l6.ts && npx tsx scripts/test-pipeline-l891011.ts && npx tsx scripts/test-pipeline-l12131415.ts && npx tsx scripts/test-pipeline-l16171819.ts && npx tsx scripts/test-cli-visualizer.ts",
+    "test:csr": "npx tsx scripts/test-csr.ts",
+    "test:pruning": "npx tsx scripts/test-pruning.ts",
+    "test:benchmark": "npx tsx scripts/test-benchmark.ts",
+    "test:wasm": "npx tsx scripts/test-wasm.ts",
+    "test:observability": "npx tsx packages/observability/tests/tracing.test.ts && npx tsx packages/observability/tests/collector.test.ts && npx tsx packages/observability/tests/profiler.test.ts && npx tsx packages/observability/tests/dashboard.test.ts",
+    "test:visualization": "npx tsx packages/visualization/tests/svg-renderer.test.ts && npx tsx packages/visualization/tests/canvas-renderer.test.ts && npx tsx packages/visualization/tests/web-component.test.ts",
     "test:l1": "npx tsx scripts/test-level1-diamond.ts && npx tsx scripts/test-level1-mutation.ts",
     "test:l3": "npx tsx scripts/test-level3-consistency.ts && npx tsx scripts/test-level3-mutation.ts",
     "test:l7": "npx tsx scripts/test-level7-compute.ts",
     "test:mutation": "npx tsx scripts/test-level1-mutation.ts && npx tsx scripts/test-level3-mutation.ts",
     "benchmark": "npx tsx scripts/benchmark-perf.ts",
     "benchmark:report": "npx tsx scripts/benchmark-perf.ts && npx tsx scripts/generate-benchmark-report.ts",
+    "benchmark:wasm": "npx tsx scripts/benchmark-wasm.ts",
     "coverage": "c8 npm run test:all 2>&1",
     "docs:api": "npx typedoc",
     "ci": "npm run test:all 2>&1",
@@ -37,7 +46,13 @@
     "cos:graph": "npx tsx packages/graph/src/cli.ts",
     "cos:visualizer": "npx tsx packages/graph/src/visualizer.ts",
     "help": "npx tsx packages/deployment/src/cli.ts --help",
-    "release": "npm run build && echo 'Ready for npm publish'"
+    "release": "npm run build && echo 'Ready for npm publish'",
+    "publish:graph": "cd packages/graph && npm publish --access public",
+    "publish:observability": "cd packages/observability && npm publish --access public",
+    "publish:visualization": "cd packages/visualization && npm publish --access public",
+    "publish:wasm": "cd packages/wasm && npm publish --access public",
+    "publish:all": "npm run publish:graph && npm run publish:observability && npm run publish:visualization && npm run publish:wasm",
+    "version:patch": "node scripts/version-bump.js"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -50,5 +65,11 @@
     "md-to-pdf": "^5.2.5",
     "pdfkit": "^0.19.1",
     "typedoc": "^0.28.20"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/higgsfield-cos/graph-engine.git"
+  },
+  "keywords": ["graph", "cos", "graph-engine", "csr", "wasm", "visualization", "observability"],
+  "license": "MIT"
 }

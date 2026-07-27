@@ -26,9 +26,13 @@
       "@cos/execution": ["./packages/execution/src"],
       "@cos/orchestration": ["./packages/orchestration/src"],
       "@cos/observability": ["./packages/observability/src"],
+      "@cos/telemetry": ["./packages/observability/src"],
       "@cos/api": ["./packages/api/src"],
       "@cos/infrastructure": ["./packages/infrastructure/src"],
-      "@cos/deployment": ["./packages/deployment/src"]
+      "@cos/deployment": ["./packages/deployment/src"],
+      "@cos/graph": ["./packages/graph/src"],
+      "@cos/visualization": ["./packages/visualization/src"],
+      "@cos/wasm": ["./packages/wasm/src"]
     }
   },
   "references": [
@@ -42,6 +46,9 @@
     { "path": "./packages/observability" },
     { "path": "./packages/api" },
     { "path": "./packages/infrastructure" },
-    { "path": "./packages/deployment" }
+    { "path": "./packages/deployment" },
+    { "path": "./packages/graph" },
+    { "path": "./packages/visualization" },
+    { "path": "./packages/wasm" }
   ]
 }

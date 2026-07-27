@@ -1,1 +1,29 @@
-{"name":"@cos/observability","version":"0.1.0","description":"Observability layer: telemetry, events, metrics","main":"dist/index.js","types":"dist/index.d.ts","scripts":{"build":"tsc","test":"jest"},"dependencies":{"@cos/core":"0.1.0"}}
+{
+  "name": "@cos/observability",
+  "version": "2.1.0",
+  "description": "COS Graph Engine — Observability layer: tracing, collector, profiler, telemetry dashboard",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx tests/tracing.test.ts && tsx tests/collector.test.ts && tsx tests/profiler.test.ts && tsx tests/dashboard.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/higgsfield-cos/graph-engine.git"
+  },
+  "keywords": ["observability", "telemetry", "tracing", "profiling", "prometheus"],
+  "license": "MIT",
+  "dependencies": {
+    "@cos/core": "0.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

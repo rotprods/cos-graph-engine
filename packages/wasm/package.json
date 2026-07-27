@@ -1,0 +1,31 @@
+{
+  "name": "@cos/wasm",
+  "version": "2.1.0",
+  "description": "COS Graph Engine — AssemblyScript WASM modules: BFS, PageRank, shortest path, betweenness centrality",
+  "main": "src/loader.ts",
+  "types": "src/loader.ts",
+  "files": [
+    "src/",
+    "build/",
+    "assembly/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "npx asc assembly/index.ts --outFile build/optimized.wasm --optimizeLevel 3 --shrinkLevel 1 --exportRuntime",
+    "test": "tsx tests/loader.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/higgsfield-cos/graph-engine.git"
+  },
+  "keywords": ["wasm", "webassembly", "assemblyscript", "bfs", "pagerank", "graph"],
+  "license": "MIT",
+  "devDependencies": {
+    "assemblyscript": "^0.28.20"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
