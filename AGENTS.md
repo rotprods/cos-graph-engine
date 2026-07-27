@@ -131,15 +131,27 @@ Interfaces:
 
 ---
 
-## Fase Activa: Fase 4 — Web Visualization 🔄
+## Fase Activa: Fase 5 — Deployment & Operations 🔄
 
-> **Objetivo**: Renderizar grafos en SVG, Canvas, y Web Component.
+> **Objetivo**: Docker, Kubernetes, CI/CD pipeline.
 
 ### Checkpoints
 
-- [x] T-4.1: SVG Renderer — ForceLayout + SVGGraphRenderer + 3 layouts (force/tree/radial)
-- [x] T-4.2: Canvas Renderer — QuadTree culling + zoom/pan + RenderCommand
-- [x] T-4.3: Web Component `<cos-graph>` — class + register + exportSVG/PNG
+- [x] T-5.1: Docker — Dockerfile + docker-compose.yml + .dockerignore + Prometheus/Grafana
+- [x] T-5.2: Kubernetes — namespace, configmap, deployment, service, hpa, ingress, kustomize
+- [x] T-5.3: CI/CD — CI (12 jobs), Deploy (docker + k8s + smoke), Release (test + bump + gh-release)
+
+---
+
+## Fase 6 — Ecosystem & DX (PENDING)
+
+> **Objetivo**: npm packages, API docs site, release automation.
+
+### Checkpoints
+
+- [ ] T-6.1: npm packages (@cos/graph, @cos/observability, @cos/wasm, @cos/vis, @cos/telemetry)
+- [ ] T-6.2: API docs site
+- [ ] T-6.3: Release automation
 
 ---
 
@@ -150,9 +162,9 @@ Interfaces:
 | Version | 2.0.0 (codigo v2.1) |
 | Tests totales | 552 |
 | Failures | 0 |
-| Fases completadas | 4/6 |
-| Tickets completados | 12/18 |
-| Commit actual | `5ab37c5` |
-| Proxima fase | Fase 5: Deployment & Operations |
+| Fases completadas | 5/6 |
+| Tickets completados | 15/18 |
+| Commit actual | `37ec3b1` |
+| Proxima fase | Fase 6: Ecosystem & DX |
 | Sandbox | Ephemeral — commit despues de cada fase |
 | Remote | `origin` → `https://github.com/higgsfield-cos/graph-engine.git` (sin credenciales) |
