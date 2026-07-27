@@ -13,8 +13,7 @@
   ],
   "scripts": {
     "build": "npx asc assembly/index.ts --outFile build/optimized.wasm --optimizeLevel 3 --shrinkLevel 1 --exportRuntime",
-    "test": "tsx tests/loader.test.ts",
-    "prepublishOnly": "npm run build"
+    "test": "tsx tests/loader.test.ts"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"

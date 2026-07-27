@@ -2,17 +2,15 @@
   "name": "@cos/observability",
   "version": "2.1.0",
   "description": "COS Graph Engine — Observability layer: tracing, collector, profiler, telemetry dashboard",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "files": [
-    "dist/",
+    "src/",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
-    "test": "tsx tests/tracing.test.ts && tsx tests/collector.test.ts && tsx tests/profiler.test.ts && tsx tests/dashboard.test.ts",
-    "prepublishOnly": "npm run build"
+    "test": "tsx tests/tracing.test.ts && tsx tests/collector.test.ts && tsx tests/profiler.test.ts && tsx tests/dashboard.test.ts"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"
