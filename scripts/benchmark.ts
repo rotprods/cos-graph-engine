@@ -333,8 +333,10 @@ export class Measurer {
   }
 
   static warmup<T>(fn: () => T, iterations: number): void {
-    // TODO: T-1.3b — implementar
-    throw new Error('Not implemented: Measurer.warmup');
+    if (iterations < 1) return;
+    for (let i = 0; i < iterations; i++) {
+      fn();
+    }
   }
 }
 
@@ -346,23 +348,89 @@ export class BenchmarkRunner {
   private benchmarks: Map<string, Benchmark> = new Map();
 
   define(b: Benchmark): void {
-    // TODO: T-1.3c — implementar
-    throw new Error('Not implemented: BenchmarkRunner.define');
+    if (this.benchmarks.has(b.id)) {
+      throw new Error(`Benchmark already defined: ${b.id}`);
+    }
+    this.benchmarks.set(b.id, b);
   }
 
   run(id: string): BenchmarkResult {
-    // TODO: T-1.3c — implementar
-    throw new Error('Not implemented: BenchmarkRunner.run');
+    const b = this.benchmarks.get(id);
+    if (!b) throw new Error(`Benchmark not found: ${id}`);
+
+    // Setup
+    b.setup();
+
+    // Measure
+    const metrics = Measurer.measure(() => b.run(b.graph), 5);
+
+    // Determine status
+    const speedup = b.baseline.nodesPerMs > 0
+      ? metrics.nodesPerMs / b.baseline.nodesPerMs
+      : 1;
+    const memoryReduction = b.baseline.memoryMB > 0
+      ? `${((1 - metrics.heapUsedMB / b.baseline.memoryMB) * 100).toFixed(0)}%`
+      : 'N/A';
+
+    const threshold = b.threshold;
+    let status: 'pass' | 'fail' = 'pass';
+    if (threshold.speedup && speedup < threshold.speedup) status = 'fail';
+    if (threshold.maxMemoryMB && metrics.heapUsedMB > threshold.maxMemoryMB) status = 'fail';
+    if (threshold.minPruningRatio && metrics.pruningRatio < threshold.minPruningRatio) status = 'fail';
+    if (threshold.maxNodesVisitedPercent && metrics.nodesPerMs > 0) {
+      // Approximate: nodes visited / total nodes
+      const visitedPercent = (metrics.nodesProcessed / (metrics.nodesProcessed || 1)) * 100;
+      if (visitedPercent > threshold.maxNodesVisitedPercent) status = 'fail';
+    }
+
+    return {
+      id: b.id,
+      name: b.name,
+      status,
+      metrics,
+      baseline: b.baseline,
+      speedup,
+      memoryReduction,
+      details: {},
+    };
   }
 
   runAll(): BenchmarkResult[] {
-    // TODO: T-1.3c — implementar
-    throw new Error('Not implemented: BenchmarkRunner.runAll');
+    const results: BenchmarkResult[] = [];
+    for (const id of this.benchmarks.keys()) {
+      try {
+        results.push(this.run(id));
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        results.push({
+          id,
+          name: id,
+          status: 'fail',
+          metrics: { timeMs: 0, memoryBytes: 0, heapUsedMB: 0, nodesProcessed: 0, edgesProcessed: 0, nodesPerMs: 0, pruningRatio: 0 },
+          baseline: { nodesPerMs: 0, memoryMB: 0 },
+          speedup: 0,
+          memoryReduction: 'N/A',
+          details: { error: msg },
+        });
+      }
+    }
+    return results;
   }
 
   compare(results: BenchmarkResult[], baseline: { nodesPerMs: number }): DiffReport {
-    // TODO: T-1.3c — implementar
-    throw new Error('Not implemented: BenchmarkRunner.compare');
+    const overallSpeedup = baseline.nodesPerMs > 0
+      ? results.reduce((acc, r) => acc + (r.metrics.nodesPerMs / baseline.nodesPerMs), 0) / results.length
+      : 0;
+    const passCount = results.filter(r => r.status === 'pass').length;
+    const failCount = results.filter(r => r.status === 'fail').length;
+
+    return {
+      results,
+      overallSpeedup,
+      passCount,
+      failCount,
+      summary: `${passCount}/${results.length} benchmarks passed. Overall speedup: ${overallSpeedup.toFixed(2)}x`,
+    };
   }
 }
 
@@ -372,23 +440,96 @@ export class BenchmarkRunner {
 
 export class ReportExporter {
   static toJSON(report: DiffReport): string {
-    // TODO: T-1.3d — implementar
-    throw new Error('Not implemented: ReportExporter.toJSON');
+    return JSON.stringify(report, null, 2);
   }
 
   static toMarkdown(report: DiffReport): string {
-    // TODO: T-1.3d — implementar
-    throw new Error('Not implemented: ReportExporter.toMarkdown');
+    const lines: string[] = [];
+    lines.push('# Benchmark Report');
+    lines.push('');
+    lines.push(`**Summary**: ${report.summary}`);
+    lines.push('');
+    lines.push('| ID | Name | Status | Time (ms) | Memory (MB) | Nodes/ms | Speedup |');
+    lines.push('|----|------|--------|-----------|-------------|----------|---------|');
+    for (const r of report.results) {
+      lines.push(
+        `| ${r.id} | ${r.name} | ${r.status} | ${r.metrics.timeMs.toFixed(2)} | ${r.metrics.heapUsedMB.toFixed(3)} | ${r.metrics.nodesPerMs.toFixed(1)} | ${r.speedup.toFixed(2)}x |`
+      );
+    }
+    lines.push('');
+    lines.push(`**${report.passCount} passed, ${report.failCount} failed**`);
+    return lines.join('\n');
   }
 
   static toHTML(report: DiffReport): string {
-    // TODO: T-1.3d — implementar
-    throw new Error('Not implemented: ReportExporter.toHTML');
+    const rows = report.results.map(r => `
+      <tr class="${r.status}">
+        <td>${r.id}</td>
+        <td>${r.name}</td>
+        <td><span class="badge badge-${r.status}">${r.status}</span></td>
+        <td>${r.metrics.timeMs.toFixed(2)}</td>
+        <td>${r.metrics.heapUsedMB.toFixed(3)}</td>
+        <td>${r.metrics.nodesPerMs.toFixed(1)}</td>
+        <td>${r.speedup.toFixed(2)}x</td>
+      </tr>`).join('');
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Benchmark Report — COS Graph Engine</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:#f5f7fa; color:#1a1a2e; padding:2rem; }
+  .container { max-width:960px; margin:0 auto; }
+  h1 { font-size:1.75rem; margin-bottom:0.25rem; }
+  .subtitle { color:#64748b; margin-bottom:1.5rem; }
+  table { width:100%; border-collapse:collapse; background:#fff; border-radius:8px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  th { background:#1a1a2e; color:#fff; padding:12px 16px; text-align:left; font-weight:600; font-size:0.85rem; text-transform:uppercase; letter-spacing:0.05em; }
+  td { padding:10px 16px; border-bottom:1px solid #e2e8f0; font-size:0.9rem; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:0.75rem; font-weight:600; text-transform:uppercase; }
+  .badge-pass { background:#dcfce7; color:#166534; }
+  .badge-fail { background:#fef2f2; color:#991b1b; }
+  tr.pass { background:#fafefa; }
+  tr.fail { background:#fefaf5; }
+  .summary { display:flex; gap:1rem; margin-bottom:2rem; }
+  .stat { background:#fff; border-radius:8px; padding:1rem 1.5rem; box-shadow:0 1px 3px rgba(0,0,0,0.1); flex:1; text-align:center; }
+  .stat-value { font-size:1.5rem; font-weight:700; }
+  .stat-label { font-size:0.8rem; color:#64748b; text-transform:uppercase; margin-top:0.25rem; }
+  .stat-pass .stat-value { color:#166534; }
+  .stat-fail .stat-value { color:#991b1b; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Benchmark Report</h1>
+  <p class="subtitle">COS Graph Engine v2.1</p>
+  <div class="summary">
+    <div class="stat stat-pass">
+      <div class="stat-value">${report.passCount}</div>
+      <div class="stat-label">Passed</div>
+    </div>
+    <div class="stat stat-fail">
+      <div class="stat-value">${report.failCount}</div>
+      <div class="stat-label">Failed</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">${report.overallSpeedup.toFixed(2)}x</div>
+      <div class="stat-label">Overall Speedup</div>
+    </div>
+  </div>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>Status</th><th>Time (ms)</th><th>Memory (MB)</th><th>Nodes/ms</th><th>Speedup</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p style="margin-top:1rem;color:#64748b;font-size:0.8rem;">${report.summary}</p>
+</div>
+</body>
+</html>`;
   }
 
   static validateThresholds(report: DiffReport): boolean {
-    // TODO: T-1.3d — implementar
-    throw new Error('Not implemented: ReportExporter.validateThresholds');
+    return report.results.every(r => r.status === 'pass');
   }
 }
 
