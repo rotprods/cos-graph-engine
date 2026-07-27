@@ -18,12 +18,10 @@ type AppEnv = {
   DB?: D1Database;
   STORAGE?: R2Bucket;
   KV?: KVNamespace;
-  // The container's Durable Object — present only when "container" is set in
-  // the manifest. Reach an instance with env.CONTAINER.getByName(id), then
-  // .fetch(). See skills/containers.md.
   CONTAINER?: DurableObjectNamespace;
   HF_ENV?: string;
   APP_SLUG?: string;
+  SMB_TOKEN?: string;
 };
 
 export function bindings(): AppEnv {
