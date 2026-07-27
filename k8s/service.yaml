@@ -1,0 +1,28 @@
+# COS Graph Engine — Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: cos-engine
+  namespace: cos-graph-engine
+  labels:
+    app.kubernetes.io/name: cos-graph-engine
+    app.kubernetes.io/component: engine
+    app.kubernetes.io/part-of: cos
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cos-graph-engine
+    app.kubernetes.io/component: engine
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+    - name: telemetry
+      port: 9090
+      targetPort: telemetry
+      protocol: TCP

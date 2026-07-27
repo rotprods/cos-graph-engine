@@ -1,0 +1,11 @@
+# COS Graph Engine — Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cos-graph-engine
+  labels:
+    app.kubernetes.io/name: cos-graph-engine
+    app.kubernetes.io/version: "2.1.0"
+    app.kubernetes.io/component: engine
+    app.kubernetes.io/part-of: cos
+    app.kubernetes.io/managed-by: kustomize

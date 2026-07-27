@@ -1,0 +1,25 @@
+# COS Graph Engine — Kustomize
+# Bundle all manifests: kubectl apply -k k8s/
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cos-graph-engine
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/name: cos-graph-engine
+  app.kubernetes.io/part-of: cos
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: ghcr.io/higgsfield-cos/graph-engine
+    newTag: latest

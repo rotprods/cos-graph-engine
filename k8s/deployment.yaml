@@ -1,0 +1,86 @@
+# COS Graph Engine — Deployment
+# Stateless HTTP server, can scale horizontally
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cos-engine
+  namespace: cos-graph-engine
+  labels:
+    app.kubernetes.io/name: cos-graph-engine
+    app.kubernetes.io/component: engine
+    app.kubernetes.io/version: "2.1.0"
+    app.kubernetes.io/part-of: cos
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cos-graph-engine
+      app.kubernetes.io/component: engine
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cos-graph-engine
+        app.kubernetes.io/component: engine
+        app.kubernetes.io/version: "2.1.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cos-engine
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: engine
+          image: ghcr.io/higgsfield-cos/graph-engine:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+            - containerPort: 9090
+              name: telemetry
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: cos-engine-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/component: engine
+                topologyKey: kubernetes.io/hostname

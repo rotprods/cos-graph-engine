@@ -1,0 +1,33 @@
+# COS Graph Engine — Ingress
+# Routes external traffic to the engine service
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cos-engine
+  namespace: cos-graph-engine
+  labels:
+    app.kubernetes.io/name: cos-graph-engine
+    app.kubernetes.io/component: engine
+    app.kubernetes.io/part-of: cos
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.cos-graph-engine.dev
+      secretName: cos-engine-tls
+  rules:
+    - host: api.cos-graph-engine.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cos-engine
+                port:
+                  name: http

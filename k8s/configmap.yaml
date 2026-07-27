@@ -1,0 +1,19 @@
+# COS Graph Engine — ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cos-engine-config
+  namespace: cos-graph-engine
+  labels:
+    app.kubernetes.io/name: cos-graph-engine
+    app.kubernetes.io/component: engine
+data:
+  NODE_ENV: "production"
+  PORT: "8080"
+  COS_GRAPH_ENGINE_VERSION: "2.1.0"
+  COS_TELEMETRY_PORT: "9090"
+  COS_LOG_LEVEL: "info"
+  COS_CACHE_SIZE: "1000"
+  COS_MAX_GRAPH_SIZE: "100000"
+  # Node
+  NODE_OPTIONS: "--max-old-space-size=512"
