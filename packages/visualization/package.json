@@ -1,0 +1,10 @@
+{
+  "name": "@cos/visualization",
+  "version": "0.1.0",
+  "description": "COS Graph Engine — SVG/Canvas visualization",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@cos/core": "0.1.0"
+  }
+}

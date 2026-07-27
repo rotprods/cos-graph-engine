@@ -125,8 +125,8 @@ Interfaces:
 - [x] T-3.2: Trace Collector — CircularBuffer + TraceCollectorImpl + NoopTraceCollector + JSON export
 - [x] T-3.2b: Profiler + ProfilingHook + Prometheus export + CSR integration
 - [x] T-3.3: @cos/telemetry — Dashboard HTTP + Export JSON/CSV + OTLPExporter
-- [ ] QA-3: Todos los tests pasan, regression 427+ tests
-- [ ] Commit: `git add -A && git commit -m "v2.1 Fase 3: Telemetry & Observability — COMPLETE"`
+- [x] QA-3: Todos los tests pasan, regression 462+ tests
+- [x] Commit: `0ee9d39` — v2.1 T-3.3: @cos/telemetry — Dashboard + Export + OTLP
 - [ ] Tag: `v2.1.0-alpha.3` (cuando haya push)
 
 ---
