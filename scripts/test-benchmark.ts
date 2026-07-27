@@ -147,11 +147,27 @@ section('Unit: Measurer');
   assert(heapDelta < 1024 * 1024, 'Measurer.memory: heapDelta < 1MB for primitive');
 }
 
-// Test 11: measure(fast-fn, 10) — nodesPerMs > 0
-assertThrows(() => Measurer.measure(() => 42, 10), 'Measurer.measure throws Not implemented');
+// Test 11: measure(fast-fn, 10) — Metrics with timeMs > 0, nodes=0, edges=0
+{
+  const m = Measurer.measure(() => 42, 10);
+  assert(m.timeMs > 0, 'Measurer.measure: timeMs > 0');
+  assert(m.heapUsedMB >= 0, 'Measurer.measure: heapUsedMB >= 0');
+  assert(m.nodesProcessed === 0, 'Measurer.measure: nodes=0 for primitive');
+  assert(m.edgesProcessed === 0, 'Measurer.measure: edges=0 for primitive');
+  assert(m.pruningRatio === 0, 'Measurer.measure: pruningRatio=0 default');
+}
 
 // Test 12: warmup(fast-fn, 10) — no error
 assertThrows(() => Measurer.warmup(() => 42, 10), 'Measurer.warmup throws Not implemented');
+
+// Smoke test: measure with CSRGraph (duck-typing)
+{
+  const g = GraphGenerator.chain(100);
+  const m = Measurer.measure(() => g, 10);
+  assert(m.nodesProcessed === 100, 'Measurer.measure CSR: nodes=100');
+  assert(m.edgesProcessed === 99, 'Measurer.measure CSR: edges=99');
+  assert(m.nodesPerMs > 0, 'Measurer.measure CSR: nodesPerMs > 0');
+}
 
 // =============================================
 // Integration: Benchmarks (12 tests)

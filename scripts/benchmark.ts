@@ -273,8 +273,63 @@ export class Measurer {
   }
 
   static measure<T>(fn: () => T, iterations: number): Metrics {
-    // TODO: T-1.3b — implementar
-    throw new Error('Not implemented: Measurer.measure');
+    if (iterations < 1) throw new Error('iterations must be >= 1');
+
+    // Cold run (JIT warmup)
+    fn();
+
+    // Force GC before memory measurement
+    if (typeof global !== 'undefined' && (global as any).gc) {
+      (global as any).gc();
+    }
+
+    const memBefore = process.memoryUsage().heapUsed;
+
+    // Warm measured iterations
+    const start = performance.now();
+    let result: T = undefined as unknown as T;
+    for (let i = 0; i < iterations; i++) {
+      result = fn();
+    }
+    const end = performance.now();
+
+    const memAfter = process.memoryUsage().heapUsed;
+
+    const timeMs = (end - start) / iterations;
+    const memoryBytes = Math.max(0, memAfter - memBefore);
+
+    // Extract metadata from result
+    const { nodes, edges } = Measurer.extractMetadata(result);
+
+    return {
+      timeMs,
+      memoryBytes,
+      heapUsedMB: memoryBytes / (1024 * 1024),
+      nodesProcessed: nodes,
+      edgesProcessed: edges,
+      nodesPerMs: timeMs > 0 ? nodes / timeMs : 0,
+      pruningRatio: 0,
+    };
+  }
+
+  private static extractMetadata(result: unknown): { nodes: number; edges: number } {
+    if (!result || typeof result !== 'object') return { nodes: 0, edges: 0 };
+
+    const r = result as Record<string, unknown>;
+
+    // CSRGraph duck-typing: has nodeCount() and edgeCount() methods
+    if (typeof r.nodeCount === 'function' && typeof r.edgeCount === 'function') {
+      return {
+        nodes: (r.nodeCount as () => number)(),
+        edges: (r.edgeCount as () => number)(),
+      };
+    }
+
+    // Plain object with nodes/edges properties
+    return {
+      nodes: typeof r.nodes === 'number' ? r.nodes : 0,
+      edges: typeof r.edges === 'number' ? r.edges : 0,
+    };
   }
 
   static warmup<T>(fn: () => T, iterations: number): void {
