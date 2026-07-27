@@ -138,8 +138,14 @@ section('Unit: Measurer');
   assert(timeMs < 100, 'Measurer.time: timeMs < 100ms (fast function)');
 }
 
-// Test 10: memory(fast-fn) — heapDelta >= 0
-assertThrows(() => Measurer.memory(() => 42), 'Measurer.memory throws Not implemented');
+// Test 10: memory(fast-fn) — heapDelta >= 0, returns result
+{
+  const { result, heapDelta } = Measurer.memory(() => 42);
+  assert(result === 42, 'Measurer.memory: returns correct result');
+  assert(heapDelta >= 0, 'Measurer.memory: heapDelta >= 0');
+  // heapDelta should be reasonable for a primitive (GC may vary, but < 1MB)
+  assert(heapDelta < 1024 * 1024, 'Measurer.memory: heapDelta < 1MB for primitive');
+}
 
 // Test 11: measure(fast-fn, 10) — nodesPerMs > 0
 assertThrows(() => Measurer.measure(() => 42, 10), 'Measurer.measure throws Not implemented');

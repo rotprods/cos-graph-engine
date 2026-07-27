@@ -259,8 +259,17 @@ export class Measurer {
   }
 
   static memory<T>(fn: () => T): { result: T; heapDelta: number } {
-    // TODO: T-1.3b — implementar
-    throw new Error('Not implemented: Measurer.memory');
+    // Force GC if available (Node --expose-gc)
+    if (typeof global !== 'undefined' && (global as any).gc) {
+      (global as any).gc();
+    }
+
+    const before = process.memoryUsage().heapUsed;
+    const result = fn();
+    const after = process.memoryUsage().heapUsed;
+
+    const heapDelta = Math.max(0, after - before);
+    return { result, heapDelta };
   }
 
   static measure<T>(fn: () => T, iterations: number): Metrics {
