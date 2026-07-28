@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import { SMBSourceIndexer } from "../src/lib/connectors/smb-source";
+import { SMBSourceIndexer } from "../../src/lib/connectors/smb-source";
 
 const indexer = new SMBSourceIndexer();
 
