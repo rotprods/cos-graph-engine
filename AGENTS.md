@@ -159,3 +159,24 @@ Todos los tickets del roadmap v2.1 han sido ejecutados y verificados.
 | Commit actual | `1a1fc65` |
 | Sandbox | Ephemeral — commit frecuente |
 | Remote | `origin` → `https://github.com/rotprods/cos-graph-engine.git` (push OK) |
+
+## Fase 4: Higgsfield Landing Page + Ecosystem (2026-07-27)
+
+### Completed
+- [x] Landing page redesigned: `cos-graph-engine.higgsfield.app`
+  - Hero with canvas real-time graph visualization
+  - 8 sections: Hero, Stats, Levels, Features, Architecture, CLI, CTA, Footer
+  - Cold luxury palette (midnight + electric blue + indigo)
+  - Geist font + JetBrains Mono, scroll reveals, CLI typing animation
+  - Animated counters, glassmorphism cards, SVG assets
+- [x] Design brief: `app/design-brief.md`
+- [x] Published to Higgsfield community feed
+- [x] GitHub repo: `rotprods/cos-graph-engine-landing-page` (README pushed)
+- [x] New Higgsfield project: `cos-graph-docs.higgsfield.app` (scroll-scrub template)
+
+### Live URLs
+- Landing page: https://cos-graph-engine.higgsfield.app
+- Feed listing: https://higgsfield.ai/supercomputer/apps/8238d2d6-bfda-4f4b-9c90-1ce4f1a238b9/view
+- GitHub: https://github.com/rotprods/cos-graph-engine
+- Landing page repo: https://github.com/rotprods/cos-graph-engine-landing-page
+- Docs site: https://cos-graph-docs.higgsfield.app (scaffolding, needs content)
