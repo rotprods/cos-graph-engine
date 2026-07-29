@@ -1,41 +1,51 @@
-# @cos/wasm — COS WASM Acceleration
+# @cos/wasm
 
-AssemblyScript WebAssembly modules for graph algorithms with pure-JS fallback.
+AssemblyScript WASM acceleration modules for COS Graph Engine.
 
-## Features
-
-- **BFS** — Breadth-first search on CSR graph
-- **PageRank** — Iterative PageRank computation
-- **Shortest Path** — BFS-based shortest path (O(n+e))
-- **Betweenness Centrality** — Node-level betweenness
-- **JS Fallback** — Falls back to pure JS when WASM is unavailable
-- **Pre-grow** — 64MB initial memory, 32MB user buffer
-
-## Install
+## Instalacion
 
 ```bash
 npm install @cos/wasm
 ```
 
-## Quick Start
+## Modulos
+
+- `csr` — CSR matrix operations
+- `pagerank` — PageRank algorithm
+- `shortest` — Shortest path (BFS-based)
+- `centrality` — Betweenness centrality
+- `dfs` — Depth-first search
+- `components` — Connected components
+- `toposort` — Topological sort
+- `dijkstra` — Dijkstra's algorithm
+- `bfs` — Breadth-first search
+- `graph` — Graph utilities
+
+## Uso
 
 ```typescript
-import { createWASMModule } from '@cos/wasm';
+import { loadWasm, getModule } from "@cos/wasm";
 
-const wasm = await createWASMModule();
-const result = wasm.bfs([0, 1, 2], [1, 2], 0);
+const wasm = await loadWasm();
+const csr = getModule("csr");
+const result = csr.batchAdjacency(adjacency, indices);
 ```
 
-## Benchmarks
+## Performance
 
-| Algorithm | Speedup |
-|-----------|---------|
-| BFS Chain 10K | 2.34x |
-| BFS Grid | 1.60x |
-| PageRank 5K | 2.65x |
-| Shortest Path 10K | **10.49x** |
-| Betweenness 1K | 5.94x |
+| Module | Speedup vs JS |
+|--------|--------------|
+| BFS | 2.34x |
+| PageRank | 2.65x |
+| Shortest Path | 10.49x |
+| Betweenness | 5.94x |
 
-## License
+## Build
 
-MIT
+```bash
+npm run build  # Compiles assembly/*.ts to build/optimized.wasm
+```
+
+## Fallback
+
+All WASM modules have automatic JS fallback when WebAssembly is unavailable.

@@ -1,32 +1,42 @@
-# @cos/observability — COS Observability Layer
+# @cos/observability
 
-Tracing, collector, profiler, and telemetry dashboard for graph operations.
+Observability layer for COS Graph Engine: tracing, profiling, and telemetry dashboard.
 
-## Features
-
-- **TraceSession** — Per-hop tracing for BFS/DFS traversals
-- **TraceCollector** — CircularBuffer storage with JSON/CSV export
-- **Profiler** — Prometheus metrics export, ProfilingHook integration
-- **TelemetryDashboard** — Built-in HTTP server (8 routes: /api/traces, /metrics, /status, /export/*)
-- **OTLPExporter** — OpenTelemetry-compatible export
-- **Zero Dependencies** — Pure Node.js http module
-
-## Install
+## Instalacion
 
 ```bash
 npm install @cos/observability
 ```
 
-## Quick Start
+## Componentes
+
+### Tracing
+- `TraceSession` — Per-hop tracing with start/end/annotate
+- `NoopTraceSession` — Zero-cost no-op implementation
+- `TraceHop` — Individual hop data structure
+- `TraceCollector` — CircularBuffer-based collector with JSON export
+- `Tracing` — Orchestrator with configurable sampling
+
+### Profiling
+- `Profiler` — CPU, memory, GC profiling
+- `PrometheusExporter` — Metrics export in Prometheus format
+- `CSRProfiler` — CSR-specific performance metrics
+
+### Telemetry Dashboard
+- HTTP server with 8 routes
+- OTLP-compatible export
+- Zero external dependencies
+
+## Uso
 
 ```typescript
-import { TelemetryDashboard } from '@cos/observability';
+import { TraceSession, TraceCollector } from "@cos/observability";
 
-const dashboard = new TelemetryDashboard({ port: 9090 });
-dashboard.start();
-// GET http://localhost:9090/api/status
+const session = new TraceSession();
+session.start("bfs-traversal");
+// ... graph operations
+session.end();
+const collector = new TraceCollector();
+collector.collect(session);
+console.log(collector.exportJSON());
 ```
-
-## License
-
-MIT
