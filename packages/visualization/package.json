@@ -13,7 +13,7 @@
     "test": "tsx tests/svg-renderer.test.ts && tsx tests/canvas-renderer.test.ts && tsx tests/web-component.test.ts"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com/"
+    "access": "public"
   },
   "repository": {
     "type": "git",
