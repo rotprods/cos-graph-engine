@@ -75,7 +75,8 @@ export class SMBClient {
 
   async getNote(key: string): Promise<MemoryNote | null> {
     try {
-      return await this.request<MemoryNote>('GET', `note/${encodeURIComponent(key)}`);
+      const data = await this.request<{ ok: boolean; note?: MemoryNote }>('GET', `${encodeURIComponent(key)}`);
+      return data.note ?? null;
     } catch (err) {
       if (err instanceof SMBError && err.status === 404) return null;
       throw err;
@@ -83,16 +84,17 @@ export class SMBClient {
   }
 
   async setNote(key: string, value: string, opts?: SetNoteOptions): Promise<MemoryNote> {
-    return this.request<MemoryNote>('POST', `note/${encodeURIComponent(key)}`, {
+    const data = await this.request<{ ok: boolean; note: MemoryNote }>('POST', `${encodeURIComponent(key)}`, {
       value,
       ...(opts?.category ? { category: opts.category } : {}),
       ...(opts?.ttlSeconds ? { ttlSeconds: opts.ttlSeconds } : {}),
     });
+    return data.note;
   }
 
   async deleteNote(key: string): Promise<boolean> {
     try {
-      await this.request<{ ok: boolean }>('DELETE', `note/${encodeURIComponent(key)}`);
+      await this.request<{ ok: boolean }>('DELETE', `${encodeURIComponent(key)}`);
       return true;
     } catch {
       return false;
@@ -101,13 +103,15 @@ export class SMBClient {
 
   async listNotes(category?: string): Promise<MemoryNote[]> {
     const params = category ? `?category=${encodeURIComponent(category)}` : '';
-    return this.request<MemoryNote[]>('GET', `notes${params}`);
+    const data = await this.request<{ ok: boolean; notes: MemoryNote[] }>('GET', `list${params}`);
+    return data.notes;
   }
 
   async searchNotes(query: string, category?: string): Promise<MemoryNote[]> {
     const params = new URLSearchParams({ q: query });
     if (category) params.set('category', category);
-    return this.request<MemoryNote[]>('GET', `notes/search?${params}`);
+    const data = await this.request<{ ok: boolean; results: MemoryNote[] }>('GET', `search?${params}`);
+    return data.results;
   }
 
   // === VERSIONING ===
