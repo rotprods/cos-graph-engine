@@ -184,4 +184,54 @@ export class SMBClient {
   async fullHealthCheck(): Promise<{ ok: boolean; healthy: boolean; results: Record<string, unknown> }> {
     return this.request('GET', 'health-check');
   }
+
+  // === EVENTS ===
+
+  async emitEvent(type: string, data: Record<string, unknown>): Promise<{ id: string; type: string; source: string; data: string; created_at: string }> {
+    const res = await this.request<{ ok: boolean; event: any }>('events/emit', {
+      method: 'POST',
+      body: JSON.stringify({ type, data }),
+    });
+    return res.event;
+  }
+
+  async getEvents(opts?: { since?: string; type?: string; source?: string; limit?: number }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (opts?.since) params.set('since', opts.since);
+    if (opts?.type) params.set('type', opts.type);
+    if (opts?.source) params.set('source', opts.source);
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    const res = await this.request<{ ok: boolean; events: any[] }>(`events?${params}`);
+    return res.events;
+  }
+
+  subscribeEvents(onEvent: (event: any) => void, opts?: { since?: string }): () => void {
+    const url = `${this.baseUrl}/api/memory/events/stream${opts?.since ? `?since=${opts.since}` : ''}`;
+    const controller = new AbortController();
+    const start = async () => {
+      try {
+        const res = await fetch(url, {
+          headers: { 'X-Shared-Token': this.token },
+          signal: controller.signal,
+        });
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (reader) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try { onEvent(JSON.parse(line.slice(6))); } catch {}
+            }
+          }
+        }
+      } catch {}
+    };
+    start();
+    return () => controller.abort();
+  }
 }
