@@ -33,6 +33,12 @@ Cada fase debe ser commitada **inmediatamente despues de completarla**, porque e
 | `694d966` | Fase 1 — Performance Foundations | Anterior |
 | `39cc4e4` | Fase 2 — WASM Acceleration | 2026-07-27 |
 
+## Documents Index
+
+| Document | Path | Description |
+|----------|------|-------------|
+| 20 Graph Entities | `docs/GRAPH-ENTITIES-20.md` | 20 niveles de abstracción con dimensiones, estilos, topologías y casos de uso. Clusters: Foundation, Compute, Knowledge, Agency, Natural. |
+
 ---
 
 ## Registro de Fases Completadas
