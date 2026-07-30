@@ -1,0 +1,31 @@
+name: Protocol Check
+
+on:
+  push:
+    branches: [master, 'feat/**', 'fix/**']
+  pull_request:
+    branches: [master]
+
+jobs:
+  check:
+    name: Zero-Code-Loss Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check branch naming
+        run: |
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          [ "$BRANCH" = "master" ] && echo "✅ master" && exit 0
+          echo "$BRANCH" | grep -qE '^(feat|fix|docs|refactor|test|chore|ci|sync)/' && echo "✅ $BRANCH" || { echo "❌ Bad branch: $BRANCH"; exit 1; }
+
+      - name: Check AGENTS.md exists
+        run: test -f AGENTS.md && echo "✅ AGENTS.md" || { echo "❌ Missing AGENTS.md"; exit 1; }
+
+      - name: Check .githooks/pre-commit exists
+        run: test -f .githooks/pre-commit && chmod +x .githooks/pre-commit && echo "✅ pre-commit hook" || echo "⚠️  No pre-commit hook"
+
+      - name: Summary
+        run: echo "✅ Protocol checks passed"
