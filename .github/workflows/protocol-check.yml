@@ -1,0 +1,50 @@
+name: Zero-Code-Loss Protocol Check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  protocol-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for zero-code-loss violations
+        run: |
+          set -euo pipefail
+          violations=0
+
+          # Compare each changed file in the PR against its base commit
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+
+            # Lines in the PR branch version
+            pr_lines=$(wc -l < "$file" 2>/dev/null || echo 0)
+
+            # Lines in the base branch version
+            base_lines=$(git show "origin/${{ github.base_ref }}:$file" 2>/dev/null | wc -l) || base_lines=0
+
+            # Skip new files
+            [ "$base_lines" -eq 0 ] && continue
+
+            threshold=$(( base_lines * 5 / 100 ))
+            [ "$threshold" -lt 1 ] && threshold=1
+
+            diff=$(( base_lines - pr_lines ))
+
+            if [ "$diff" -gt "$threshold" ]; then
+              echo "❌ VIOLATION: $file shrunk by $diff lines (base: $base_lines → PR: $pr_lines)"
+              violations=$(( violations + 1 ))
+            fi
+          done < <(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)
+
+          if [ "$violations" -gt 0 ]; then
+            echo "Found $violations violation(s). Zero-code-loss protocol requires every removed line to be explained."
+            exit 1
+          fi
+
+          echo "✅ Zero-code-loss protocol check passed."
+

@@ -1,0 +1,40 @@
+#!/bin/bash
+# Zero-Code-Loss pre-commit hook
+# Validates that no staged file has been truncated relative to its committed parent.
+
+set -euo pipefail
+
+echo "🔍 Zero-Code-Loss: checking staged files for truncation..."
+
+# Only check files that exist in both HEAD and the index
+while IFS= read -r file; do
+  [ -z "$file" ] && continue
+
+  # Skip binary files and deleted files
+  [ ! -f "$file" ] && continue
+
+  # Count lines in the staged version (index)
+  staged_lines=$(git show ":$file" 2>/dev/null | wc -l)
+
+  # Count lines in the committed version (HEAD)
+  committed_lines=$(git show "HEAD:$file" 2>/dev/null | wc -l) || committed_lines=0
+
+  # Skip new files (no committed parent)
+  [ "$committed_lines" -eq 0 ] && continue
+
+  # If the file shrank by more than 5% of the original line count
+  threshold=$(( committed_lines * 5 / 100 ))
+  [ "$threshold" -lt 1 ] && threshold=1
+
+  diff=$(( committed_lines - staged_lines ))
+
+  if [ "$diff" -gt "$threshold" ]; then
+    echo "❌ VIOLATION: $file shrunk by $diff lines (from $committed_lines to $staged_lines)"
+    echo "   Every removed line must be explained in the commit message."
+    echo "   To bypass (not recommended): git commit --no-verify"
+    exit 1
+  fi
+done < <(git diff --cached --name-only)
+
+echo "✅ Zero-Code-Loss check passed — no truncation detected."
+
