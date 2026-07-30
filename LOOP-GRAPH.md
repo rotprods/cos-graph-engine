@@ -93,4 +93,9 @@ B4 [🔴]: Sub-agent tools blocked
 | 3 | SA-3 README Rewrite | ❌ | 0 | 0 | 0 | Tools blocked |
 | — | Manual: CI Fix | ✅ | 3 ci yml | 1 | PR #2 | CI WORKING_DIR fixed |
 | — | Manual: Templates | ✅ | 7 files .github | 1 | PR #1 | Community templates |
-| — | Manual: Loop Graph | ✅ | LOOP-GRAPH.md | 1 | — | State tracking initiated |
+| — | Manual: Loop Graph | ✅ | LOOP-GRAPH.md | 1 | PR #3 | State tracking initiated |
+| — | Manual: Hardness Skills | ✅ | 5 skills | 1 | PR #3 | Hardness engineering |
+| — | Manual: Historial | ✅ | HISTORIAL-COMPLETO.md | 1 | PR #3 | 13,878 bytes |
+| — | Manual: Output Recovery | ✅ | 2 agent outputs | 1 | PR #3 | SA-2 + explore |
+| — | Limpieza Sandbox | ✅ | node_modules, caches | — | — | 46% disk used |
+| — | Berlin City batch1 | ✅ | 7 agents, 28 files | 7 | 10 PRs | Committed & pushed to GitHub |
