@@ -180,3 +180,33 @@ Todos los tickets del roadmap v2.1 han sido ejecutados y verificados.
 - GitHub: https://github.com/rotprods/cos-graph-engine
 - Landing page repo: https://github.com/rotprods/cos-graph-engine-landing-page
 - Docs site: https://cos-graph-docs.higgsfield.app (scaffolding, needs content)
+
+---
+
+# Zero-Code-Loss Protocol
+
+## Mission
+
+Every agent acting on this repository must preserve all source code, configuration, and documentation exactly as authored. No code may be dropped, truncated, rewritten without explicit diff tracking, or silently altered during any automated workflow.
+
+## Rules
+
+1. **Full-content preservation** — Every file read, transformed, or emitted must carry its complete content. Agents must not summarise, elide, or compress source files.
+2. **Diff disciplines** — Any automated change must be authored as a structured diff (patch, PR, or commit) with a clear, human-readable body. Bulk blind rewrites are forbidden.
+3. **Audit trail** — All agents operating on this repo must write their actions to `AGENTS.md` (this file) or a log file under `logs/` before exiting.
+4. **No silent truncation** — Output pipelines (codegen, transpilation, bundling, minification) must preserve the original source lines. If a tool inherently truncates (e.g. LLM context windows), the agent must split the work into chunks and reassemble exactly.
+5. **Pre-commit enforcement** — The `.githooks/pre-commit` hook validates that no staged file has been truncated relative to its committed parent. See `.githooks/pre-commit`.
+6. **CI gate** — The workflow `.github/workflows/protocol-check.yml` runs on every PR to `main` and blocks merges that violate the zero-code-loss policy.
+
+## Violations
+
+A violation is any of:
+- A file shrinks by >5% of its original line count without an explicit diff in the commit message explaining every removed line.
+- A source file is replaced by a generated output that omits original logic.
+- An agent action log is missing from `AGENTS.md` or `logs/`.
+
+## Agent Log
+
+| Date | Agent | Action | Status |
+|------|-------|--------|--------|
+| 2026-07-30 | supercomputer | Initial deployment of zero-code-loss protocol | Deployed |
