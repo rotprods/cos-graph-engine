@@ -13,7 +13,7 @@
     "test": "tsx tests/tracing.test.ts && tsx tests/collector.test.ts && tsx tests/profiler.test.ts && tsx tests/dashboard.test.ts"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com/"
+    "access": "public"
   },
   "repository": {
     "type": "git",

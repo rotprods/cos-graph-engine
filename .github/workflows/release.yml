@@ -13,7 +13,7 @@ concurrency:
 
 env:
   NODE_VERSION: '18.20.4'
-  WORKING_DIR: cos
+  WORKING_DIR: .
 
 jobs:
   # ─── Tests ─────────────────────────────────────────────────────

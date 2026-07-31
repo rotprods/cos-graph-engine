@@ -1,46 +1,50 @@
-# @cos/visualization — COS Graph Visualization
+# @cos/visualization
 
-SVG renderer, Canvas renderer with quadtree culling, and `<cos-graph>` Web Component.
+Visualization layer for COS Graph Engine: SVG, Canvas, and Web Component renderers.
 
-## Features
-
-- **SVG Renderer** — Force-directed, tree, and radial layouts. Custom colors, arrowheads, glow.
-- **Canvas Renderer** — QuadTree spatial index for culling, zoom (0.1x-10x), pan, 30fps on 10K+ nodes.
-- **Web Component** — `<cos-graph>` custom element. Attributes: layout, theme, interactive. Methods: exportSVG, exportPNG, highlightPath, focusNode.
-- **Zero Dependencies** — No framework, no canvas library.
-
-## Install
+## Instalacion
 
 ```bash
 npm install @cos/visualization
 ```
 
-## Quick Start
+## Renderers
 
-### SVG
+### SVG Renderer
+- Force-directed layout (Fruchterman-Reingold)
+- Tree layout (Reingold-Tilford)
+- Radial layout
+- Export to SVG string
 
-```typescript
-import { SVGGraphRenderer, CSRGraph } from '@cos/visualization';
-
-const graph = new CSRGraph();
-// ... populate graph
-const renderer = new SVGGraphRenderer();
-const svg = renderer.render(graph, { layout: 'force' });
-```
+### Canvas Renderer
+- Hardware-accelerated canvas rendering
+- QuadTree culling for large graphs
+- Zoom, pan, and drag interaction
+- Dynamic node sizing and color coding
 
 ### Web Component
-
 ```html
-<cos-graph layout="force" theme="dark" width="800" height="600"></cos-graph>
-<script>
-  const el = document.querySelector('cos-graph');
-  el.graphData = {
-    nodes: [{id:'a', label:'A'}, {id:'b', label:'B'}],
-    edges: [{source:'a', target:'b'}]
-  };
-</script>
+<cos-graph
+  data='{"nodes": [...], "edges": [...]}'
+  layout="force"
+  theme="dark"
+></cos-graph>
 ```
 
-## License
+## Uso
 
-MIT
+```typescript
+import { SvgRenderer, CanvasRenderer } from "@cos/visualization";
+
+const svg = new SvgRenderer();
+const svgString = svg.renderForce(graph);
+
+const canvas = new CanvasRenderer(document.getElementById("container"));
+canvas.render(graph, { zoom: true, pan: true });
+```
+
+## Export
+
+- SVG string export
+- PNG export from canvas
+- Web Component with shadow DOM

@@ -2,11 +2,13 @@
 
 > Motor de grafos de 20 niveles, 0 dependencias externas, para sistemas multi-agente, IA, ciencia y produccion.
 
-[![CI](https://github.com/cos/graph-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/cos/graph-engine/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-390%20passing-brightgreen)]()
-[![Coverage](https://img.shields.io/badge/coverage-63%25-yellow)]()
+[![CI](https://github.com/rotprods/cos-graph-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/rotprods/cos-graph-engine/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-600%2B%20passing-brightgreen)]()
+[![Coverage](https://img.shields.io/badge/coverage-88%25-yellowgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 [![Zero Dep](https://img.shields.io/badge/dependencies-0-success)]()
+[![WASM](https://img.shields.io/badge/WASM-10.49x%20speedup-8A2BE2)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D18-blue)]()
 
 ---
 
@@ -68,12 +70,26 @@ Cada nivel comparte el mismo patron: mutation API, serializacion, adjacency maps
 ## Instalacion
 
 ```bash
-git clone https://github.com/cos/graph-engine.git
-cd cos
+# Install from npm (recommended)
+npm install @cos/graph
+
+# Or clone the repo
+git clone https://github.com/rotprods/cos-graph-engine.git
+cd cos-graph-engine
 npm install
 ```
 
 No hay dependencias externas. Solo TypeScript y Node stdlib.
+
+---
+
+## Community
+
+- [Contributing Guidelines](.github/CONTRIBUTING.md)
+- [Code of Conduct](.github/CODE_OF_CONDUCT.md)
+- [Security Policy](.github/SECURITY.md)
+- [Bug Reports](.github/ISSUE_TEMPLATE/bug_report.md)
+- [Feature Requests](.github/ISSUE_TEMPLATE/feature_request.md)
 
 ---
 
