@@ -1,210 +1,160 @@
-# Contributing — COS Graph Engine
+# Contributing to Higgsfield Hardness
 
-> Guia para contribuir al proyecto. Sigue el /LOOP framework en cada ticket.
+## Code Review Process
+
+Every change to `main` goes through this process:
+
+```
+1. Branch → 2. Code → 3. Pre-commit → 4. Push → 5. PR → 6. CI → 7. Review → 8. Merge
+```
+
+### 1. Branch Naming
+
+```
+<type>/<short-description>
+```
+
+Types: `feat`, `fix`, `chore`, `docs`, `ci`, `test`, `refactor`, `hotfix`, `security`
+
+Examples:
+- `feat/add-cross-repo-sync-skill`
+- `fix/recover-shebang-error`
+- `security/harden-gitleaks-config`
+- `docs/update-fable-with-cp4-status`
+
+### 2. Commit Messages
+
+Strict conventional commits:
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+| Element | Rule |
+|---------|------|
+| **Types** | `feat`, `fix`, `chore`, `docs`, `ci`, `test`, `refactor`, `perf`, `hotfix`, `security` |
+| **Scopes** | `hooks`, `workflows`, `scripts`, `policies`, `config`, `docs`, `platform`, `meta`, `security`, `deps`, `ci` |
+| **Header** | 10-100 chars, lowercase |
+| **Body** | Blank line before, max 100 chars per line |
+| **Footer** | Blank line before, issue references encouraged |
+
+Examples:
+```
+feat(policies): add cross-repo-sync sync manifest
+
+Define the 16 shared files with overwrite/seed policies
+for propagation to all downstream repos.
+
+Closes #42
+```
+
+```
+security(hooks): add gitleaks to pre-commit hook
+
+Enforce secret scanning before every commit across
+all repos in the ecosystem.
+```
+
+```
+ci(workflows): add nightly hardened audit
+
+Runs full gitleaks history scan, dependency audit,
+broken link check, and registry validation daily.
+```
+
+### 3. Pre-commit Checks (automatic)
+
+- Secret scanning (gitleaks)
+- Lint-staged (eslint + prettier)
+- TypeScript typecheck (where applicable)
+- Build verification
+
+### 4. Pre-push Checks (automatic)
+
+- Blocks direct pushes to main
+- Validates branch name convention
+- Warns about unstaged changes
+- Confirms signed commits
+
+### 5. Pull Request Requirements
+
+- Title follows conventional commits format
+- Description with: **¿Qué?** (what changed) / **¿Por qué?** (why) / **Verify** (how to test)
+- Screenshots for UI changes (if applicable)
+- Security review required for sensitive paths
+- No draft PRs for security changes
+- All conversations must be resolved before merge
+
+### 6. CI Status Checks (all required)
+
+- typecheck ✅
+- lint ✅
+- test ✅
+- build ✅
+- codeql ✅
+- dependency-review ✅
+- gitleaks ✅
+
+### 7. Code Review Requirements
+
+- **2 approvals required** (owner + security for sensitive paths)
+- Code owner review required (CODEOWNERS)
+- Maker ≠ checker (author cannot approve their own PR)
+- Last push requires re-approval
+- 24-hour minimum merge window for non-urgent changes
+
+### 8. Merge Requirements
+
+- Linear history (squash merge only)
+- Signed commits
+- All status checks passing
+- All conversations resolved
+- Branch up to date with main
+
+## Security Review
+
+Changes to these paths require additional security review:
+
+| Path | Reason |
+|------|--------|
+| `.github/workflows/*` | CI/CD pipeline changes affect all downstream repos |
+| `policies/AGENTS.md` | Master agent protocol governs all repos |
+| `hooks/.githooks/pre-commit` | Pre-commit hook enforced across all repos |
+| `config/repos.json` | Inventory of monitored repos |
+| `SECURITY.md` | Security policy |
+| `commitlint.config.js` | Commit policy enforcement |
+
+## Definition of Done (DoD)
+
+A contribution is considered complete when:
+
+- [ ] Code follows the repository's style and conventions
+- [ ] All CI checks pass (typecheck, lint, test, build, codeql, dependency-review)
+- [ ] At least 2 approvals received (with security review if applicable)
+- [ ] All conversations resolved
+- [ ] Branch is up to date with main
+- [ ] Commit message follows conventional commits format
+- [ ] Changes are properly documented (README, FABLE, or inline docs)
+- [ ] Downstream impact assessed (does this change affect sync-manifest repos?)
+- [ ] If adding a new shared file, update `sync-manifest.json`
+- [ ] If removing a shared file, update `sync-manifest.json` and notify downstream repos
+- [ ] PR merged with squash + signed commit
+
+## Downstream Impact
+
+This is the **central repository** for the rotprods ecosystem. Changes here can affect 30+ downstream repos. Consider:
+
+- **AGENTS.md changes** → propagate to all repos via cross-repo-sync
+- **Hook changes** → all repos with `.githooks/` get the update
+- **Workflow changes** → only repos without their own version get the seed
+- **Script changes** → all repos with `tools/` scripts get the update
+
+**If your change affects shared files, add the `sync` label to the PR** so the cross-repo-sync bot can track it.
 
 ---
 
-## Setup Local
-
-```bash
-git clone https://github.com/cos/graph-engine.git
-cd cos
-npm install
-```
-
-**Requisitos:** Node 18.20.4, npm 10+
-
----
-
-## Estructura del Proyecto
-
-```
-cos/
-├── packages/graph/src/     # 20 niveles (level0-visual.ts ... level19-molecular.ts)
-├── scripts/                # Tests, benchmarks, tooling
-│   ├── test-level*.ts      # Suites de test
-│   ├── benchmark-perf.ts   # Benchmarks
-│   ├── generate-benchmark-report.ts  # HTML report
-│   └── loop.ts             # /LOOP framework
-├── docs/                   # Documentacion
-│   ├── API-REFERENCE.md    # Referencia de API
-│   ├── 20-USECASES.md      # Casos de uso
-│   ├── ROADMAP-COMPLETO.md # Roadmap
-│   └── PLAN-REFACTOR-20-FASES.md  # Plan de refactor
-├── .github/workflows/      # CI/CD
-├── KANBAN.html             # Tablero Kanban
-└── package.json
-```
-
----
-
-## El Ciclo /LOOP
-
-Cada ticket sigue exactamente 7 pasos:
-
-```
-1. DISENIAR   → Entender el problema, leer el codigo existente
-2. PLANIFICAR → Descomponer en pasos concretos
-3. EJECUTAR   → Escribir el codigo
-4. VALIDAR    → Verificar que el codigo es correcto
-5. TESTEAR    → npm run test:all → 390+ tests, 0 failures
-6. REFACTORIZAR → Mejorar sin romper tests
-7. DEBUGGEAR  → Si tests fallan, arreglar antes de avanzar
-```
-
-**Regla de oro:** Si tests fallan → DEBUGGEAR. No avanzar al siguiente ticket.
-
----
-
-## Estandares de Codigo
-
-### TypeScript
-
-- Tipos explicitos en todas las funciones publicas
-- `EntityId` como tipo base para IDs de grafos
-- JSDoc en todas las clases y metodos publicos
-- Sin `any` — usar `unknown` y type guards
-
-### Arquitectura
-
-Cada nivel debe seguir el patron comun:
-
-```typescript
-class XxxGraphEngine {
-  // Mutation API
-  addNode(data): EntityId
-  removeNode(id): void
-  addEdge(source, target, ...): EntityId
-  getNode(id): Node | undefined
-
-  // Serializacion
-  toJSON(): object
-  static fromJSON(data): XxxGraphEngine
-
-  // Performance
-  private adj: Map<EntityId, EntityId[]>
-
-  // Domain
-  buildDemo(): void
-  validate(): string[]
-  metrics(): object
-  toMermaid(): string
-}
-```
-
-### Zero Dependency Rule
-
-**No agregar dependencias externas.** Solo se permiten:
-- Stripe (payment gateway)
-- SendGrid (email)
-- LangChain (agents)
-- Algolia (search)
-
-Todo lo demas debe ser implementado in-house.
-
-### Tests
-
-- 40+ tests por nivel
-- Cobertura minima: 55% branches, 63% lines
-- Usar `describe`/`it` de `node:test`
-- Tests de: creacion, mutacion, validacion, serializacion, casos borde
-
----
-
-## Commits
-
-Usar [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-feat(l5): add dominator computation
-fix(l7): correct cross_entropy sumExps
-docs(readme): add quickstart examples
-refactor(l3): replace edge filtering with adjacency map
-test(l1): add 22 mutation tests
-chore(ci): add c8 coverage job
-```
-
----
-
-## Pull Requests
-
-1. Crea un branch desde `main`: `git checkout -b feat/my-feature`
-2. Sigue el /LOOP en tu ticket
-3. `npm run test:all` pasa (390+ tests, 0 failures)
-4. `npm run coverage` pasa (cobertura minima)
-5. Abre el PR con descripcion del cambio
-
-### PR Template
-
-```markdown
-## Que cambia?
-
-[Descripcion del cambio]
-
-## /LOOP
-
-- [ ] DISENIAR
-- [ ] PLANIFICAR
-- [ ] EJECUTAR
-- [ ] VALIDAR
-- [ ] TESTEAR (390 tests, 0 failures)
-- [ ] REFACTORIZAR
-- [ ] DEBUGGEAR
-
-## Tests
-
-- Tests existentes: [N] pasan
-- Tests nuevos: [N] agregados
-- Cobertura: [N]%
-```
-
----
-
-## Issues
-
-### Bug Report
-
-```markdown
-**Descripcion:** [que pasa]
-**Esperado:** [que deberia pasar]
-**Nivel:** L[N]
-**Codigo:** [reproducir minimo]
-**Tests:** [el test que falla]
-```
-
-### Feature Request
-
-```markdown
-**Nivel:** L[N]
-**Que:** [nueva funcionalidad]
-**Por que:** [caso de uso]
-**API propuesta:** [firma de ejemplo]
-```
-
-### Refactor
-
-```markdown
-**Nivel:** L[N]
-**Que mejorar:** [clase/metodo]
-**Problema:** [complejidad, duplicacion, performance]
-**Solucion propuesta:** [que cambiar]
-```
-
----
-
-## Code of Conduct
-
-- Se respetuoso y constructivo
-- Las criticas son sobre el codigo, no sobre la persona
-- Pregunta antes de asumir
-- Ayuda a otros contribuyentes
-
----
-
-## Recursos
-
-- [Plan Maestro](PLAN-MAESTRO.md) — Arquitectura completa
-- [API Reference](docs/API-REFERENCE.md) — Documentacion de API
-- [Roadmap](docs/ROADMAP-COMPLETO.md) — 8 fases para v2.0.0
-- [Kanban](KANBAN.html) — Estado visual del proyecto
-- [LOOP Maestro](LOOP-MAESTRO.md) — Framework completo del ciclo
+*Last updated: 2026-07-30*
