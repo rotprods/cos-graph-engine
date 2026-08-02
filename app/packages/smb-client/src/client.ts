@@ -188,10 +188,7 @@ export class SMBClient {
   // === EVENTS ===
 
   async emitEvent(type: string, data: Record<string, unknown>): Promise<{ id: string; type: string; source: string; data: string; created_at: string }> {
-    const res = await this.request<{ ok: boolean; event: any }>('events/emit', {
-      method: 'POST',
-      body: JSON.stringify({ type, data }),
-    });
+    const res = await this.request<{ ok: boolean; event: any }>('POST', 'events/emit', { type, data });
     return res.event;
   }
 
@@ -201,7 +198,7 @@ export class SMBClient {
     if (opts?.type) params.set('type', opts.type);
     if (opts?.source) params.set('source', opts.source);
     if (opts?.limit) params.set('limit', String(opts.limit));
-    const res = await this.request<{ ok: boolean; events: any[] }>(`events?${params}`);
+    const res = await this.request<{ ok: boolean; events: any[] }>('GET', `events?${params}`);
     return res.events;
   }
 
