@@ -1,182 +1,249 @@
-# COS Graph Engine — AGENTS.md
+# AGENTS.md — COMMIT DISCIPLINE STRICT
 
-> **Proposito**: Orquestador principal entre sesiones. Contiene el protocolo de commits, el registro de fases completadas, el plan de la fase activa, y los checkpoints para reanudacion.
+## Regla de Oro
 
----
+**Cada implementación, commit. Sin excepción.**
 
-## Protocolo de Commits por Fase
-
-Cada fase debe ser commitada **inmediatamente despues de completarla**, porque el sandbox se borra entre sesiones.
-
-### Reglas
-
-1. **Un commit por fase completa** — no commits intermedios a menos que la fase sea > 30 min de trabajo continuo.
-2. **Mensaje de commit estandarizado**:
-   ```
-   v2.1 Fase <N>: <Nombre> — COMPLETE [| <STATUS>]
-
-   T-<X>.<Y>: <descripcion breve>
-   - detalle 1
-   - detalle 2
-
-   Tests: <N> tests, <N> failures
-   Regression: <N> tests, <N> failures
-   ```
-3. **Push inmediato** (cuando haya credenciales): `git add -A && git commit -m "..." && git push`.
-4. **Package.json version bump** al inicio de cada fase: `npm version prerelease --preid alpha`.
-5. **Checkpoints en AGENTS.md**: Al final de cada ticket, marcar [x] en la checklist.
-
-### Commits Realizados
-
-| Commit | Fase | Fecha |
-|--------|------|-------|
-| `694d966` | Fase 1 — Performance Foundations | Anterior |
-| `39cc4e4` | Fase 2 — WASM Acceleration | 2026-07-27 |
+El workspace de Higgsfield es **EPHEMERAL** — se borra entre sesiones.
+Si no está en GitHub, no existe.
 
 ---
 
-## Registro de Fases Completadas
+## Orden Estricto (por fase)
 
-### Fase 1 — Performance Foundations ✅ COMPLETE
+### Fase 1: Antes de empezar a codificar
+```
+1. git status                    # Verificar que no hay cambios sueltos
+2. git pull                      # Traer último estado del remoto
+3. Leer AGENTS.md                # Recordar las reglas
+```
 
-**Tickets**:
-- T-1.1: CSR Storage — `packages/graph/src/csr.ts`, 77 tests
-- T-1.2: Bidirectional Pruning — `packages/graph/src/pruning.ts`, 70 tests
-- T-1.3: Benchmark Suite — GraphGenerator, Measurer, BenchmarkRunner, ReportExporter, 64 tests
+### Fase 2: Durante la implementación
+```
+4. Cada 15-20 minutos de trabajo → git add -A && git commit -m "mensaje"
+   No esperar a que la feature esté completa.
+   Commits atómicos: un cambio lógico por commit.
+```
 
-**Resultados**: 365 tests, 0 failures. 7/7 benchmarks PASS. QA-2 Gate passed.
+### Fase 3: Al terminar una feature
+```
+5. npm run build                 # Verificar que compila
+6. node tools/qa-100percent.mjs  # Verificar que no se rompió nada
+7. git add -A                    # Todo lo nuevo
+8. git commit -m "descriptivo"   # Mensaje en español o inglés, claro
+9. git push                      # SUBIR AL REMOTO
+10. deploy_game()                # Solo después de pushear
+```
 
----
-
-### Fase 2 — WASM Acceleration ✅ COMPLETE
-
-**Tickets**:
-- T-2.1: AssemblyScript Pipeline — 4 modulos (csr, pagerank, shortest, centrality), WASM 6.3KB
-- T-2.2: WASM Loader — `loader.ts` con `createWASMModule`, `createJSFallback`, `WASMLoader`, pre-grow 64MB
-- T-2.3: WASM Benchmarks — `benchmark-wasm.ts`, 5 benchmarks
-
-**Resultados**: 23 tests WASM, 0 failures. Benchmarks:
-- BFS Chain 10K: 2.34x | BFS Grid 100x100: 1.60x | PageRank 5K: 2.65x
-- Shortest Path 10K: 10.49x | Betweenness 1K: 5.94x
-
-**Regression**: 388 tests, 0 failures. Commit `39cc4e4`.
-
----
-
-## Fase Activa: Fase 3 — Telemetry & Observability 🔄
-
-> **Objetivo**: Per-hop tracing, profiling, export OpenTelemetry.
-
-### Dependencias
-- `@cos/core` (existe): TelemetryEvent, MetricSample, ITelemetry, CogEvent
-- `@cos/observability` (existe): TelemetrySystem stub
-- `packages/graph/`: CSRGraph, PruningExecutor (destinos de integracion)
-
-### Plan de Ejecucion
-
-#### T-3.1 — Per-Hop Tracing
-
-**Archivo**: `packages/observability/src/tracing.ts`
-
-Interfaces:
-- `TraceHop` — hopIndex, nodeId, depth, timestamp, duration, source: 'forward'|'backward'|'pruned', metadata
-- `TraceSession` — id, hops, addHop(), getSummary(): { totalHops, prunedHops, bidirectional, durationMs }
-- `NoopTraceSession` — singleton, zero overhead
-- `TraceableGraph` — mixin que wrappea CSRGraph.bfs/dfs/shortestPath con hooks de tracing
-
-**Integracion CSRGraph**:
-- Metodos acceptan `traceSession?: TraceSession`
-- Cada hop registra nodeId + depth + timestamp + source
-- Default: NoopTraceSession (sin overhead)
-
-#### T-3.2 — Profiling
-
-**Archivo**: `packages/observability/src/profiler.ts`
-
-- `Profiler` class: `start()`, `snapshot()`, `summary()`, `exportPrometheus()`
-- Formato Prometheus: `cos_graph_*` metrics (duration_ms, memory_bytes, operations_total)
-- `ProfilingHook` — se integra en CSRGraph y PruningExecutor
-
-#### T-3.3 — @cos/telemetry Dashboard + Export
-
-**Nuevo package**: `packages/telemetry/`
-
-- Dashboard HTTP (Node http module, zero deps)
-  - `GET /dashboard` — HTML/JS inline
-  - `GET /api/events`, `GET /api/metrics`
-- Export: `GET /export/json`, `GET /export/csv`
-- OTLPExporter opcional (HTTP JSON a endpoint configurado)
-
-### Tests esperados
-
-| Componente | Tests | Archivo |
-|-----------|-------|---------|
-| Tracing (TraceSession, Noop, integration) | 15 | `packages/observability/tests/tracing.test.ts` |
-| Profiler | 10 | `packages/observability/tests/profiler.test.ts` |
-| Telemetry Dashboard | 8 | `packages/telemetry/tests/dashboard.test.ts` |
-| CSR + Tracing integration | 6 | `packages/graph/tests/tracing-integration.test.ts` |
-
-**Total nuevos**: ~39 tests → regression target: 427 tests, 0 failures.
-
-### Checkpoints
-
-- [x] T-3.1: TraceSession + NoopTraceSession + TraceableGraph implementados
-- [x] T-3.1: Integracion en CSRGraph (bfs, dfs, shortestPath)
-- [x] T-3.2: Trace Collector — CircularBuffer + TraceCollectorImpl + NoopTraceCollector + JSON export
-- [x] T-3.2b: Profiler + ProfilingHook + Prometheus export + CSR integration
-- [x] T-3.3: @cos/telemetry — Dashboard HTTP + Export JSON/CSV + OTLPExporter
-- [x] QA-3: Todos los tests pasan, regression 462+ tests
-- [x] Commit: `0ee9d39` — v2.1 T-3.3: @cos/telemetry — Dashboard + Export + OTLP
-- [ ] Tag: `v2.1.0-alpha.3` (cuando haya push)
+### Fase 4: Al final de la sesión
+```
+11. git status                   # Working tree MUST be clean
+12. git log --oneline -3         # Verificar últimos commits
+13. git push                     # Doble verificación
+```
 
 ---
 
-## Fase Activa: Fase 6 — Ecosystem & DX 🔄
+## Formatos de Mensajes de Commit
 
-> **Objetivo**: npm packages, API docs, release automation.
+```
+[TIPO] Descripción corta (máx 72 chars)
 
-### Checkpoints
+Tipos:
+  [FEAT]  — Nueva funcionalidad
+  [FIX]   — Bug fix
+  [REFAC] — Refactor sin cambio funcional
+  [QA]    — Tests, tooling
+  [DOC]   — Documentación
+  [DEPLOY]— Deploy a Higgsfield Games
+  [HOOK]  — Infraestructura, scripts, hooks, recover
 
-- [x] T-6.1: npm packages — @cos/graph, @cos/observability, @cos/wasm, @cos/visualization
-- [x] T-6.2: API docs — TypeDoc entry points, READMEs, LICENSE files
-- [x] T-6.3: Release automation — version-bump.js, publish:all scripts, CHANGELOG v2.1.0
+Ejemplos:
+  [FEAT] Team Deathmatch mode with BLUE/RED teams
+  [FIX] Assembly.id missing causing BOOT FAILURE
+  [QA] Regression tests for viewmodel.addWeapon bug
+  [DEPLOY] Deploy v1.0.3 to Higgsfield Games
+  [HOOK] Pre-commit verification hook + recovery script
+```
 
 ---
 
-## 🎉 Proyecto COMPLETO — 6/6 Fases, 18/18 Tickets
+## ¿Qué Pasa si el Repo de Higgsfield se Auto-Borra?
 
-Todos los tickets del roadmap v2.1 han sido ejecutados y verificados.
+El workspace de Higgsfield **se borra al cerrar la sesión**. Pero:
 
-| Metrica | Valor |
-|---------|-------|
-| Version | 2.1.0 |
-| Tests totales | **600** |
-| Failures | **0** |
-| Fases completadas | 11/15 |
-| Commits | 30+ |
-| Version | 2.1.1-dev |
-| LoC | 28,000+ |
-| Commit actual | `1a1fc65` |
-| Sandbox | Ephemeral — commit frecuente |
-| Remote | `origin` → `https://github.com/rotprods/cos-graph-engine.git` (push OK) |
+| Recurso | Persistencia | Confiable |
+|---------|-------------|-----------|
+| **GitHub** (`rotprods/spain-cityscapes-fps`) | Permanente | ✅ Fuente de verdad |
+| **Higgsfield deploy** (`solid-aspen-244.higgsfield.gg`) | Indefinida (no hay TTL documentado) | ⚠️ Puede desaparecer |
+| **Local workspace** (`/home/user/spain-repo`) | Se borra al cerrar sesión | ❌ No confiar |
 
-## Fase 4: Higgsfield Landing Page + Ecosystem (2026-07-27)
+**Conclusión:** GitHub es la única fuente de verdad. Si Higgsfield elimina el deploy, se redepliega desde GitHub con `deploy_game()`.
 
-### Completed
-- [x] Landing page redesigned: `cos-graph-engine.higgsfield.app`
-  - Hero with canvas real-time graph visualization
-  - 8 sections: Hero, Stats, Levels, Features, Architecture, CLI, CTA, Footer
-  - Cold luxury palette (midnight + electric blue + indigo)
-  - Geist font + JetBrains Mono, scroll reveals, CLI typing animation
-  - Animated counters, glassmorphism cards, SVG assets
-- [x] Design brief: `app/design-brief.md`
-- [x] Published to Higgsfield community feed
-- [x] GitHub repo: `rotprods/cos-graph-engine-landing-page` (README pushed)
-- [x] New Higgsfield project: `cos-graph-docs.higgsfield.app` (scroll-scrub template)
+---
 
-### Live URLs
-- Landing page: https://cos-graph-engine.higgsfield.app
-- Feed listing: https://higgsfield.ai/supercomputer/apps/8238d2d6-bfda-4f4b-9c90-1ce4f1a238b9/view
-- GitHub: https://github.com/rotprods/cos-graph-engine
-- Landing page repo: https://github.com/rotprods/cos-graph-engine-landing-page
-- Docs site: https://cos-graph-docs.higgsfield.app (scaffolding, needs content)
+## Checklist de Supervivencia
+
+- [ ] `git push` ejecutado después de CADA implementación
+- [ ] `git status` muestra `nothing to commit, working tree clean`
+- [ ] `git log --oneline origin/main` muestra el último commit en el remoto
+- [ ] El deploy en Higgsfield está actualizado con el último commit
+- [ ] El game_id (`4bce41a8-ffde-45eb-a585-c5a5c323dd7c`) está documentado
+
+---
+
+## Pre-Commit Hook (Automático)
+
+El hook en `.githooks/pre-commit` se ejecuta AUTOMÁTICAMENTE antes de cada `git commit`.
+
+**Qué verifica:**
+1. **Syntax check** — cada archivo `.js` staged se valida con `node --check`
+2. **Build** — `npm run build` debe pasar
+3. **QA** — `node tools/qa-100percent.mjs --quick` debe dar 0 fallos
+
+**Si el hook falla:**
+```bash
+# El commit se CANCELA. Arregla el error, haz git add otra vez, y recommitea.
+git add -A
+git commit -m "[FIX] ..."
+```
+
+**Para saltar el hook (solo emergencia):**
+```bash
+git commit --no-verify -m "[FIX] ..."
+```
+
+---
+
+## Script de Recuperación
+
+`tools/recover.sh` — recupera todo el proyecto desde cero:
+
+```bash
+bash tools/recover.sh
+```
+
+**Qué hace (8 pasos):**
+1. Clona el repo desde GitHub
+2. Instala `npm install`
+3. Verifica 16 archivos críticos (syntax check)
+4. Compila el C++ mapgen
+5. Genera los JSONs de mapas C++
+6. `npm run build`
+7. Ejecuta QA
+8. Muestra instrucciones para deploy
+
+---
+
+## Si el Workspace se Borra (recuperación)
+
+```bash
+git clone https://github.com/rotprods/spain-cityscapes-fps.git
+cd spain-cityscapes-fps
+npm install
+npm run build
+deploy_game(game_id="4bce41a8-ffde-45eb-a585-c5a5c323dd7c", ...)
+```
+
+---
+
+## Estado Real del Render Pipeline
+
+⚠️ **CORRECCIÓN:** El juego NO es un graybox. Ya tiene un pipeline AAA completo:
+
+| Feature | Archivo | Líneas | Estado |
+|---------|---------|--------|--------|
+| **PBR Shading** (MeshStandardMaterial + ORM) | `src/materials/` | 4,432 | ✅ |
+| **Bloom** (Karis pyramid) | `src/render/bloom.js` | ~200 | ✅ |
+| **GTAO** (SSAO equivalente) | `src/render/gtao.js` | ~300 | ✅ |
+| **CSM** (Cascaded Shadow Maps) | `src/render/csm.js` | ~400 | ✅ |
+| **TAA** (Temporal Anti-Aliasing) | `src/render/taa.js` | ~300 | ✅ |
+| **SSR** (Screen Space Reflections) | `src/render/ssr.js` | ~300 | ✅ |
+| **Motion Blur** | `src/render/motionblur.js` | ~200 | ✅ |
+| **Depth of Field** (ADS only) | `src/render/dof.js` | ~200 | ✅ |
+| **Auto Exposure** (GPU metering) | `src/render/exposure.js` | ~200 | ✅ |
+| **Color Grading** (AgX + LUT) | `src/render/lut.js`, `composite.js` | ~400 | ✅ |
+| **Volumetrics** | `src/render/` | ~200 | ✅ |
+| **Contact Shadows** | `src/render/contact.js` | ~200 | ✅ |
+| **Total render pipeline** | `src/render/` (18 archivos) | 5,827 | ✅ |
+
+**Presets de calidad:** low → medium → high → ultra (config.js)
+**Por defecto:** ultra (4096 CSM, TAA, GTAO, SSR, bloom, motion blur, volumétricas TODO activado).
+
+---
+
+## CI/CD Pipeline (GitHub Actions)
+
+El repo tiene 3 workflows automáticos:
+
+### 1. Build & Test (.github/workflows/build.yml)
+En cada push a main y cada PR: build-js, build-cpp, lint, test-qa, test-cpp.
+
+### 2. AI Code Review (.github/workflows/review.yml)
+En cada PR a main: syntax check, build, QA, AGENTS.md compliance, PR comment.
+
+### 3. Publish (.github/workflows/publish.yml)
+En push a main o manual: build, QA, verify artifacts, upload dist, deploy instructions.
+
+**Deploy manual:**
+```bash
+deploy_game(game_id="4bce41a8-ffde-45eb-a585-c5a5c323dd7c", client="dist/index.html", assets_dir="dist")
+```
+
+---
+
+## ¿Dónde está el código?
+
+| Destino | Qué se sube | Persistencia |
+|---------|------------|--------------|
+| **GitHub** (`rotprods/spain-cityscapes-fps`) | Código fuente completo | ✅ Permanente |
+| **Higgsfield Games** | `dist/` (build) | ⚠️ Puede borrarse |
+| **Sandbox** (`/home/user/spain-repo`) | Workspace temporal | ❌ Se borra al cerrar sesión |
+
+**No se sube a dos repos.** El código fuente solo está en GitHub.
+El deploy a Higgsfield Games es el BUILD (dist/), no el código fuente.
+
+## ¿Se ha perdido trabajo históricamente?
+
+**Sí, 3 incidentes documentados en git:**
+
+1. **Commit `a9423ae`** — Corrupción de import en `dressing.js`:
+   `import { STREET, (_layout?.ALLEYS\|\|ALLEYS), ... }` — JS inválido.
+   Fix: 1 línea.
+
+2. **Commit `4c04dcb`** — 355 líneas eliminadas de `world/index.js` y `main.js`:
+   Se reescribieron archivos completos perdiendo comentarios de arquitectura.
+   El código funcional sobrevivió, la documentación inline se perdió para siempre.
+
+3. **Commit `dd653c2`** — BOOT FAILURE: `Assembly.id` era `undefined`.
+   `viewmodel.addWeapon()` usaba `model.id` que no existía.
+   Fix: `this.id = name` en el constructor. 1 línea.
+
+**Además:** El workspace se ha borrado múltiples veces entre sesiones.
+Siempre recuperado desde GitHub via `git clone`.
+
+**0 archivos perdidos permanentemente.** Todo el código funcional está en git.
+Lo único irrecuperable son comentarios de documentación inline eliminados en rewrites.
+
+## Branch Protection (main)
+
+La rama `main` está protegida vía GitHub API:
+
+| Regla | Valor |
+|-------|-------|
+| **Required status checks** | Build JS, Build C++, AI Code Review, QA, Test C++ |
+| **Strict** | Sí — debe estar actualizada con la rama base |
+| **Enforce admins** | Sí |
+| **Force pushes** | Bloqueados |
+| **Deletions** | Bloqueadas |
+| **Dismiss stale reviews** | Sí |
+
+### Flujo de trabajo
+
+```
+1. Crear feature branch: git checkout -b feat/nombre
+2. Implementar + commitear
+3. Hacer PR a main → GitHub Actions ejecuta build + review + QA
+4. Merge solo si todos los checks pasan
+5. Push a main → CI/CD build + deploy automático
+```
