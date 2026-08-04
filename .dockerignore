@@ -1,64 +1,15 @@
-# COS Graph Engine — .dockerignore
-
-# Dependencies
-node_modules/
-.pnpm-store/
-
-# Build artifacts
-dist/
-packages/*/dist/
-packages/*/build/
-packages/*/lib/
-packages/wasm/build/
-
-# Coverage
-coverage/
-
-# Benchmark results
-benchmark-results*.json
-benchmark-report.html
-benchmark-reports/
-graph-benchmark-results.json
-training-results.json
-bug-detection-results.json
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-
-# Temp
-tmp/
-temp/
-
-# Git
-.git/
+node_modules
+.git
+dist
+build
+coverage
+.env
+docs
+.vscode
 .gitignore
-
-# Docs (not needed at runtime)
-docs/
 *.md
-
-# Config (not needed at runtime)
-config/
-
-# Release
-release/
-
-# Tests
-scripts/
-packages/*/tests/
-
-# Coverage reports
-coverage/
-lcov.info
+.husky
+hooks
+.github
+workflows
+policies

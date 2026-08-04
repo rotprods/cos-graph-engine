@@ -1,39 +1,4 @@
-# Dependencies
 node_modules/
-
-# Build artifacts
 dist/
-packages/*/dist/
-packages/*/build/
-packages/*/lib/
-packages/wasm/build/
-
-# Coverage
-coverage/
-
-# Benchmark results
-benchmark-results*.json
-benchmark-report.html
-benchmark-reports/
-graph-benchmark-results.json
-training-results.json
-bug-detection-results.json
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-
-# Temp
-tmp/
-temp/cos-graph-engine-*/
+.hardness/
+platform/.gitignore
