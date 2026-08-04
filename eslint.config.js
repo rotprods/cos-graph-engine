@@ -1,0 +1,56 @@
+import js from "@eslint/js";
+
+export default [
+  js.configs.recommended,
+  {
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        Buffer: "readonly",
+        __dirname: "readonly",
+        __filename: "readonly",
+        exports: "writable",
+        module: "readonly",
+        require: "readonly",
+        globalThis: "readonly",
+        structuredClone: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        setInterval: "readonly",
+        clearInterval: "readonly",
+        setImmediate: "readonly",
+        clearImmediate: "readonly",
+        TextEncoder: "readonly",
+        TextDecoder: "readonly",
+      },
+    },
+    rules: {
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "no-console": "warn",
+      "prefer-const": "error",
+      "no-var": "error",
+      eqeqeq: ["error", "always"],
+      curly: ["error", "all"],
+      "no-throw-literal": "error",
+      "prefer-template": "warn",
+      "object-shorthand": ["error", "always"],
+      "array-callback-return": "error",
+      "no-duplicate-imports": "error",
+      "sort-imports": ["warn", { ignoreDeclarationSort: true }],
+      "no-path-concat": "error",
+    },
+  },
+  {
+    ignores: [
+      "node_modules/",
+      "dist/",
+      "coverage/",
+      ".hardness/",
+    ],
+  },
+];

@@ -1,0 +1,50 @@
+{
+  "count": 23,
+  "updated": "2026-07-30",
+  "central_hash": "2a77b6aa69d5fdd1ac57852cdf8b5c5fb54fe58e",
+  "tiers": {
+    "active": {
+      "description": "Repos activos con estructura para recibir sync",
+      "repos": [
+        {"name": "markerp-erp", "health": 92, "private": false},
+        {"name": "spain-cityscapes-fps", "health": 92, "private": true},
+        {"name": "nyc-90s-sniper", "health": 90, "private": false},
+        {"name": "novaforge-worlds", "health": 88, "private": true},
+        {"name": "creative-director-portfolio", "health": 88, "private": false},
+        {"name": "agent-universe-graph", "health": 88, "private": false},
+        {"name": "ollama-cloud-integration", "health": 88, "private": false},
+        {"name": "ave", "health": 88, "private": true},
+        {"name": "berlin-city-1v1", "health": 85, "private": false},
+        {"name": "forja-webs", "health": 80, "private": true}
+      ]
+    },
+    "seeding": {
+      "description": "Repos que necesitan seed inicial de estructura compartida",
+      "repos": [
+        {"name": "game-dev-mcp-hub", "health": 45, "private": false},
+        {"name": "shared-memory-bus", "health": 40, "private": false},
+        {"name": "cos-graph-engine", "health": 40, "private": false},
+        {"name": "foodbab", "health": 35, "private": true},
+        {"name": "fmg-modular-landing", "health": 30, "private": true}
+      ]
+    },
+    "partial": {
+      "description": "Repos con estructura parcial o legacy",
+      "repos": [
+        {"name": "supercomputer-graph", "health": 25, "private": true},
+        {"name": "agentic-os", "health": 20, "private": true},
+        {"name": "rdr2-replica", "health": 15, "private": false},
+        {"name": "MKTERP", "health": 10, "private": true},
+        {"name": "cos-graph-engine-landing-page", "health": 5, "private": false}
+      ]
+    },
+    "inactive": {
+      "description": "Repos vacíos o legacy sin estructura",
+      "repos": [
+        {"name": "agency-os-changelog", "health": 0, "private": false},
+        {"name": "Claude-Gaming", "health": 0, "private": true},
+        {"name": "meca-ui", "health": 0, "private": true}
+      ]
+    }
+  }
+}

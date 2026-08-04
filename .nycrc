@@ -1,0 +1,16 @@
+{
+  "reporter": ["text", "lcov", "html"],
+  "all": true,
+  "include": ["src/**/*.js"],
+  "exclude": [
+    "src/dashboard/**",
+    "**/*.test.js",
+    "**/*.spec.js",
+    "**/node_modules/**"
+  ],
+  "check-coverage": true,
+  "branches": 60,
+  "lines": 70,
+  "functions": 70,
+  "statements": 70
+}
