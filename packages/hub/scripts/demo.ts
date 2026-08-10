@@ -2,6 +2,7 @@
 // Uso: npx tsx packages/hub/scripts/demo.ts <path-al-cos-graph.json>
 import { CosHub } from '../src/hub';
 import { HubQueries } from '../src/query';
+import { HubRAG } from '../src/rag';
 import { handleGitHubEvent } from '../src/webhook';
 import { loadEcosystemFile } from '../src/ecosystem';
 import { MemoryStore } from '../src/store';
@@ -64,7 +65,23 @@ async function main() {
   console.log(`\nRepos en L13 (Agent): ${q.byDimension('L13').length}`);
   console.log(`Repos en L0 (Visual): ${q.byDimension('L0').length}`);
 
-  console.log(`\n✅ Demo OK — hub operando sobre el grafo real del ecosistema.`);
+  // --- Tier 3: GraphRAG (L11) — consulta semántica ---
+  const rag = new HubRAG();
+  const indexed = rag.build(hub);
+  console.log(`\n═══ TIER 3 · GraphRAG (${indexed} chunks indexados, L11) ═══`);
+  const queries = [
+    'agente de orquestacion y delegacion',
+    'motor de video y edicion',
+    'grafos de conocimiento y ontologias',
+    'farmacos y descubrimiento molecular',
+  ];
+  for (const q of queries) {
+    const hits = rag.search(q, [], 3);
+    console.log(`\n  ? "${q}"`);
+    for (const h of hits) console.log(`     ${h.repo.padEnd(26)} score=${h.score.toFixed(3)}`);
+  }
+
+  console.log(`\n✅ Demo OK — hub + GraphRAG semántico sobre el grafo real del ecosistema.`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
