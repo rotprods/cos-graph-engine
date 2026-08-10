@@ -88,11 +88,15 @@ export class KnowledgeGraphEngine {
     this.addEntity({ id: 'cos-knowledge', name: 'Knowledge', type: 'concept' });
     this.addEntity({ id: 'cos-execution', name: 'Execution', type: 'concept' });
     this.addEntity({ id: 'cos-orch', name: 'Orchestration', type: 'concept' });
+    this.addEntity({ id: 'cos-observability', name: 'Observability', type: 'concept' });
+    this.addEntity({ id: 'cos-api', name: 'API', type: 'concept' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-memory', type: 'has' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-reasoning', type: 'has' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-knowledge', type: 'has' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-execution', type: 'has' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-orch', type: 'has' });
+    this.addRelation({ id: generateId(), source: 'cos', target: 'cos-observability', type: 'has' });
+    this.addRelation({ id: generateId(), source: 'cos', target: 'cos-api', type: 'has' });
   }
 
   sparql(query: SPARQLQuery): Array<Record<string, KGEntity>> {
@@ -165,13 +169,13 @@ export class KnowledgeGraphEngine {
     return errors;
   }
 
-  metrics(): { nodeCount: number; edgeCount: number; avgDegree: number; density: number } {
+  metrics(): { nodeCount: number; edgeCount: number; entityCount: number; relationCount: number; avgDegree: number; density: number } {
     const n = this.entities.length; const e = this.relations.length;
     this.buildAdjacency();
     const deg = this.entities.map(en => (this.adj.get(en.id)?.length || 0) + (this.adjRev.get(en.id)?.length || 0));
     const avgDeg = n > 0 ? deg.reduce((a, b) => a + b, 0) / n : 0;
     const density = n > 1 ? (2 * e) / (n * (n - 1)) : 0;
-    return { nodeCount: n, edgeCount: e, avgDegree: avgDeg, density };
+    return { nodeCount: n, edgeCount: e, entityCount: n, relationCount: e, avgDegree: avgDeg, density };
   }
 
   toJSON() { return { entities: this.entities, relations: this.relations }; }

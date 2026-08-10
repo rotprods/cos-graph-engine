@@ -117,7 +117,8 @@ export class GraphRAGEngine {
 
     // Re-rank
     const hybrid: Array<{ chunk: Chunk; score: number }> = topChunks.map(c => {
-      const entityOverlap = c.entities.filter(e => visitedEntities.has(e)).length / Math.max(1, c.entities.length);
+      const ents = c.entities || [];
+      const entityOverlap = ents.filter(e => visitedEntities.has(e)).length / Math.max(1, ents.length);
       return { chunk: c, score: this.config.similarityWeight * (scored.find(s => s.chunk.id === c.id)?.score || 0) + (1 - this.config.similarityWeight) * entityOverlap };
     });
     hybrid.sort((a, b) => b.score - a.score);

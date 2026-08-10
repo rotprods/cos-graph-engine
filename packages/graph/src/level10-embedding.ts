@@ -54,10 +54,12 @@ export class EmbeddingGraph {
   getNode(nodeId: string): EmbeddingNode | undefined { return this.nodes.find(n => n.id === nodeId); }
 
   static distance(a: number[], b: number[]): number {
+    if (!a || !a.length || !b || !b.length) return Infinity;
     return Math.sqrt(a.reduce((s, v, i) => s + (v - (b[i] || 0)) ** 2, 0));
   }
 
   static cosine(a: number[], b: number[]): number {
+    if (!a || !a.length || !b || !b.length) return 0;
     const dot = a.reduce((s, v, i) => s + v * (b[i] || 0), 0);
     const na = Math.sqrt(a.reduce((s, v) => s + v * v, 0));
     const nb = Math.sqrt(b.reduce((s, v) => s + v * v, 0));
@@ -67,6 +69,7 @@ export class EmbeddingGraph {
   buildKNN(k: number = 3): void {
     this.edges = [];
     for (let i = 0; i < this.nodes.length; i++) {
+      if (!this.nodes[i].vector || !this.nodes[i].vector.length) continue;
       const dists = this.nodes.map((n, j) => ({ idx: j, dist: EmbeddingGraph.distance(this.nodes[i].vector, n.vector) }));
       dists.sort((a, b) => a.dist - b.dist);
       for (let j = 1; j <= Math.min(k, dists.length - 1); j++) {
@@ -80,6 +83,7 @@ export class EmbeddingGraph {
   buildEpsilon(epsilon: number = 0.5): void {
     this.edges = [];
     for (let i = 0; i < this.nodes.length; i++) {
+      if (!this.nodes[i].vector || !this.nodes[i].vector.length) continue;
       for (let j = i + 1; j < this.nodes.length; j++) {
         const dist = EmbeddingGraph.distance(this.nodes[i].vector, this.nodes[j].vector);
         if (dist < epsilon) {
@@ -91,27 +95,25 @@ export class EmbeddingGraph {
   }
 
   cluster(k: number = 3, seed?: number): Map<number, EmbeddingNode[]> {
-    if (this.nodes.length === 0) return new Map();
-    const n = this.nodes.length;
-    const dim = this.nodes[0].vector.length;
+    const vecNodes = this.nodes.filter(n => n.vector && n.vector.length);
+    if (vecNodes.length === 0) return new Map();
+    const n = vecNodes.length;
+    const dim = vecNodes[0].vector.length;
     let centroids: number[][];
-
-    // K-means++ initialization
-    centroids = [this.nodes[Math.floor((seed || Date.now()) % n)].vector.slice()];
+    centroids = [vecNodes[Math.floor((seed || Date.now()) % n)].vector.slice()];
     for (let c = 1; c < k; c++) {
-      const dists = this.nodes.map(n => Math.min(...centroids.map(cent => EmbeddingGraph.distance(n.vector, cent))));
+      const dists = vecNodes.map(nv => Math.min(...centroids.map(cent => EmbeddingGraph.distance(nv.vector, cent))));
       const totalDist = dists.reduce((a, b) => a + b, 0);
       let r = Math.random() * totalDist;
-      for (let i = 0; i < n; i++) { r -= dists[i]; if (r <= 0) { centroids.push(this.nodes[i].vector.slice()); break; } }
+      for (let i = 0; i < n; i++) { r -= dists[i]; if (r <= 0) { centroids.push(vecNodes[i].vector.slice()); break; } }
     }
-
     let assignments = new Array(n).fill(0);
     for (let iter = 0; iter < 50; iter++) {
       let changed = false;
       for (let i = 0; i < n; i++) {
         let minDist = Infinity; let bestK = 0;
         for (let c = 0; c < centroids.length; c++) {
-          const d = EmbeddingGraph.distance(this.nodes[i].vector, centroids[c]);
+          const d = EmbeddingGraph.distance(vecNodes[i].vector, centroids[c]);
           if (d < minDist) { minDist = d; bestK = c; }
         }
         if (assignments[i] !== bestK) { assignments[i] = bestK; changed = true; }
@@ -120,20 +122,19 @@ export class EmbeddingGraph {
       centroids = centroids.map(() => new Array(dim).fill(0));
       const counts = new Array(k).fill(0);
       for (let i = 0; i < n; i++) {
-        for (let d = 0; d < dim; d++) centroids[assignments[i]][d] += this.nodes[i].vector[d];
+        for (let d = 0; d < dim; d++) centroids[assignments[i]][d] += vecNodes[i].vector[d];
         counts[assignments[i]]++;
       }
       for (let c = 0; c < k; c++) {
         if (counts[c] > 0) for (let d = 0; d < dim; d++) centroids[c][d] /= counts[c];
       }
     }
-
     const result = new Map<number, EmbeddingNode[]>();
     for (let i = 0; i < n; i++) {
       const clusterId = assignments[i];
-      this.nodes[i].clusterId = clusterId;
+      vecNodes[i].clusterId = clusterId;
       if (!result.has(clusterId)) result.set(clusterId, []);
-      result.get(clusterId)!.push(this.nodes[i]);
+      result.get(clusterId)!.push(vecNodes[i]);
     }
     return result;
   }
