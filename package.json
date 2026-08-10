@@ -17,7 +17,8 @@
     "packages/deployment",
     "packages/graph",
     "packages/visualization",
-    "packages/wasm"
+    "packages/wasm",
+    "packages/hub"
   ],
   "scripts": {
     "asbuild": "cd packages/wasm && npx asc assembly/index.ts --outFile build/optimized.wasm --optimizeLevel 3 --shrinkLevel 1 --exportRuntime",
