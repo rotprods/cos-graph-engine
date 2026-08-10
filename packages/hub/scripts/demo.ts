@@ -2,6 +2,7 @@
 // Uso: npx tsx packages/hub/scripts/demo.ts <path-al-cos-graph.json>
 import { CosHub } from '../src/hub';
 import { HubQueries } from '../src/query';
+import { HubIntelligence } from '../src/intelligence';
 import { handleGitHubEvent } from '../src/webhook';
 import { loadEcosystemFile } from '../src/ecosystem';
 import { MemoryStore } from '../src/store';
@@ -64,7 +65,32 @@ async function main() {
   console.log(`\nRepos en L13 (Agent): ${q.byDimension('L13').length}`);
   console.log(`Repos en L0 (Visual): ${q.byDimension('L0').length}`);
 
-  console.log(`\n✅ Demo OK — hub operando sobre el grafo real del ecosistema.`);
+  // --- Tier 3: inteligencia (L10 embeddings + L7 GCN) ---
+  const ai = new HubIntelligence();
+  const emb = ai.build(hub);
+  const clusters = ai.clusters(6);
+  const roles = ai.roles();
+  const preds = ai.predictLinks(hub, 8);
+
+  console.log(`\n═══ TIER 3 · Inteligencia (${emb} repos embebidos, L10 + L7) ═══`);
+
+  console.log(`\nClusters (k-means, L10):`);
+  for (const [cid, ids] of Object.entries(clusters)) {
+    console.log(`  C${cid} (${ids.length}): ${ids.slice(0, 6).join(', ')}${ids.length > 6 ? '…' : ''}`);
+  }
+
+  console.log(`\nRoles por nodo (GCN, L7) — muestra de 6:`);
+  const sorted = roles.slice().sort((a, b) => b.confidence - a.confidence);
+  for (const r of sorted.slice(0, 6)) {
+    console.log(`  ${r.nodeId.padEnd(24)} rol=${r.role} conf=${r.confidence.toFixed(2)} cluster=${r.cluster}`);
+  }
+
+  console.log(`\nLinks predichos (GCN, L7) — posible colaboración/dimensión:`);
+  for (const l of preds) {
+    console.log(`  ${l.from} ↔ ${l.to}  (score ${l.score})`);
+  }
+
+  console.log(`\n✅ Demo OK — hub operando + inteligencia sobre el grafo real del ecosistema.`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

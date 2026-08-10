@@ -1,6 +1,7 @@
 // @cos/hub — entrada pública.
 export { CosHub, RepoState, RepoEvent, LoadStats } from './hub';
 export { HubQueries, RepoRow } from './query';
+export { HubIntelligence, RepoIntelligence, LinkPrediction } from './intelligence';
 export { handleGitHubEvent, eventToRepoEvent, GitHubEvent } from './webhook';
 export { loadEcosystemFile, loadEcosystemData, EcosystemGraph } from './ecosystem';
 export { Store, JSONStore, MemoryStore, HubSnapshot } from './store';
