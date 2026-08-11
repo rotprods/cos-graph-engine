@@ -70,10 +70,10 @@ async function main() {
   const indexed = rag.build(hub);
   console.log(`\n═══ TIER 3 · GraphRAG (${indexed} chunks indexados, L11) ═══`);
   const queries = [
-    'agente de orquestacion y delegacion',
-    'motor de video y edicion',
-    'grafos de conocimiento y ontologias',
-    'farmacos y descubrimiento molecular',
+    'orquestación de agentes',
+    'molecular',
+    'motor de video y edición',
+    'grafos de conocimiento',
   ];
   for (const q of queries) {
     const hits = rag.search(q, [], 3);
