@@ -1,0 +1,16 @@
+{
+  "name": "@cos/hub",
+  "version": "0.2.0",
+  "description": "COS Agentic Hub — canonical portfolio/project/repository graph control plane",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@cos/core": "0.1.0",
+    "@cos/graph": "2.1.0",
+    "@cos/runtime": "0.1.0"
+  }
+}
