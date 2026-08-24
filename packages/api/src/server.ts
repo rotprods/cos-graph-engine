@@ -15,7 +15,7 @@ import {
   ResilienceRegistry,
   ResilienceObserver,
 } from '@cos/orchestration';
-import { TelemetrySystem } from '@cos/observability';
+import { TelemetrySystem, AuthorityTelemetry } from '@cos/observability';
 
 export type PolicyMode = 'disabled' | 'audit' | 'enforce';
 
@@ -53,6 +53,7 @@ export class COSServer {
   public readonly resilience: ResilienceRegistry;
   public readonly resilienceObserver: ResilienceObserver;
   public readonly telemetry: TelemetrySystem;
+  public readonly authorityTelemetry: AuthorityTelemetry;
 
   public readonly config: COSConfig;
   private started = false;
@@ -81,6 +82,8 @@ export class COSServer {
     this.learning = new LearningSystem();
     this.selfImprovement = new SelfImprovementSystem(this.evaluation, this.learning, this.reasoning);
     this.llm = new LLMFactory();
+    this.telemetry = new TelemetrySystem();
+    this.authorityTelemetry = new AuthorityTelemetry(this.telemetry);
 
     this.resilience = new ResilienceRegistry();
     this.resilienceObserver = new ResilienceObserver(this.resilience);
@@ -156,7 +159,6 @@ export class COSServer {
     this.goalCoordinator = new GoalExecutionCoordinator(this.autonomousLoop);
     this.agents = new AgentSystem();
     this.workflows = new WorkflowEngine();
-    this.telemetry = new TelemetrySystem();
   }
 
   async start(): Promise<void> {
@@ -242,6 +244,7 @@ export class COSServer {
           agents: this.agents.agentCount,
           workflows: this.workflows.workflowCount,
           nearMisses: this.resilience.listNearMisses(this.config.projectId).length,
+          telemetryObserverFailures: this.authorityTelemetry.observerFailureCount,
         },
       },
     };
@@ -272,6 +275,7 @@ export class COSServer {
       telemetry: {
         events: this.telemetry.eventCount,
         metrics: this.telemetry.metricCount,
+        observerFailures: this.authorityTelemetry.observerFailureCount,
       },
     };
   }
@@ -293,36 +297,51 @@ export class COSServer {
     if (!goal) throw new Error(`Goal ${String(goalId)} not found`);
     await this.authorize('goal.execute', `autonomous:goal:${String(goalId)}`, goal.context);
 
-    try {
-      await this.goalCoordinator.execute({
-        goalId,
-        idempotencyKey: `goal-execution:${String(goalId)}`,
-        workerId: `cos-server:${this.config.host}:${this.config.port}`,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const signalType = message.includes('LEASE_')
-        ? 'lease_conflict'
-        : message.includes('IDEMPOTENCY_CONFLICT')
-          ? 'idempotency_conflict'
-          : null;
-      if (signalType) {
-        this.resilienceObserver.observe({
-          type: signalType,
-          projectId: this.config.projectId,
-          resource: `goal:${String(goalId)}`,
-          sourceRef: `goal-execution:${String(goalId)}`,
-          occurredAt: new Date().toISOString(),
-          detail: message,
-          metadata: { goalId: String(goalId) },
+    const operation = await this.authorityTelemetry.run({
+      type: 'agent.goal.execute',
+      source: 'cos-server',
+      traceId: goal.context.traceId,
+      parentSpanId: goal.context.parentSpanId,
+      projectId: this.config.projectId,
+      resourceId: String(goalId),
+      correlationId: goal.context.traceId,
+      attributes: {
+        policyMode: this.config.policyMode,
+        worker: `cos-server:${this.config.host}:${this.config.port}`,
+      },
+    }, async () => {
+      try {
+        await this.goalCoordinator.execute({
+          goalId,
+          idempotencyKey: `goal-execution:${String(goalId)}`,
+          workerId: `cos-server:${this.config.host}:${this.config.port}`,
         });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const signalType = message.includes('LEASE_')
+          ? 'lease_conflict'
+          : message.includes('IDEMPOTENCY_CONFLICT')
+            ? 'idempotency_conflict'
+            : null;
+        if (signalType) {
+          this.resilienceObserver.observe({
+            type: signalType,
+            projectId: this.config.projectId,
+            resource: `goal:${String(goalId)}`,
+            sourceRef: `goal-execution:${String(goalId)}`,
+            occurredAt: new Date().toISOString(),
+            detail: message,
+            metadata: { goalId: String(goalId) },
+          });
+        }
+        throw error;
       }
-      throw error;
-    }
 
-    const completed = await this.autonomousLoop.getGoal(goalId);
-    if (!completed) throw new Error(`Goal ${String(goalId)} disappeared after execution`);
-    return completed;
+      const completed = await this.autonomousLoop.getGoal(goalId);
+      if (!completed) throw new Error(`Goal ${String(goalId)} disappeared after execution`);
+      return completed;
+    });
+    return operation.value;
   }
 
   async executeNextStep(goalId: EntityId): Promise<AutonomousStepResult | null> {
