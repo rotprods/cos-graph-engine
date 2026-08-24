@@ -12,6 +12,8 @@ import {
   AutonomousGoal,
   AutonomousStepResult,
   GoalExecutionCoordinator,
+  ResilienceRegistry,
+  ResilienceObserver,
 } from '@cos/orchestration';
 import { TelemetrySystem } from '@cos/observability';
 
@@ -28,6 +30,7 @@ export interface COSConfig {
    * `enforce` is required before COS may be promoted to authoritative runtime.
    */
   policyMode: PolicyMode;
+  projectId?: string;
 }
 
 export class COSServer {
@@ -49,6 +52,8 @@ export class COSServer {
   public readonly agents: AgentSystem;
   public readonly workflows: WorkflowEngine;
   public readonly policies: PolicyEngine;
+  public readonly resilience: ResilienceRegistry;
+  public readonly resilienceObserver: ResilienceObserver;
   public readonly telemetry: TelemetrySystem;
 
   public readonly config: COSConfig;
@@ -62,6 +67,7 @@ export class COSServer {
       logLevel: config?.logLevel || 'info',
       plugins: config?.plugins || [],
       policyMode: config?.policyMode || 'audit',
+      projectId: config?.projectId,
     };
 
     this.cellHost = new CellHost();
@@ -76,10 +82,30 @@ export class COSServer {
     this.selfImprovement = new SelfImprovementSystem(this.evaluation, this.learning, this.reasoning);
     this.llm = new LLMFactory();
 
-    // Policy and capability infrastructure must exist BEFORE autonomous
-    // execution is assembled; otherwise tool execution can bypass enforcement.
+    // Security decisions and resilience learning are intentionally assembled
+    // before any execution path so all later components can share them.
+    this.resilience = new ResilienceRegistry();
+    this.resilienceObserver = new ResilienceObserver(this.resilience);
     this.tools = new ToolRegistry();
     this.policies = new PolicyEngine();
+    this.policies.onDecision(audit => {
+      if (audit.decision === 'allow') return;
+      this.resilienceObserver.observe({
+        type: audit.decision === 'deny' ? 'policy_denied' : 'policy_requires_approval',
+        projectId: this.config.projectId,
+        resource: audit.resource,
+        actor: audit.principal,
+        sourceRef: `policy-audit:${String(audit.id)}`,
+        occurredAt: audit.timestamp,
+        detail: `${audit.decision.toUpperCase()} ${audit.action} on ${audit.resource}: ${audit.reason}`,
+        metadata: {
+          traceId: audit.traceId,
+          action: audit.action,
+          decision: audit.decision,
+        },
+      });
+    });
+
     this.capabilities = new CapabilityRouter(this.tools, async request => {
       if (this.config.policyMode === 'disabled') {
         return { allowed: true, reason: 'policy disabled' };
@@ -99,8 +125,6 @@ export class COSServer {
         },
       );
 
-      // Audit mode deliberately records the real decision but does not block
-      // legacy execution. Authority Gate requires policyMode=enforce.
       if (this.config.policyMode === 'audit') {
         return {
           allowed: true,
@@ -212,6 +236,7 @@ export class COSServer {
           tools: this.tools.getAll().length,
           agents: this.agents.agentCount,
           workflows: this.workflows.workflowCount,
+          nearMisses: this.resilience.listNearMisses(this.config.projectId).length,
         },
       },
     };
@@ -236,6 +261,9 @@ export class COSServer {
         mode: this.config.policyMode,
         auditEntries: this.policies.getAuditLog(Number.MAX_SAFE_INTEGER).length,
       },
+      resilience: {
+        nearMisses: this.resilience.listNearMisses(this.config.projectId).length,
+      },
       telemetry: {
         events: this.telemetry.eventCount,
         metrics: this.telemetry.metricCount,
@@ -255,20 +283,38 @@ export class COSServer {
     return this.autonomousLoop.getActiveGoals();
   }
 
-  /**
-   * Full-goal execution always passes through the lease/idempotency coordinator.
-   * This is the authority-grade path for side-effecting tool steps.
-   */
   async executeGoal(goalId: EntityId): Promise<AutonomousGoal> {
     const goal = await this.autonomousLoop.getGoal(goalId);
     if (!goal) throw new Error(`Goal ${String(goalId)} not found`);
     await this.authorize('goal.execute', `autonomous:goal:${String(goalId)}`, goal.context);
 
-    await this.goalCoordinator.execute({
-      goalId,
-      idempotencyKey: `goal-execution:${String(goalId)}`,
-      workerId: `cos-server:${this.config.host}:${this.config.port}`,
-    });
+    try {
+      await this.goalCoordinator.execute({
+        goalId,
+        idempotencyKey: `goal-execution:${String(goalId)}`,
+        workerId: `cos-server:${this.config.host}:${this.config.port}`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const signalType = message.includes('LEASE_')
+        ? 'lease_conflict'
+        : message.includes('IDEMPOTENCY_CONFLICT')
+          ? 'idempotency_conflict'
+          : null;
+      if (signalType) {
+        this.resilienceObserver.observe({
+          type: signalType,
+          projectId: this.config.projectId,
+          resource: `goal:${String(goalId)}`,
+          sourceRef: `goal-execution:${String(goalId)}`,
+          occurredAt: new Date().toISOString(),
+          detail: message,
+          metadata: { goalId: String(goalId) },
+        });
+      }
+      throw error;
+    }
+
     const completed = await this.autonomousLoop.getGoal(goalId);
     if (!completed) throw new Error(`Goal ${String(goalId)} disappeared after execution`);
     return completed;
@@ -278,8 +324,6 @@ export class COSServer {
     const goal = await this.autonomousLoop.getGoal(goalId);
     if (!goal) throw new Error(`Goal ${String(goalId)} not found`);
     await this.authorize('goal.step.execute', `autonomous:goal:${String(goalId)}`, goal.context);
-    // Direct single-step execution intentionally has no fencing metadata. Read-
-    // only steps may execute; side-effecting CapabilityRouter calls fail closed.
     return this.autonomousLoop.executeNextStep(goalId);
   }
 
