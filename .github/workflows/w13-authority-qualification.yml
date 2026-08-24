@@ -50,6 +50,7 @@ jobs:
         run: |
           npm run test:authority
           npx tsx scripts/w13-provider-contract.ts
+          npx tsx scripts/w13-state-partial-commit-contract.ts
 
       - name: Full canonical regression
         run: npm run test:all
