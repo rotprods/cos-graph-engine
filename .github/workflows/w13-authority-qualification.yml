@@ -1,0 +1,80 @@
+name: W13 Authority Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_benchmarks:
+        description: "Run benchmark evidence after correctness passes"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: w13-authority-qualification
+  cancel-in-progress: false
+
+jobs:
+  authority-qualification:
+    name: authority-qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Clean deterministic install
+        run: npm ci
+
+      - name: Dependency toolchain evidence
+        run: |
+          node --version
+          npm --version
+          npx --no-install tsc --version
+          npx --no-install tsx --version
+
+      - name: Legacy build-graph typecheck
+        run: npm run typecheck:build
+
+      - name: Strict authority-surface typecheck
+        run: npm run typecheck:authority
+
+      - name: WASM build
+        run: npm run asbuild
+
+      - name: Canonical regression suites
+        run: npm run test:all
+
+      - name: L2 authority semantics
+        run: npm run test:l2:authority
+
+      - name: Cross-stack authority negative suite
+        run: npm run test:w13:authority
+
+      - name: Graph benchmark compatibility smoke
+        if: ${{ inputs.run_benchmarks }}
+        run: npm run benchmark:graph
+
+      - name: Scientific benchmark campaign
+        if: ${{ inputs.run_benchmarks }}
+        run: npm run benchmark:report
+
+      - name: Upload benchmark evidence
+        if: ${{ inputs.run_benchmarks }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: w13-benchmark-evidence
+          path: |
+            graph-benchmark-results.json
+            benchmark-results.json
+            benchmark-report.json
+          if-no-files-found: warn
+          retention-days: 7
