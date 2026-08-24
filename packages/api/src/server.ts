@@ -3,7 +3,7 @@ import { CellHost } from '@cos/runtime';
 import { MemoryManager } from '@cos/memory';
 import { KnowledgeGraph, EmbeddingSystem, OntologySystem } from '@cos/knowledge';
 import { ReasoningEngineRegistry, PlanningEngine, EvaluationSystem, LearningSystem, SelfImprovementSystem, LLMFactory } from '@cos/cognition';
-import { ToolRegistry, CapabilityRouter, createDefaultCapabilityGuard } from '@cos/execution';
+import { StrictToolRegistry, CapabilityRouter, createDefaultCapabilityGuard } from '@cos/execution';
 import {
   AgentSystem,
   WorkflowEngine,
@@ -25,15 +25,9 @@ export interface COSConfig {
   maxMemory: number;
   logLevel: string;
   plugins: string[];
-  /**
-   * `audit` evaluates every protected execution without breaking legacy callers.
-   * `enforce` is required before COS may be promoted to authoritative runtime.
-   */
   policyMode: PolicyMode;
   projectId?: string;
-  /** Filesystem roots accessible to built-in filesystem capability. */
   filesystemRoots?: string[];
-  /** Explicit host exceptions for the conservative HTTP input guard. */
   allowedHttpHosts?: string[];
 }
 
@@ -51,7 +45,7 @@ export class COSServer {
   public readonly llm: LLMFactory;
   public readonly autonomousLoop: AutonomousLoop;
   public readonly goalCoordinator: GoalExecutionCoordinator;
-  public readonly tools: ToolRegistry;
+  public readonly tools: StrictToolRegistry;
   public readonly capabilities: CapabilityRouter;
   public readonly agents: AgentSystem;
   public readonly workflows: WorkflowEngine;
@@ -90,7 +84,7 @@ export class COSServer {
 
     this.resilience = new ResilienceRegistry();
     this.resilienceObserver = new ResilienceObserver(this.resilience);
-    this.tools = new ToolRegistry();
+    this.tools = new StrictToolRegistry();
     this.policies = new PolicyEngine();
     this.policies.onDecision(audit => {
       if (audit.decision === 'allow') return;
