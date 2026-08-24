@@ -16,6 +16,7 @@
     "packages/infrastructure",
     "packages/deployment",
     "packages/graph",
+    "packages/hub",
     "packages/visualization",
     "packages/wasm"
   ],
