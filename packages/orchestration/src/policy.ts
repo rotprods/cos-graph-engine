@@ -16,6 +16,8 @@ export interface PolicyEvaluationAudit {
   reason: string;
 }
 
+export type PolicyDecisionListener = (audit: Readonly<PolicyEvaluationAudit>) => void;
+
 export class PolicyDeniedError extends Error {
   constructor(
     readonly action: string,
@@ -49,6 +51,7 @@ export class PolicyEngine implements IPolicyEngine {
   private rules: Map<EntityId, PolicyRule> = new Map();
   private audit: PolicyEvaluationAudit[] = [];
   private readonly maxAuditEntries: number;
+  private readonly listeners = new Set<PolicyDecisionListener>();
 
   constructor(maxAuditEntries = 10000) {
     this.maxAuditEntries = Math.max(1, maxAuditEntries);
@@ -95,7 +98,6 @@ export class PolicyEngine implements IPolicyEngine {
     return decision;
   }
 
-  /** Enforcement helper for execution paths: evaluating policy without checking the result is not sufficient. */
   async assertAllowed(action: string, resource: string, context: CellContext): Promise<void> {
     const decision = await this.evaluate(action, resource, context);
     if (decision.requiresApproval) throw new PolicyApprovalRequiredError(action, resource, decision);
@@ -129,6 +131,15 @@ export class PolicyEngine implements IPolicyEngine {
 
   clearAuditLog(): void {
     this.audit = [];
+  }
+
+  /**
+   * Subscribe to immutable decision evidence. Listeners are observability /
+   * resilience hooks only; they cannot alter the decision already computed.
+   */
+  onDecision(listener: PolicyDecisionListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   private evaluateConditions(conditions: PolicyCondition[], context: CellContext): boolean {
@@ -185,8 +196,6 @@ export class PolicyEngine implements IPolicyEngine {
         }
       }
       default:
-        // Runtime inputs may bypass TypeScript. Unknown operators must never
-        // become implicit authorization.
         return false;
     }
   }
@@ -198,7 +207,7 @@ export class PolicyEngine implements IPolicyEngine {
   }
 
   private recordAudit(action: string, resource: string, context: CellContext, decision: PolicyDecision): void {
-    this.audit.push({
+    const entry: PolicyEvaluationAudit = {
       id: generateId(),
       timestamp: new Date().toISOString(),
       action,
@@ -208,7 +217,18 @@ export class PolicyEngine implements IPolicyEngine {
       decision: decision.requiresApproval ? 'require_approval' : decision.allowed ? 'allow' : 'deny',
       matchedRuleIds: decision.matchedRules.map(rule => rule.id),
       reason: decision.reason,
-    });
+    };
+    this.audit.push(entry);
     if (this.audit.length > this.maxAuditEntries) this.audit = this.audit.slice(-this.maxAuditEntries);
+
+    const immutable = Object.freeze({ ...entry, matchedRuleIds: Object.freeze([...entry.matchedRuleIds]) }) as Readonly<PolicyEvaluationAudit>;
+    for (const listener of this.listeners) {
+      try {
+        listener(immutable);
+      } catch {
+        // Observability/resilience listeners may never alter authorization or
+        // turn a successful policy evaluation into an application failure.
+      }
+    }
   }
 }
