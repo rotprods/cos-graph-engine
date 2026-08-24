@@ -1,17 +1,17 @@
 # STATE — COS Graph Engine
 
-Updated: 2026-08-24 16:45 Europe/Madrid
-Mode: **CONVERGENCE_AND_HARDENING**
+Updated: 2026-08-24 17:05 Europe/Madrid
+Mode: **W12_4_FROZEN_W13_QUALIFICATION_NEXT**
 Authority status: **SHADOW_ONLY**
-Final verification: **DEFERRED_TO_W13_BY_OWNER DECISION**
-Current head: `hardening/w12-4-authority-closure`
+Current implementation head: `hardening/w12-4-authority-closure`
 Current draft PR: **#35**
+Automatic CI/CD: **OFF / MANUAL-ONLY**
 
 ## North Star
 Bring COS Graph Engine to a demonstrable 10/10 engineering standard across all 20 audited dimensions, with machine evidence rather than narrative confidence, before it becomes authoritative infrastructure for AGENTIC_SYSTEMS_OS.
 
-## Active stacked hardening chain
-- #18 — W0/W1 canonical truth + manual-only CI/CD posture
+## Stacked hardening chain
+- #18 — W0/W1 canonical truth + cost-safe CI/CD posture
 - #20 — W2 graph correctness
 - #21 — W3 deterministic identity
 - #22 — W4 bi-temporal + provenance
@@ -22,38 +22,52 @@ Bring COS Graph Engine to a demonstrable 10/10 engineering standard across all 2
 - #27 — W9 CAS + leases
 - #28 — W10 resilience/change-risk runtime
 - #29 — W11 scientific benchmark harness
-- #30 — W12 scope-safe temporal GraphRAG
+- #30 — W12 scoped temporal GraphRAG
 - #31 — W12.1 memory integrity
 - #32 — W12.2 deterministic cold-start/governance
 - #33 — W12.3 cross-wave authority integration
 - #35 — W12.4 authority closure
 
-All PRs remain draft until convergence review and W13 qualification.
+All remain draft until W13 evidence closes the authority gate.
 
-## W12.4 implemented truth
-- strict tool execution is the server path;
-- SearchTool false success removed and corpus availability made explicit;
-- deterministic authority GraphRAG with relation identity, projection hash/version and invariants;
-- AgenticResourceRegistry → GraphRAG → SHA-256-verified ContextPack bridge;
-- epistemic/bi-temporal memory envelope with supersession, contradiction, provenance and CAS;
-- Postgres/Supabase-compatible temporal memory index;
-- immutable SHA-256 Hub snapshots with Postgres adapter and recovery coordinator;
-- serialized state-machine transitions with internal rollback and timer fencing;
-- immutable EventBus delivery-failure observer stream.
+## W12.4 frozen implementation truth
+- `StrictToolRegistry` is the COSServer execution path; legacy SearchTool false-success is removed at source.
+- Filesystem/HTTP capabilities are bounded before side effects and remain policy-gated.
+- Authority tool execution is lease/fencing/idempotency-aware.
+- Deterministic authority GraphRAG exists alongside legacy L11 for migration safety.
+- `VerifiedAuthorityGraphRAGEngine` derives sensitivity before identity and requires source `recordedAt` instead of wall-clock replay time.
+- `ContextPackCompiler` rejects stale projection version/hash and can seal evidence with SHA-256.
+- `VerifiedAgenticContextProjector` provides the authority path from Project/Chat/Task/Decision/Artifact topology to bounded context.
+- Temporal memory has explicit epistemic type, confidence, provenance, valid/system time, supersession, contradiction and CAS.
+- `CanonicalTemporalMemoryIndex` normalizes ISO timestamps and SQL NULL/undefined representation before persistence hashing.
+- Postgres/Supabase-compatible durable event, memory, temporal memory and Hub snapshot adapters exist.
+- Hub restore has a strict authority wrapper: unresolved agent/workflow definitions fail closed unless partial shadow recovery is explicitly authorized.
+- State machines serialize concurrent transitions, roll back internal state on callback failure and fence stale timers.
+- Resilience observes policy/lease/idempotency/delivery failures as near-miss evidence without inventing root cause.
+- `@cos/hub` is now part of both root npm workspaces and the canonical TypeScript build graph.
+- `tsconfig.authority.json` defines a separate strict typecheck surface while legacy build compatibility remains isolated.
 
-## Cost state
-CI, release, deploy and hardening workflows remain manual-only. CD is OFF during convergence. Do not merge a branch that restores automatic cost-generating triggers.
+## Static preflight defects closed after PR #35 opened
+1. Hub missing from `tsconfig.build.json` paths/includes — fixed.
+2. Relation identity could be calculated with default `internal` before endpoint-derived sensitivity — verified authority facade added.
+3. Relation replay could synthesize `recordedAt=now()` — verified authority facade now requires source timestamp.
+4. Postgres temporal-memory round trip could differ only by ISO/NULL representation — canonicalization boundary added.
+5. Hub restore could succeed with unresolved agent/workflow definitions as warnings — strict recovery gate added.
+6. Authority surface previously depended on monorepo `strict:false` — dedicated strict authority typecheck added.
 
-## Known verification/migration gaps
-- final clean install and workspace/package-lock reconciliation;
-- compile/typecheck all stacked changes;
-- update legacy L2 tests that intentionally relied on mutable `contextData` and empty-invalid constructors, or add an explicit compatibility builder;
-- provider fixtures for Postgres event/memory/Hub adapters;
-- full property/negative/security/contention/replay/restore tests;
-- migrate authority consumers from legacy L11/CSR paths where required;
-- attach more recovery/context failure signals to ResilienceObserver;
-- benchmark representative portfolio/project workloads;
-- blind cold-agent resume and complete 20D re-audit.
+## Remaining work is qualification/migration, not new architecture
+- clean install and package-lock/workspace reconciliation;
+- discover/pin the actual TypeScript version from the clean dependency graph rather than relying on `npx` ambiguity;
+- typecheck legacy build and strict authority surface;
+- compile/build all affected packages;
+- reconcile old L2 tests/benchmark callers that intentionally mutated copy-safe `contextData` or constructed invalid empty FSMs;
+- provider fixtures for Postgres adapters;
+- property/negative/security/contention/fencing/idempotency tests;
+- deterministic event/graph/context replay;
+- corrupted-snapshot and empty-database restore;
+- scientific benchmark and observability evidence;
+- blind cold-agent resume;
+- final 20D re-audit.
 
-## Current next action
-Perform one static cross-stack review of PR #35 for compile-contract mismatches, close obvious defects without running paid CI, then freeze W12.x and open W13 qualification. W13 runs one consolidated manual CI/evidence campaign and triages every real failure until green.
+## Next exact action
+Create `hardening/w13-authority-qualification` from this frozen head. W13 may fix defects exposed by verification but may not introduce new product breadth. Run one consolidated manual evidence campaign, triage every real failure without suppression, then re-run until all authority gates pass or remain explicitly blocked.
