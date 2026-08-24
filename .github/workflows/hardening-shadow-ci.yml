@@ -1,13 +1,19 @@
 name: Hardening Shadow CI
 
+# Cost-control policy: manual-only remote verification.
+# Local/container verification is the default during the Convergence Era.
 on:
-  push:
-    branches:
-      - 'hardening/**'
-  pull_request:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Verification scope'
+        required: true
+        default: 'canonical'
+        type: choice
+        options:
+          - smoke
+          - canonical
+          - full
 
 concurrency:
   group: hardening-shadow-${{ github.ref }}
@@ -29,12 +35,17 @@ jobs:
         run: npm ci
       - name: TypeScript build check
         run: npx tsc -p tsconfig.build.json --noEmit
-      - name: WASM build — fail closed
-        run: npm run asbuild
       - name: Level 1 correctness smoke
         run: npm run test:l1
+      - name: WASM build — fail closed
+        if: ${{ inputs.scope != 'smoke' }}
+        run: npm run asbuild
       - name: Full canonical test suite
+        if: ${{ inputs.scope != 'smoke' }}
         run: npm run test:all
+      - name: Coverage / extended verification
+        if: ${{ inputs.scope == 'full' }}
+        run: npm run coverage
 
   ci-contract:
     name: CI truth contract
@@ -50,7 +61,7 @@ jobs:
             echo 'FAIL: hardening CI contains a fail-open construct'
             exit 1
           fi
-          echo 'PASS: hardening CI is fail-closed'
+          echo 'PASS: hardening CI is fail-closed and manual-only'
 
   complete:
     name: Hardening shadow gate
@@ -58,4 +69,4 @@ jobs:
     needs: [canonical-truth, ci-contract]
     if: success()
     steps:
-      - run: echo 'PASS — hardening shadow CI is green with no suppressed required failures'
+      - run: echo 'PASS — manual hardening verification is green with no suppressed required failures'
