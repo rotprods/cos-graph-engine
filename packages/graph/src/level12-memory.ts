@@ -1,6 +1,5 @@
 // LEVEL 12: MEMORY GRAPH
-// Persistent memory, conversation trees, associative recall, consolidation
-// Refactored: mutation API, adjacency maps, serialization, validation
+// Persistent memory, conversation trees, associative recall, identity-safe consolidation
 
 import { EntityId, Timestamp } from '@cos/core';
 import { generateId } from '@cos/core';
@@ -9,22 +8,40 @@ export type MemoryNodeType = 'conversation' | 'topic' | 'entity' | 'fact' | 'ins
 export type MemoryEdgeType = 'evolves_to' | 'references' | 'associates' | 'contradicts' | 'confirms' | 'led_to';
 
 export interface MemoryNode {
-  id: EntityId; name: string; type: MemoryNodeType;
-  content?: string; confidence?: number;
-  createdAt: Timestamp; lastAccessed: Timestamp;
-  accessCount: number; ttl?: number;
+  id: EntityId;
+  name: string;
+  type: MemoryNodeType;
+  content?: string;
+  confidence?: number;
+  createdAt: Timestamp;
+  lastAccessed: Timestamp;
+  accessCount: number;
+  ttl?: number;
   metadata?: Record<string, unknown>;
 }
 
 export interface MemoryEdge {
-  id: EntityId; source: EntityId; target: EntityId;
-  type: MemoryEdgeType; strength: number;
-  createdAt: Timestamp; metadata?: Record<string, unknown>;
+  id: EntityId;
+  source: EntityId;
+  target: EntityId;
+  type: MemoryEdgeType;
+  strength: number;
+  createdAt: Timestamp;
+  metadata?: Record<string, unknown>;
 }
 
 export interface MemoryGraph {
-  id: EntityId; name: string; createdAt: Timestamp;
-  nodes: MemoryNode[]; edges: MemoryEdge[];
+  id: EntityId;
+  name: string;
+  createdAt: Timestamp;
+  nodes: MemoryNode[];
+  edges: MemoryEdge[];
+}
+
+export interface ConsolidationReport {
+  merged: number;
+  skippedWithoutIdentity: number;
+  canonicalGroups: number;
 }
 
 export class MemoryGraphEngine {
@@ -37,58 +54,78 @@ export class MemoryGraphEngine {
   }
 
   private buildAdjacency(): void {
-    this.adj.clear(); this.adjRev.clear();
-    for (const n of this.graph.nodes) { this.adj.set(n.id, []); this.adjRev.set(n.id, []); }
-    for (const e of this.graph.edges) {
-      if (this.adj.has(e.source)) this.adj.get(e.source)!.push(e.target);
-      if (this.adjRev.has(e.target)) this.adjRev.get(e.target)!.push(e.source);
+    this.adj.clear();
+    this.adjRev.clear();
+    for (const node of this.graph.nodes) {
+      this.adj.set(node.id, []);
+      this.adjRev.set(node.id, []);
+    }
+    for (const edge of this.graph.edges) {
+      if (this.adj.has(edge.source)) this.adj.get(edge.source)!.push(edge.target);
+      if (this.adjRev.has(edge.target)) this.adjRev.get(edge.target)!.push(edge.source);
     }
   }
 
-  addNode(n: Omit<MemoryNode, 'id' | 'createdAt' | 'lastAccessed' | 'accessCount'>): EntityId {
+  addNode(node: Omit<MemoryNode, 'id' | 'createdAt' | 'lastAccessed' | 'accessCount'>): EntityId {
     const id = generateId();
-    this.graph.nodes.push({ ...n, id, createdAt: new Date().toISOString(), lastAccessed: new Date().toISOString(), accessCount: 0 });
-    this.buildAdjacency(); return id;
+    const now = new Date().toISOString();
+    this.graph.nodes.push({ ...node, id, createdAt: now, lastAccessed: now, accessCount: 0 });
+    this.buildAdjacency();
+    return id;
   }
 
   removeNode(nodeId: EntityId): void {
-    const idx = this.graph.nodes.findIndex(n => n.id === nodeId);
-    if (idx === -1) throw new Error(`Node ${nodeId} not found`);
+    const idx = this.graph.nodes.findIndex(node => node.id === nodeId);
+    if (idx === -1) throw new Error(`Node ${String(nodeId)} not found`);
     this.graph.nodes.splice(idx, 1);
-    this.graph.edges = this.graph.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+    this.graph.edges = this.graph.edges.filter(edge => edge.source !== nodeId && edge.target !== nodeId);
     this.buildAdjacency();
   }
 
   addEdge(source: EntityId, target: EntityId, type: MemoryEdgeType, strength: number = 0.5): EntityId {
-    if (!this.graph.nodes.some(n => n.id === source)) throw new Error(`Source node ${source} not found`);
-    if (!this.graph.nodes.some(n => n.id === target)) throw new Error(`Target node ${target} not found`);
+    if (!this.graph.nodes.some(node => node.id === source)) throw new Error(`Source node ${String(source)} not found`);
+    if (!this.graph.nodes.some(node => node.id === target)) throw new Error(`Target node ${String(target)} not found`);
+    if (!Number.isFinite(strength) || strength < 0 || strength > 1) throw new Error('Memory edge strength must be in [0,1]');
     const id = generateId();
     this.graph.edges.push({ id, source, target, type, strength, createdAt: new Date().toISOString() });
-    this.buildAdjacency(); return id;
+    this.buildAdjacency();
+    return id;
   }
 
   removeEdge(edgeId: EntityId): void {
-    const idx = this.graph.edges.findIndex(e => e.id === edgeId);
-    if (idx === -1) throw new Error(`Edge ${edgeId} not found`);
-    this.graph.edges.splice(idx, 1); this.buildAdjacency();
+    const idx = this.graph.edges.findIndex(edge => edge.id === edgeId);
+    if (idx === -1) throw new Error(`Edge ${String(edgeId)} not found`);
+    this.graph.edges.splice(idx, 1);
+    this.buildAdjacency();
   }
 
-  getNode(nodeId: EntityId): MemoryNode | undefined { return this.graph.nodes.find(n => n.id === nodeId); }
-  getNodes(): MemoryNode[] { return this.graph.nodes; }
-  getEdges(): MemoryEdge[] { return this.graph.edges; }
+  getNode(nodeId: EntityId): MemoryNode | undefined {
+    return this.graph.nodes.find(node => node.id === nodeId);
+  }
+
+  getNodes(): MemoryNode[] {
+    return this.graph.nodes.map(node => ({ ...node, metadata: node.metadata ? { ...node.metadata } : undefined }));
+  }
+
+  getEdges(): MemoryEdge[] {
+    return this.graph.edges.map(edge => ({ ...edge, metadata: edge.metadata ? { ...edge.metadata } : undefined }));
+  }
 
   accessNode(nodeId: EntityId): MemoryNode | undefined {
-    const node = this.graph.nodes.find(n => n.id === nodeId);
-    if (node) { node.lastAccessed = new Date().toISOString(); node.accessCount++; }
+    const node = this.graph.nodes.find(item => item.id === nodeId);
+    if (node) {
+      node.lastAccessed = new Date().toISOString();
+      node.accessCount += 1;
+    }
     return node;
   }
 
-  buildConversation() {
-    const roberto = this.addNode({ name: 'Roberto', type: 'entity', content: 'User who builds agentic systems' });
-    const oculops = this.addNode({ name: 'Oculops', type: 'topic', content: 'Computer vision platform' });
-    const supabase = this.addNode({ name: 'Supabase', type: 'entity', content: 'Open source Firebase alternative' });
-    const claude = this.addNode({ name: 'Claude', type: 'entity', content: 'AI assistant by Anthropic' });
-    const agenticOS = this.addNode({ name: 'Agentic OS', type: 'insight', content: 'Cognitive Operating System vision' });
+  buildConversation(): void {
+    const roberto = this.addNode({ name: 'Roberto', type: 'entity', content: 'User who builds agentic systems', metadata: { canonicalUri: 'agentic://portfolio/entity/roberto' } });
+    const oculops = this.addNode({ name: 'Oculops', type: 'topic', content: 'Computer vision platform', metadata: { canonicalUri: 'agentic://portfolio/project/oculops' } });
+    const supabase = this.addNode({ name: 'Supabase', type: 'entity', content: 'Open source Firebase alternative', metadata: { canonicalUri: 'custom://external/entity/supabase' } });
+    const claude = this.addNode({ name: 'Claude', type: 'entity', content: 'AI assistant by Anthropic', metadata: { canonicalUri: 'custom://external/entity/claude' } });
+    const agenticOS = this.addNode({ name: 'Agentic OS', type: 'insight', content: 'Cognitive Operating System vision', metadata: { canonicalUri: 'agentic://portfolio/project/agentic-systems-os' } });
     const memorySys = this.addNode({ name: 'Memory System', type: 'fact', content: '12-layer memory with TTL and consolidation' });
     this.addEdge(roberto, oculops, 'references', 0.8);
     this.addEdge(roberto, supabase, 'references', 0.7);
@@ -100,20 +137,23 @@ export class MemoryGraphEngine {
   }
 
   recall(nodeId: EntityId, maxDepth: number = 2, minStrength: number = 0.3): MemoryNode[] {
+    if (!Number.isInteger(maxDepth) || maxDepth < 0 || maxDepth > 16) throw new Error('maxDepth must be an integer in [0,16]');
+    if (!Number.isFinite(minStrength) || minStrength < 0 || minStrength > 1) throw new Error('minStrength must be in [0,1]');
     this.buildAdjacency();
-    const visited = new Set<EntityId>(); const results: MemoryNode[] = [];
+    const visited = new Set<EntityId>();
+    const results: MemoryNode[] = [];
     const dfs = (id: EntityId, depth: number) => {
       if (depth > maxDepth || visited.has(id)) return;
       visited.add(id);
-      const node = this.graph.nodes.find(n => n.id === id);
+      const node = this.graph.nodes.find(item => item.id === id);
       if (node) results.push(node);
-      for (const nb of this.adj.get(id) || []) {
-        const edge = this.graph.edges.find(e => e.source === id && e.target === nb);
-        if (edge && edge.strength >= minStrength) dfs(nb, depth + 1);
+      for (const neighbor of this.adj.get(id) || []) {
+        const edge = this.graph.edges.find(item => item.source === id && item.target === neighbor);
+        if (edge && edge.strength >= minStrength) dfs(neighbor, depth + 1);
       }
-      for (const nb of this.adjRev.get(id) || []) {
-        const edge = this.graph.edges.find(e => e.target === id && e.source === nb);
-        if (edge && edge.strength >= minStrength) dfs(nb, depth + 1);
+      for (const neighbor of this.adjRev.get(id) || []) {
+        const edge = this.graph.edges.find(item => item.target === id && item.source === neighbor);
+        if (edge && edge.strength >= minStrength) dfs(neighbor, depth + 1);
       }
     };
     dfs(nodeId, 0);
@@ -122,15 +162,24 @@ export class MemoryGraphEngine {
 
   strongestPath(fromId: EntityId, toId: EntityId): MemoryNode[] {
     this.buildAdjacency();
-    const visited = new Set<EntityId>(); let bestPath: MemoryNode[] = []; let bestStrength = 0;
+    const visited = new Set<EntityId>();
+    let bestPath: MemoryNode[] = [];
+    let bestStrength = Number.NEGATIVE_INFINITY;
     const dfs = (id: EntityId, path: MemoryNode[], strength: number) => {
-      if (id === toId) { if (strength > bestStrength) { bestPath = [...path]; bestStrength = strength; } return; }
-      if (visited.has(id)) return; visited.add(id);
-      const node = this.graph.nodes.find(n => n.id === id);
-      if (!node) return;
-      for (const nb of this.adj.get(id) || []) {
-        const edge = this.graph.edges.find(e => e.source === id && e.target === nb);
-        dfs(nb, [...path, node], strength + (edge?.strength || 0));
+      const node = this.graph.nodes.find(item => item.id === id);
+      if (!node || visited.has(id)) return;
+      const nextPath = [...path, node];
+      if (id === toId) {
+        if (strength > bestStrength) {
+          bestPath = nextPath;
+          bestStrength = strength;
+        }
+        return;
+      }
+      visited.add(id);
+      for (const neighbor of this.adj.get(id) || []) {
+        const edge = this.graph.edges.find(item => item.source === id && item.target === neighbor);
+        if (edge) dfs(neighbor, nextPath, strength + edge.strength);
       }
       visited.delete(id);
     };
@@ -139,67 +188,133 @@ export class MemoryGraphEngine {
   }
 
   forget(minConfidence: number = 0.3): number {
+    if (!Number.isFinite(minConfidence) || minConfidence < 0 || minConfidence > 1) throw new Error('minConfidence must be in [0,1]');
     const before = this.graph.nodes.length;
-    this.graph.nodes = this.graph.nodes.filter(n => (n.confidence ?? 0.5) >= minConfidence);
-    const validIds = new Set(this.graph.nodes.map(n => n.id));
-    this.graph.edges = this.graph.edges.filter(e => validIds.has(e.source) && validIds.has(e.target));
-    this.buildAdjacency(); return before - this.graph.nodes.length;
+    this.graph.nodes = this.graph.nodes.filter(node => (node.confidence ?? 0.5) >= minConfidence);
+    const validIds = new Set(this.graph.nodes.map(node => node.id));
+    this.graph.edges = this.graph.edges.filter(edge => validIds.has(edge.source) && validIds.has(edge.target));
+    this.buildAdjacency();
+    return before - this.graph.nodes.length;
+  }
+
+  /**
+   * Consolidate only records that explicitly assert the same canonical identity.
+   * Similar labels are retrieval hints, never identity evidence.
+   */
+  consolidateWithReport(): ConsolidationReport {
+    const canonicalGroups = new Map<string, MemoryNode[]>();
+    let skippedWithoutIdentity = 0;
+
+    for (const node of this.graph.nodes) {
+      const canonicalUri = typeof node.metadata?.canonicalUri === 'string'
+        ? node.metadata.canonicalUri.trim()
+        : '';
+      if (!canonicalUri) {
+        skippedWithoutIdentity += 1;
+        continue;
+      }
+      const key = `${node.type}|${canonicalUri}`;
+      const group = canonicalGroups.get(key) || [];
+      group.push(node);
+      canonicalGroups.set(key, group);
+    }
+
+    const redirects = new Map<EntityId, EntityId>();
+    let merged = 0;
+    for (const group of canonicalGroups.values()) {
+      if (group.length < 2) continue;
+      group.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || String(a.id).localeCompare(String(b.id)));
+      const canonical = group[0];
+      for (const duplicate of group.slice(1)) {
+        canonical.accessCount += duplicate.accessCount;
+        canonical.confidence = Math.max(canonical.confidence ?? 0.5, duplicate.confidence ?? 0.5);
+        canonical.content = canonical.content || duplicate.content;
+        canonical.lastAccessed = canonical.lastAccessed > duplicate.lastAccessed ? canonical.lastAccessed : duplicate.lastAccessed;
+        redirects.set(duplicate.id, canonical.id);
+        merged += 1;
+      }
+    }
+
+    if (redirects.size > 0) {
+      this.graph.nodes = this.graph.nodes.filter(node => !redirects.has(node.id));
+      const dedupe = new Map<string, MemoryEdge>();
+      for (const edge of this.graph.edges) {
+        const source = redirects.get(edge.source) || edge.source;
+        const target = redirects.get(edge.target) || edge.target;
+        if (source === target) continue;
+        const key = `${String(source)}|${String(target)}|${edge.type}`;
+        const existing = dedupe.get(key);
+        if (!existing || edge.strength > existing.strength) {
+          dedupe.set(key, { ...edge, source, target });
+        }
+      }
+      this.graph.edges = Array.from(dedupe.values());
+      this.buildAdjacency();
+    }
+
+    return { merged, skippedWithoutIdentity, canonicalGroups: canonicalGroups.size };
   }
 
   consolidate(): number {
-    const nameMap = new Map<string, MemoryNode>();
-    const toRemove: EntityId[] = [];
-    for (const node of this.graph.nodes) {
-      const key = node.name.toLowerCase();
-      if (nameMap.has(key)) {
-        const existing = nameMap.get(key)!;
-        existing.accessCount += node.accessCount;
-        existing.confidence = Math.max(existing.confidence ?? 0.5, node.confidence ?? 0.5);
-        existing.content = existing.content || node.content;
-        toRemove.push(node.id);
-      } else { nameMap.set(key, node); }
-    }
-    this.graph.nodes = this.graph.nodes.filter(n => !toRemove.includes(n.id));
-    const validIds = new Set(this.graph.nodes.map(n => n.id));
-    this.graph.edges = this.graph.edges.filter(e => validIds.has(e.source) && validIds.has(e.target));
-    this.buildAdjacency(); return toRemove.length;
+    return this.consolidateWithReport().merged;
   }
 
   validate(): string[] {
     const errors: string[] = [];
-    for (const e of this.graph.edges) {
-      if (!this.graph.nodes.some(n => n.id === e.source)) errors.push(`Dangling edge: source ${e.source} not found`);
-      if (!this.graph.nodes.some(n => n.id === e.target)) errors.push(`Dangling edge: target ${e.target} not found`);
-      if (e.source === e.target) errors.push(`Self-loop edge: ${e.source}`);
+    const nodeIds = new Set(this.graph.nodes.map(node => node.id));
+    const canonicalOwners = new Map<string, EntityId>();
+    for (const node of this.graph.nodes) {
+      const canonicalUri = typeof node.metadata?.canonicalUri === 'string' ? node.metadata.canonicalUri.trim() : '';
+      if (canonicalUri) {
+        const key = `${node.type}|${canonicalUri}`;
+        const owner = canonicalOwners.get(key);
+        if (owner && owner !== node.id) errors.push(`Duplicate canonical identity ${key}: ${String(owner)}, ${String(node.id)}`);
+        canonicalOwners.set(key, node.id);
+      }
+    }
+    for (const edge of this.graph.edges) {
+      if (!nodeIds.has(edge.source)) errors.push(`Dangling edge: source ${String(edge.source)} not found`);
+      if (!nodeIds.has(edge.target)) errors.push(`Dangling edge: target ${String(edge.target)} not found`);
+      if (edge.source === edge.target) errors.push(`Self-loop edge: ${String(edge.source)}`);
+      if (!Number.isFinite(edge.strength) || edge.strength < 0 || edge.strength > 1) errors.push(`Invalid edge strength: ${String(edge.id)}`);
     }
     return errors;
   }
 
   metrics() {
-    const n = this.graph.nodes.length; const e = this.graph.edges.length;
+    const n = this.graph.nodes.length;
+    const e = this.graph.edges.length;
     this.buildAdjacency();
-    const deg = this.graph.nodes.map(no => (this.adj.get(no.id)?.length || 0) + (this.adjRev.get(no.id)?.length || 0));
-    const avgDeg = n > 0 ? deg.reduce((a, b) => a + b, 0) / n : 0;
+    const degree = this.graph.nodes.map(node => (this.adj.get(node.id)?.length || 0) + (this.adjRev.get(node.id)?.length || 0));
+    const avgDegree = n > 0 ? degree.reduce((a, b) => a + b, 0) / n : 0;
     const density = n > 1 ? (2 * e) / (n * (n - 1)) : 0;
-    return { nodeCount: n, edgeCount: e, avgDegree: avgDeg, density, maxDegree: Math.max(...deg, 0) };
+    return { nodeCount: n, edgeCount: e, avgDegree, density, maxDegree: Math.max(...degree, 0) };
   }
 
-  toJSON(): MemoryGraph { return JSON.parse(JSON.stringify(this.graph)); }
-  static fromJSON(data: MemoryGraph): MemoryGraphEngine { const g = new MemoryGraphEngine(data.name); g.graph = data; g.buildAdjacency(); return g; }
+  toJSON(): MemoryGraph {
+    return JSON.parse(JSON.stringify(this.graph));
+  }
+
+  static fromJSON(data: MemoryGraph): MemoryGraphEngine {
+    const graph = new MemoryGraphEngine(data.name);
+    graph.graph = JSON.parse(JSON.stringify(data));
+    graph.buildAdjacency();
+    return graph;
+  }
 
   toMermaid(): string {
-    let m = 'graph LR\n  title: "Memory Graph"\n';
-    for (const n of this.graph.nodes) {
-      const shape = n.type === 'entity' ? '[(' : n.type === 'insight' ? '{' : '[';
-      const close = n.type === 'entity' ? ')]' : n.type === 'insight' ? '}' : ']';
-      m += `    ${n.id.replace(/[^a-zA-Z0-9]/g, '_')}${shape}"${n.name}"${close}\n`;
+    let mermaid = 'graph LR\n  title: "Memory Graph"\n';
+    for (const node of this.graph.nodes) {
+      const shape = node.type === 'entity' ? '[(' : node.type === 'insight' ? '{' : '[';
+      const close = node.type === 'entity' ? ')]' : node.type === 'insight' ? '}' : ']';
+      mermaid += `    ${String(node.id).replace(/[^a-zA-Z0-9]/g, '_')}${shape}"${node.name}"${close}\n`;
     }
-    for (const e of this.graph.edges) {
-      const s = e.source.replace(/[^a-zA-Z0-9]/g, '_');
-      const t = e.target.replace(/[^a-zA-Z0-9]/g, '_');
-      const label = e.strength ? `|${(e.strength * 100).toFixed(0)}%|` : '';
-      m += `    ${s} -->${label}${t}\n`;
+    for (const edge of this.graph.edges) {
+      const source = String(edge.source).replace(/[^a-zA-Z0-9]/g, '_');
+      const target = String(edge.target).replace(/[^a-zA-Z0-9]/g, '_');
+      const label = edge.strength ? `|${(edge.strength * 100).toFixed(0)}%|` : '';
+      mermaid += `    ${source} -->${label}${target}\n`;
     }
-    return m;
+    return mermaid;
   }
 }
