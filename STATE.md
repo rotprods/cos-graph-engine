@@ -1,12 +1,14 @@
 # STATE — COS Graph Engine
 
-Updated: 2026-08-24
+Updated: 2026-08-24 16:45 Europe/Madrid
 Mode: **CONVERGENCE_AND_HARDENING**
 Authority status: **SHADOW_ONLY**
-Final verification: **DEFERRED_TO_W13_BY_OWNER_DECISION**
+Final verification: **DEFERRED_TO_W13_BY_OWNER DECISION**
+Current head: `hardening/w12-4-authority-closure`
+Current draft PR: **#35**
 
-## Current truth
-The original audit found exceptional feature breadth but uneven system guarantees. The active program raises the existing engine to a demonstrable 10/10 standard rather than adding breadth blindly.
+## North Star
+Bring COS Graph Engine to a demonstrable 10/10 engineering standard across all 20 audited dimensions, with machine evidence rather than narrative confidence, before it becomes authoritative infrastructure for AGENTIC_SYSTEMS_OS.
 
 ## Active stacked hardening chain
 - #18 — W0/W1 canonical truth + manual-only CI/CD posture
@@ -22,23 +24,36 @@ The original audit found exceptional feature breadth but uneven system guarantee
 - #29 — W11 scientific benchmark harness
 - #30 — W12 scope-safe temporal GraphRAG
 - #31 — W12.1 memory integrity
-- current branch — W12.2 DX/governance cold-start contract
+- #32 — W12.2 deterministic cold-start/governance
+- #33 — W12.3 cross-wave authority integration
+- #35 — W12.4 authority closure
 
-All implementation PRs remain draft until convergence review and W13 verification.
+All PRs remain draft until convergence review and W13 qualification.
+
+## W12.4 implemented truth
+- strict tool execution is the server path;
+- SearchTool false success removed and corpus availability made explicit;
+- deterministic authority GraphRAG with relation identity, projection hash/version and invariants;
+- AgenticResourceRegistry → GraphRAG → SHA-256-verified ContextPack bridge;
+- epistemic/bi-temporal memory envelope with supersession, contradiction, provenance and CAS;
+- Postgres/Supabase-compatible temporal memory index;
+- immutable SHA-256 Hub snapshots with Postgres adapter and recovery coordinator;
+- serialized state-machine transitions with internal rollback and timer fencing;
+- immutable EventBus delivery-failure observer stream.
 
 ## Cost state
-Hardening workflows, CI, release and deploy are being converted to manual-only before anything lands on `main`. Do not merge a branch that restores automatic cost-generating triggers.
+CI, release, deploy and hardening workflows remain manual-only. CD is OFF during convergence. Do not merge a branch that restores automatic cost-generating triggers.
 
-## Known remaining engineering gaps
-- complete CSR parallel-edge/reverse-CSR/invariant work from W2;
-- migrate durable aggregate identities onto W3 primitives;
-- persistent Postgres/SQLite adapters for event log/snapshots/CAS/leases;
-- wire policy + leases + real tool capability resolution into every side-effect path;
-- event-source autonomous execution and memory indexes;
-- automatic resilience/near-miss projection;
-- migrate legacy benchmark B1–B7 to scientific harness;
-- reconcile existing `@cos/hub` PR with new identity/event/temporal/security contracts;
-- final monorepo convergence and W13 evidence campaign.
+## Known verification/migration gaps
+- final clean install and workspace/package-lock reconciliation;
+- compile/typecheck all stacked changes;
+- update legacy L2 tests that intentionally relied on mutable `contextData` and empty-invalid constructors, or add an explicit compatibility builder;
+- provider fixtures for Postgres event/memory/Hub adapters;
+- full property/negative/security/contention/replay/restore tests;
+- migrate authority consumers from legacy L11/CSR paths where required;
+- attach more recovery/context failure signals to ResilienceObserver;
+- benchmark representative portfolio/project workloads;
+- blind cold-agent resume and complete 20D re-audit.
 
 ## Current next action
-Finish remaining W12.x architecture/DX/interop slices, create 20D convergence matrix, then perform one cross-stack compile/adversarial review before deciding merge order. Full tests/CI/replay/restore are intentionally held for the final qualification campaign.
+Perform one static cross-stack review of PR #35 for compile-contract mismatches, close obvious defects without running paid CI, then freeze W12.x and open W13 qualification. W13 runs one consolidated manual CI/evidence campaign and triages every real failure until green.
