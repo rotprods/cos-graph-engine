@@ -6,7 +6,7 @@ import {
 } from '@cos/core';
 import {
   KnowledgeGraphEngine,
-  StateMachine,
+  VersionedStateMachine,
   AgentGraphEngine,
   WorkflowGraphEngine,
   GraphStream,
@@ -57,6 +57,7 @@ export interface HubRepository {
   name: string;
   fullName: string;
   state: RepoState;
+  stateRevision: number;
   metadata: Record<string, unknown>;
 }
 
@@ -74,13 +75,16 @@ export interface RepoEventResult {
   event: RepoEvent;
   previousState: RepoState;
   state: RepoState;
+  previousRevision: number;
+  revision: number;
+  stateHash: string;
   eventId: EntityId;
   duplicate: boolean;
   applied: boolean;
 }
 
 export interface HubSnapshot {
-  schemaVersion: 2;
+  schemaVersion: 3;
   recordedAt: string;
   eventCursor: EventLogCursor;
   repositories: HubRepository[];
@@ -93,9 +97,10 @@ export interface HubSnapshot {
 /**
  * Canonical graph control plane for repositories/projects represented in COS.
  *
- * Durable event log is the accepted history. State machines, KG and realtime
- * patches are projections and can be rebuilt. Repository display names never
- * act as canonical identity.
+ * Durable event log is the accepted history. Versioned state machines, KG and
+ * realtime patches are projections and can be rebuilt. Repository display names
+ * never act as canonical identity. Concurrent transitions serialize and use an
+ * expected-state/revision fence so stale writers become explicit near misses.
  */
 export class CosHub {
   readonly kg = new KnowledgeGraphEngine();
@@ -104,7 +109,7 @@ export class CosHub {
   readonly stream = new GraphStream();
   readonly identities = new IdentityRegistry();
 
-  private readonly states = new Map<string, StateMachine>();
+  private readonly states = new Map<string, VersionedStateMachine>();
   private readonly repos = new Map<string, HubRepository>();
   private readonly repoByFullName = new Map<string, string>();
 
@@ -132,6 +137,7 @@ export class CosHub {
       return this.cloneRepo(existing);
     }
 
+    const machine = createRepoMachine(fullName);
     const repo: HubRepository = {
       id: identity.id,
       canonicalUri: identity.uri,
@@ -139,16 +145,12 @@ export class CosHub {
       name: normalizedName,
       fullName,
       state: 'PENDING',
-      metadata: { ...metadata },
+      stateRevision: machine.currentRevision,
+      metadata: structuredClone(metadata),
     };
     this.repos.set(repo.id, repo);
     this.repoByFullName.set(fullName.toLowerCase(), repo.id);
-    this.states.set(repo.id, new StateMachine(
-      repo.fullName,
-      REPO_STATES.map(state => ({ id: state, label: state })),
-      REPO_TRANSITIONS,
-      'PENDING',
-    ));
+    this.states.set(repo.id, machine);
 
     if (!this.kg.getEntity(repo.id)) {
       this.kg.addEntity({
@@ -166,7 +168,7 @@ export class CosHub {
       typeof metadata.url === 'string' ? metadata.url : null,
     ].filter((value): value is string => Boolean(value));
     for (const alias of legacyAliases) {
-      try { this.identities.addAlias(alias, repo.canonicalUri); } catch { /* alias conflict is surfaced on explicit migration */ }
+      try { this.identities.addAlias(alias, repo.canonicalUri); } catch { /* explicit migration surfaces alias conflicts */ }
     }
 
     return this.cloneRepo(repo);
@@ -195,6 +197,7 @@ export class CosHub {
 
     const machine = this.states.get(repo.id)!;
     const previousState = machine.state as RepoState;
+    const previousRevision = machine.currentRevision;
     const occurredAt = context.occurredAt || new Date().toISOString();
     if (!Number.isFinite(Date.parse(occurredAt))) throw new Error(`Invalid occurredAt '${occurredAt}'`);
 
@@ -214,6 +217,7 @@ export class CosHub {
         canonicalUri: repo.canonicalUri,
         event,
         previousState,
+        previousRevision,
         sourceRef: context.sourceRef,
       },
       metadata: {
@@ -230,47 +234,84 @@ export class CosHub {
     });
 
     if (!accepted.appended) {
-      const currentState = machine.state as RepoState;
+      const current = machine.snapshot();
       return {
         repoId: repo.id,
         event,
         previousState,
-        state: currentState,
+        state: current.state as RepoState,
+        previousRevision,
+        revision: current.revision,
+        stateHash: current.stateHash,
         eventId: accepted.event.id,
         duplicate: true,
         applied: false,
       };
     }
 
-    const applied = await machine.send(event);
-    if (!applied) {
-      // Event remains in canonical history as an observed but invalid transition;
-      // replay/projectors can surface it as a near miss instead of erasing it.
+    let receipt;
+    try {
+      receipt = await machine.send(event, undefined, {
+        expectedState: previousState,
+        expectedRevision: previousRevision,
+      });
+    } catch (error) {
+      const current = machine.snapshot();
       this.emitPatch(accepted.event, 'transition_rejected', {
         repoId: repo.id,
         event,
         previousState,
+        previousRevision,
+        currentState: current.state,
+        currentRevision: current.revision,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+
+    if (!receipt.applied) {
+      this.emitPatch(accepted.event, 'transition_rejected', {
+        repoId: repo.id,
+        event,
+        previousState,
+        previousRevision,
+        currentState: receipt.state,
+        currentRevision: receipt.revision,
       });
       return {
         repoId: repo.id,
         event,
         previousState,
-        state: machine.state as RepoState,
+        state: receipt.state as RepoState,
+        previousRevision,
+        revision: receipt.revision,
+        stateHash: receipt.stateHash,
         eventId: accepted.event.id,
         duplicate: false,
         applied: false,
       };
     }
 
-    const state = machine.state as RepoState;
     const canonical = this.repos.get(repo.id)!;
-    canonical.state = state;
-    this.emitPatch(accepted.event, 'repo_state', { repoId: repo.id, event, previousState, state });
+    canonical.state = receipt.state as RepoState;
+    canonical.stateRevision = receipt.revision;
+    this.emitPatch(accepted.event, 'repo_state', {
+      repoId: repo.id,
+      event,
+      previousState,
+      state: canonical.state,
+      previousRevision,
+      revision: canonical.stateRevision,
+      stateHash: receipt.stateHash,
+    });
     return {
       repoId: repo.id,
       event,
       previousState,
-      state,
+      state: canonical.state,
+      previousRevision,
+      revision: canonical.stateRevision,
+      stateHash: receipt.stateHash,
       eventId: accepted.event.id,
       duplicate: false,
       applied: true,
@@ -319,7 +360,7 @@ export class CosHub {
       relations: this.kg.relations.map(relation => structuredClone(relation)),
     };
     const core = {
-      schemaVersion: 2 as const,
+      schemaVersion: 3 as const,
       eventCursor,
       repositories,
       graph,
@@ -335,14 +376,10 @@ export class CosHub {
 
   async replayRepoStates(): Promise<void> {
     for (const repo of this.repos.values()) {
-      const machine = new StateMachine(
-        repo.fullName,
-        REPO_STATES.map(state => ({ id: state, label: state })),
-        REPO_TRANSITIONS,
-        'PENDING',
-      );
+      const machine = createRepoMachine(repo.fullName);
       this.states.set(repo.id, machine);
       repo.state = 'PENDING';
+      repo.stateRevision = 0;
     }
 
     let cursor: EventLogCursor = { sequence: 0 };
@@ -355,8 +392,12 @@ export class CosHub {
         if (!payload.repoId || !payload.event) continue;
         const machine = this.states.get(payload.repoId);
         if (!machine) continue;
-        const ok = await machine.send(payload.event);
-        if (ok) this.repos.get(payload.repoId)!.state = machine.state as RepoState;
+        const receipt = await machine.send(payload.event);
+        if (receipt.applied) {
+          const repo = this.repos.get(payload.repoId)!;
+          repo.state = receipt.state as RepoState;
+          repo.stateRevision = receipt.revision;
+        }
       }
       cursor = { sequence: events[events.length - 1].sequence };
     }
@@ -377,4 +418,13 @@ export class CosHub {
   private cloneRepo(repo: HubRepository): HubRepository {
     return { ...repo, metadata: structuredClone(repo.metadata) };
   }
+}
+
+function createRepoMachine(name: string): VersionedStateMachine {
+  return new VersionedStateMachine(
+    name,
+    REPO_STATES.map(state => ({ id: state, label: state })),
+    REPO_TRANSITIONS,
+    'PENDING',
+  );
 }
