@@ -1,4 +1,4 @@
-import type { EntityId } from '@cos/core';
+import { stableHash128, type EntityId } from '@cos/core';
 import type {
   AppendEventInput,
   AppendResult,
@@ -16,11 +16,6 @@ export interface PostgresTransaction {
   query<Row = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<PostgresQueryResult<Row>>;
 }
 
-/**
- * Driver-neutral transaction port. pg, Supabase server-side Postgres clients,
- * postgres.js adapters, etc. can implement this without leaking a dependency
- * into @cos/runtime.
- */
 export interface PostgresExecutor {
   transaction<T>(fn: (tx: PostgresTransaction) => Promise<T>): Promise<T>;
   query<Row = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<PostgresQueryResult<Row>>;
@@ -78,9 +73,10 @@ CREATE INDEX IF NOT EXISTS cos_event_log_correlation_idx
 /**
  * Authority-grade durable event log for Postgres/Supabase.
  *
- * The DB owns sequence assignment. Producer retry de-duplication is performed
- * with INSERT .. ON CONFLICT(idempotency_key) DO NOTHING followed by a semantic
- * equality check, so concurrent duplicate deliveries converge to one event.
+ * The DB owns sequence assignment. Idempotency semantics intentionally match
+ * InMemoryEventLog: producer retries may arrive with regenerated transport/event
+ * IDs and spans, but the same idempotency key must represent the same logical
+ * type/source/target/payload/metadata/severity/correlation/causation tuple.
  */
 export class PostgresEventLog implements IEventLog {
   constructor(private readonly db: PostgresExecutor) {}
@@ -92,7 +88,8 @@ export class PostgresEventLog implements IEventLog {
   async append(input: AppendEventInput): Promise<AppendResult> {
     const key = input.idempotencyKey.trim();
     if (!key) throw new Error('Event idempotencyKey must not be empty');
-    if (!input.correlationId.trim()) throw new Error('Event correlationId must not be empty');
+    const correlationId = input.correlationId?.trim() || input.traceId;
+    if (!correlationId) throw new Error('Event correlationId must not be empty');
 
     return this.db.transaction(async tx => {
       const inserted = await tx.query<EventRow>(`
@@ -107,20 +104,10 @@ export class PostgresEventLog implements IEventLog {
         ON CONFLICT (idempotency_key) DO NOTHING
         RETURNING *
       `, [
-        String(input.id),
-        input.type,
-        String(input.source),
-        input.target ? String(input.target) : null,
-        JSON.stringify(input.payload),
-        JSON.stringify(input.metadata || {}),
-        input.severity,
-        input.timestamp,
-        input.recordedAt || null,
-        input.traceId,
-        input.spanId,
-        input.parentSpanId || null,
-        key,
-        input.correlationId,
+        String(input.id), input.type, String(input.source), input.target ? String(input.target) : null,
+        JSON.stringify(input.payload), JSON.stringify(input.metadata || {}), input.severity,
+        input.timestamp, input.recordedAt || null, input.traceId, input.spanId,
+        input.parentSpanId || null, key, correlationId,
         input.causationId ? String(input.causationId) : null,
       ]);
 
@@ -132,34 +119,26 @@ export class PostgresEventLog implements IEventLog {
         'SELECT * FROM cos_runtime.event_log WHERE idempotency_key = $1 FOR SHARE',
         [key],
       );
-      if (duplicate.rowCount !== 1) {
-        throw new Error(`EVENT_LOG_CONCURRENCY_INVARIANT key=${key}`);
-      }
+      if (duplicate.rowCount !== 1) throw new Error(`EVENT_LOG_CONCURRENCY_INVARIANT key=${key}`);
       const existing = this.rowToEvent(duplicate.rows[0]);
-      this.assertSameLogicalEvent(existing, input);
+      this.assertSameLogicalEvent(existing, { ...input, correlationId });
       return { event: existing, appended: false };
     });
   }
 
   async get(eventId: EntityId): Promise<DurableEvent | null> {
-    const result = await this.db.query<EventRow>(
-      'SELECT * FROM cos_runtime.event_log WHERE event_id = $1',
-      [String(eventId)],
-    );
+    const result = await this.db.query<EventRow>('SELECT * FROM cos_runtime.event_log WHERE event_id = $1', [String(eventId)]);
     return result.rowCount ? this.rowToEvent(result.rows[0]) : null;
   }
 
   async getByIdempotencyKey(key: string): Promise<DurableEvent | null> {
-    const result = await this.db.query<EventRow>(
-      'SELECT * FROM cos_runtime.event_log WHERE idempotency_key = $1',
-      [key],
-    );
+    const result = await this.db.query<EventRow>('SELECT * FROM cos_runtime.event_log WHERE idempotency_key = $1', [key.trim()]);
     return result.rowCount ? this.rowToEvent(result.rows[0]) : null;
   }
 
   async readFrom(cursor: EventLogCursor = { sequence: 0 }, limit = 1000): Promise<DurableEvent[]> {
-    if (!Number.isInteger(cursor.sequence) || cursor.sequence < 0) throw new Error(`Invalid event-log cursor: ${cursor.sequence}`);
-    if (!Number.isInteger(limit) || limit < 0 || limit > 100_000) throw new Error(`Invalid event-log limit: ${limit}`);
+    if (!Number.isSafeInteger(cursor.sequence) || cursor.sequence < 0) throw new Error(`Invalid event-log cursor: ${cursor.sequence}`);
+    if (!Number.isSafeInteger(limit) || limit < 0 || limit > 100_000) throw new Error(`Invalid event-log limit: ${limit}`);
     const result = await this.db.query<EventRow>(`
       SELECT * FROM cos_runtime.event_log
       WHERE sequence > $1
@@ -170,17 +149,12 @@ export class PostgresEventLog implements IEventLog {
   }
 
   async latestCursor(): Promise<EventLogCursor> {
-    const result = await this.db.query<{ sequence: string | number | null }>(
-      'SELECT MAX(sequence) AS sequence FROM cos_runtime.event_log',
-    );
-    return { sequence: Number(result.rows[0]?.sequence || 0) };
+    const result = await this.db.query<{ sequence: string | number | null }>('SELECT MAX(sequence) AS sequence FROM cos_runtime.event_log');
+    const sequence = Number(result.rows[0]?.sequence || 0);
+    if (!Number.isSafeInteger(sequence) || sequence < 0) throw new Error(`EVENT_LOG_CORRUPT latest sequence=${sequence}`);
+    return { sequence };
   }
 
-  /**
-   * Destructive by definition. Production callers should protect this method
-   * behind a P5/destructive policy; it exists to satisfy the IEventLog contract
-   * for isolated test/recovery databases.
-   */
   async clear(): Promise<void> {
     await this.db.transaction(async tx => {
       await tx.query('TRUNCATE TABLE cos_runtime.event_log RESTART IDENTITY');
@@ -191,7 +165,6 @@ export class PostgresEventLog implements IEventLog {
   private rowToEvent(row: EventRow): DurableEvent {
     const sequence = Number(row.sequence);
     if (!Number.isSafeInteger(sequence) || sequence < 1) throw new Error(`EVENT_LOG_CORRUPT sequence=${String(row.sequence)}`);
-    const toIso = (value: string | Date) => value instanceof Date ? value.toISOString() : new Date(value).toISOString();
     return {
       id: row.event_id as EntityId,
       type: row.event_type,
@@ -213,13 +186,42 @@ export class PostgresEventLog implements IEventLog {
   }
 
   private assertSameLogicalEvent(existing: DurableEvent, input: AppendEventInput): void {
-    const equal =
-      existing.id === input.id
-      && existing.type === input.type
-      && existing.source === input.source
-      && existing.target === input.target
-      && existing.correlationId === input.correlationId
-      && JSON.stringify(existing.payload) === JSON.stringify(input.payload);
-    if (!equal) throw new Error(`IDEMPOTENCY_KEY_CONFLICT key=${input.idempotencyKey}`);
+    const expected = logicalEventHash(existing);
+    const actual = logicalInputHash(input);
+    if (expected !== actual) {
+      throw new Error(`IDEMPOTENCY_CONFLICT key=${input.idempotencyKey} expectedPayload=${expected} actualPayload=${actual}`);
+    }
   }
+}
+
+function logicalEventHash(event: DurableEvent): string {
+  return stableHash128({
+    type: event.type,
+    source: String(event.source),
+    target: event.target ? String(event.target) : null,
+    payload: event.payload,
+    metadata: event.metadata,
+    severity: event.severity,
+    correlationId: event.correlationId,
+    causationId: event.causationId ? String(event.causationId) : null,
+  });
+}
+
+function logicalInputHash(input: AppendEventInput): string {
+  return stableHash128({
+    type: input.type,
+    source: String(input.source),
+    target: input.target ? String(input.target) : null,
+    payload: input.payload,
+    metadata: input.metadata,
+    severity: input.severity,
+    correlationId: input.correlationId || input.traceId,
+    causationId: input.causationId ? String(input.causationId) : null,
+  });
+}
+
+function toIso(value: string | Date): string {
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(parsed.getTime())) throw new Error(`EVENT_LOG_CORRUPT timestamp=${String(value)}`);
+  return parsed.toISOString();
 }
