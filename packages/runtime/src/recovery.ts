@@ -1,4 +1,4 @@
-import { stableHash128 } from '@cos/core';
+import { sha256Hex, stableHash128, type IntegrityHashAlgorithm } from '@cos/core';
 import type { DurableEvent, EventLogCursor, IEventLog } from './event-log';
 
 export interface SnapshotManifest {
@@ -7,6 +7,8 @@ export interface SnapshotManifest {
   createdAt: string;
   cursor: EventLogCursor;
   stateHash: string;
+  /** Missing means pre-hardening fnv128 compatibility snapshot. */
+  hashAlgorithm?: IntegrityHashAlgorithm;
   metadata: Record<string, string | number | boolean | null>;
 }
 
@@ -24,13 +26,9 @@ export interface ISnapshotStore<S> {
 }
 
 export interface ProjectionAdapter<S> {
-  /** Export only deterministic, canonical projection state. */
   exportState(): Promise<S>;
-  /** Replace current projection state with an exact snapshot. */
   importState(state: S): Promise<void>;
-  /** Reset to the empty canonical state before restore/replay. */
   reset(): Promise<void>;
-  /** Apply one accepted durable event deterministically. */
   applyEvent(event: DurableEvent): Promise<void>;
 }
 
@@ -42,9 +40,9 @@ export interface RecoveryReport {
   expectedSnapshotHash: string | null;
   restoredSnapshotHash: string | null;
   finalStateHash: string;
+  hashAlgorithm: IntegrityHashAlgorithm;
 }
 
-/** Reference in-memory snapshot adapter. Durable stores can implement the same contract. */
 export class InMemorySnapshotStore<S> implements ISnapshotStore<S> {
   private snapshots = new Map<string, StoredSnapshot<S>>();
   private order: string[] = [];
@@ -53,22 +51,26 @@ export class InMemorySnapshotStore<S> implements ISnapshotStore<S> {
     if (this.snapshots.has(snapshot.manifest.snapshotId)) {
       throw new Error(`Snapshot ${snapshot.manifest.snapshotId} already exists`);
     }
-    this.snapshots.set(snapshot.manifest.snapshotId, snapshot);
+    // Clone to prevent caller mutation after the integrity hash was computed.
+    const copy = structuredClone(snapshot);
+    this.snapshots.set(snapshot.manifest.snapshotId, copy);
     this.order.push(snapshot.manifest.snapshotId);
   }
 
   async get(snapshotId: string): Promise<StoredSnapshot<S> | null> {
-    return this.snapshots.get(snapshotId) || null;
+    const snapshot = this.snapshots.get(snapshotId);
+    return snapshot ? structuredClone(snapshot) : null;
   }
 
   async latest(): Promise<StoredSnapshot<S> | null> {
     const id = this.order[this.order.length - 1];
-    return id ? this.snapshots.get(id) || null : null;
+    const snapshot = id ? this.snapshots.get(id) : null;
+    return snapshot ? structuredClone(snapshot) : null;
   }
 
   async list(): Promise<SnapshotManifest[]> {
     return this.order
-      .map(id => this.snapshots.get(id)!.manifest)
+      .map(id => structuredClone(this.snapshots.get(id)!.manifest))
       .sort((a, b) => a.cursor.sequence - b.cursor.sequence);
   }
 
@@ -80,10 +82,8 @@ export class InMemorySnapshotStore<S> implements ISnapshotStore<S> {
 
 /**
  * Coordinates deterministic snapshot creation and disaster-recovery replay.
- *
- * The coordinator does not own persistence technology. Its guarantees are the
- * protocol: snapshot state is hashed, cursor-bound, immutable by ID, and replay
- * always starts strictly after the snapshot cursor.
+ * New snapshots use SHA-256 for integrity. Legacy manifests without an
+ * algorithm remain readable with fnv128 during the convergence window.
  */
 export class RecoveryCoordinator<S> {
   constructor(
@@ -108,14 +108,15 @@ export class RecoveryCoordinator<S> {
         schemaVersion: this.schemaVersion,
         createdAt: new Date().toISOString(),
         cursor,
-        stateHash: stableHash128(state),
+        stateHash: await sha256Hex(state),
+        hashAlgorithm: 'sha256',
         metadata: { ...metadata },
       },
-      state,
+      state: structuredClone(state),
     };
 
     await this.snapshotStore.save(snapshot);
-    return snapshot;
+    return structuredClone(snapshot);
   }
 
   async restoreLatestAndReplay(batchSize = 1000): Promise<RecoveryReport> {
@@ -127,6 +128,7 @@ export class RecoveryCoordinator<S> {
     const snapshot = await this.snapshotStore.latest();
     let cursor: EventLogCursor = { sequence: 0 };
     let restoredSnapshotHash: string | null = null;
+    let reportAlgorithm: IntegrityHashAlgorithm = 'sha256';
 
     if (snapshot) {
       if (snapshot.manifest.schemaVersion !== this.schemaVersion) {
@@ -135,22 +137,24 @@ export class RecoveryCoordinator<S> {
         );
       }
 
-      const storedHash = stableHash128(snapshot.state);
+      const algorithm = snapshot.manifest.hashAlgorithm || 'fnv128-legacy';
+      reportAlgorithm = algorithm;
+      const storedHash = await this.hash(snapshot.state, algorithm);
       if (storedHash !== snapshot.manifest.stateHash) {
         throw new Error(
           `Snapshot integrity failure for ${snapshot.manifest.snapshotId}: ${storedHash} != ${snapshot.manifest.stateHash}`,
         );
       }
 
-      await this.projection.importState(snapshot.state);
+      await this.projection.importState(structuredClone(snapshot.state));
       const roundTripState = await this.projection.exportState();
-      restoredSnapshotHash = stableHash128(roundTripState);
+      restoredSnapshotHash = await this.hash(roundTripState, algorithm);
       if (restoredSnapshotHash !== snapshot.manifest.stateHash) {
         throw new Error(
           `Projection restore mismatch for ${snapshot.manifest.snapshotId}: ${restoredSnapshotHash} != ${snapshot.manifest.stateHash}`,
         );
       }
-      cursor = snapshot.manifest.cursor;
+      cursor = { ...snapshot.manifest.cursor };
     }
 
     let replayedEvents = 0;
@@ -159,6 +163,9 @@ export class RecoveryCoordinator<S> {
       if (events.length === 0) break;
 
       for (const event of events) {
+        if (event.sequence <= cursor.sequence) {
+          throw new Error(`Event-log replay ordering violation: ${event.sequence} <= ${cursor.sequence}`);
+        }
         await this.projection.applyEvent(event);
         cursor = { sequence: event.sequence };
         replayedEvents += 1;
@@ -170,12 +177,21 @@ export class RecoveryCoordinator<S> {
     const finalState = await this.projection.exportState();
     return {
       snapshotId: snapshot?.manifest.snapshotId || null,
-      snapshotCursor: snapshot?.manifest.cursor || { sequence: 0 },
+      snapshotCursor: snapshot?.manifest.cursor ? { ...snapshot.manifest.cursor } : { sequence: 0 },
       replayedEvents,
       finalCursor: cursor,
       expectedSnapshotHash: snapshot?.manifest.stateHash || null,
       restoredSnapshotHash,
-      finalStateHash: stableHash128(finalState),
+      // Final state always reports current authority algorithm even when the
+      // base snapshot was legacy, making migration visible in recovery evidence.
+      finalStateHash: await sha256Hex(finalState),
+      hashAlgorithm: snapshot ? reportAlgorithm : 'sha256',
     };
+  }
+
+  private async hash(state: S, algorithm: IntegrityHashAlgorithm): Promise<string> {
+    if (algorithm === 'sha256') return sha256Hex(state);
+    if (algorithm === 'fnv128-legacy') return stableHash128(state);
+    throw new Error(`Unsupported snapshot hash algorithm: ${String(algorithm)}`);
   }
 }

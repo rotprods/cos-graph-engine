@@ -3,8 +3,18 @@ import { CellHost } from '@cos/runtime';
 import { MemoryManager } from '@cos/memory';
 import { KnowledgeGraph, EmbeddingSystem, OntologySystem } from '@cos/knowledge';
 import { ReasoningEngineRegistry, PlanningEngine, EvaluationSystem, LearningSystem, SelfImprovementSystem, LLMFactory } from '@cos/cognition';
-import { ToolRegistry } from '@cos/execution';
-import { AgentSystem, WorkflowEngine, PolicyEngine, AutonomousLoop, AutonomousGoal, AutonomousStepResult } from '@cos/orchestration';
+import { StrictToolRegistry, CapabilityRouter, createDefaultCapabilityGuard } from '@cos/execution';
+import {
+  AgentSystem,
+  WorkflowEngine,
+  PolicyEngine,
+  AutonomousLoop,
+  AutonomousGoal,
+  AutonomousStepResult,
+  GoalExecutionCoordinator,
+  ResilienceRegistry,
+  ResilienceObserver,
+} from '@cos/orchestration';
 import { TelemetrySystem } from '@cos/observability';
 
 export type PolicyMode = 'disabled' | 'audit' | 'enforce';
@@ -15,11 +25,10 @@ export interface COSConfig {
   maxMemory: number;
   logLevel: string;
   plugins: string[];
-  /**
-   * `audit` evaluates every protected execution without breaking legacy callers.
-   * `enforce` is required before COS may be promoted to authoritative runtime.
-   */
   policyMode: PolicyMode;
+  projectId?: string;
+  filesystemRoots?: string[];
+  allowedHttpHosts?: string[];
 }
 
 export class COSServer {
@@ -35,10 +44,14 @@ export class COSServer {
   public readonly selfImprovement: SelfImprovementSystem;
   public readonly llm: LLMFactory;
   public readonly autonomousLoop: AutonomousLoop;
-  public readonly tools: ToolRegistry;
+  public readonly goalCoordinator: GoalExecutionCoordinator;
+  public readonly tools: StrictToolRegistry;
+  public readonly capabilities: CapabilityRouter;
   public readonly agents: AgentSystem;
   public readonly workflows: WorkflowEngine;
   public readonly policies: PolicyEngine;
+  public readonly resilience: ResilienceRegistry;
+  public readonly resilienceObserver: ResilienceObserver;
   public readonly telemetry: TelemetrySystem;
 
   public readonly config: COSConfig;
@@ -52,6 +65,9 @@ export class COSServer {
       logLevel: config?.logLevel || 'info',
       plugins: config?.plugins || [],
       policyMode: config?.policyMode || 'audit',
+      projectId: config?.projectId,
+      filesystemRoots: config?.filesystemRoots,
+      allowedHttpHosts: config?.allowedHttpHosts,
     };
 
     this.cellHost = new CellHost();
@@ -65,11 +81,81 @@ export class COSServer {
     this.learning = new LearningSystem();
     this.selfImprovement = new SelfImprovementSystem(this.evaluation, this.learning, this.reasoning);
     this.llm = new LLMFactory();
-    this.autonomousLoop = new AutonomousLoop(this.cellHost, this.memory, this.planning, this.evaluation, this.selfImprovement);
-    this.tools = new ToolRegistry();
+
+    this.resilience = new ResilienceRegistry();
+    this.resilienceObserver = new ResilienceObserver(this.resilience);
+    this.tools = new StrictToolRegistry();
+    this.policies = new PolicyEngine();
+    this.policies.onDecision(audit => {
+      if (audit.decision === 'allow') return;
+      this.resilienceObserver.observe({
+        type: audit.decision === 'deny' ? 'policy_denied' : 'policy_requires_approval',
+        projectId: this.config.projectId,
+        resource: audit.resource,
+        actor: audit.principal,
+        sourceRef: `policy-audit:${String(audit.id)}`,
+        occurredAt: audit.timestamp,
+        detail: `${audit.decision.toUpperCase()} ${audit.action} on ${audit.resource}: ${audit.reason}`,
+        metadata: {
+          traceId: audit.traceId,
+          action: audit.action,
+          decision: audit.decision,
+        },
+      });
+    });
+
+    this.capabilities = new CapabilityRouter(
+      this.tools,
+      async request => {
+        if (this.config.policyMode === 'disabled') {
+          return { allowed: true, reason: 'policy disabled' };
+        }
+
+        const decision = await this.policies.evaluate(
+          'tool.execute',
+          `tool:${request.capability}`,
+          {
+            ...request.context,
+            metadata: {
+              ...(request.context.metadata || {}),
+              capability: request.capability,
+              inputHash: request.inputHash,
+              sideEffecting: request.sideEffecting,
+            },
+          },
+        );
+
+        if (this.config.policyMode === 'audit') {
+          return {
+            allowed: true,
+            requiresApproval: false,
+            reason: `audit-only: ${decision.reason}`,
+          };
+        }
+
+        return {
+          allowed: decision.allowed,
+          requiresApproval: decision.requiresApproval,
+          reason: decision.reason,
+        };
+      },
+      createDefaultCapabilityGuard({
+        filesystemRoots: this.config.filesystemRoots,
+        allowedHttpHosts: this.config.allowedHttpHosts,
+      }),
+    );
+
+    this.autonomousLoop = new AutonomousLoop(
+      this.cellHost,
+      this.memory,
+      this.planning,
+      this.evaluation,
+      this.selfImprovement,
+      this.capabilities,
+    );
+    this.goalCoordinator = new GoalExecutionCoordinator(this.autonomousLoop);
     this.agents = new AgentSystem();
     this.workflows = new WorkflowEngine();
-    this.policies = new PolicyEngine();
     this.telemetry = new TelemetrySystem();
   }
 
@@ -155,6 +241,7 @@ export class COSServer {
           tools: this.tools.getAll().length,
           agents: this.agents.agentCount,
           workflows: this.workflows.workflowCount,
+          nearMisses: this.resilience.listNearMisses(this.config.projectId).length,
         },
       },
     };
@@ -172,11 +259,15 @@ export class COSServer {
       knowledge: await this.knowledge.stats(),
       reasoning: Array.from(this.reasoning.getCapabilities().keys()).length,
       tools: this.tools.getAll().length,
+      capabilities: this.capabilities.list().map(definition => definition.name),
       agents: this.agents.agentCount,
       workflows: this.workflows.workflowCount,
       policy: {
         mode: this.config.policyMode,
         auditEntries: this.policies.getAuditLog(Number.MAX_SAFE_INTEGER).length,
+      },
+      resilience: {
+        nearMisses: this.resilience.listNearMisses(this.config.projectId).length,
       },
       telemetry: {
         events: this.telemetry.eventCount,
@@ -186,6 +277,10 @@ export class COSServer {
   }
 
   async createGoal(description: string, context?: Partial<CellContext>): Promise<AutonomousGoal> {
+    await this.authorize('goal.create', 'autonomous:goal', {
+      traceId: context?.traceId || `goal-create_${Date.now()}`,
+      ...context,
+    });
     return this.autonomousLoop.createGoal(description, context);
   }
 
@@ -194,10 +289,46 @@ export class COSServer {
   }
 
   async executeGoal(goalId: EntityId): Promise<AutonomousGoal> {
-    return this.autonomousLoop.executeGoal(goalId);
+    const goal = await this.autonomousLoop.getGoal(goalId);
+    if (!goal) throw new Error(`Goal ${String(goalId)} not found`);
+    await this.authorize('goal.execute', `autonomous:goal:${String(goalId)}`, goal.context);
+
+    try {
+      await this.goalCoordinator.execute({
+        goalId,
+        idempotencyKey: `goal-execution:${String(goalId)}`,
+        workerId: `cos-server:${this.config.host}:${this.config.port}`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const signalType = message.includes('LEASE_')
+        ? 'lease_conflict'
+        : message.includes('IDEMPOTENCY_CONFLICT')
+          ? 'idempotency_conflict'
+          : null;
+      if (signalType) {
+        this.resilienceObserver.observe({
+          type: signalType,
+          projectId: this.config.projectId,
+          resource: `goal:${String(goalId)}`,
+          sourceRef: `goal-execution:${String(goalId)}`,
+          occurredAt: new Date().toISOString(),
+          detail: message,
+          metadata: { goalId: String(goalId) },
+        });
+      }
+      throw error;
+    }
+
+    const completed = await this.autonomousLoop.getGoal(goalId);
+    if (!completed) throw new Error(`Goal ${String(goalId)} disappeared after execution`);
+    return completed;
   }
 
   async executeNextStep(goalId: EntityId): Promise<AutonomousStepResult | null> {
+    const goal = await this.autonomousLoop.getGoal(goalId);
+    if (!goal) throw new Error(`Goal ${String(goalId)} not found`);
+    await this.authorize('goal.step.execute', `autonomous:goal:${String(goalId)}`, goal.context);
     return this.autonomousLoop.executeNextStep(goalId);
   }
 
@@ -211,9 +342,6 @@ export class COSServer {
       await this.policies.assertAllowed(action, resource, context);
       return;
     }
-
-    // Audit mode is migration-only: a decision is always computed and recorded,
-    // but legacy execution is not blocked. Authority Gate forbids this mode.
     await this.policies.evaluate(action, resource, context);
   }
 }

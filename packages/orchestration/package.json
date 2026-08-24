@@ -12,6 +12,7 @@
     "@cos/core": "0.1.0",
     "@cos/runtime": "0.1.0",
     "@cos/cognition": "0.1.0",
-    "@cos/memory": "0.1.0"
+    "@cos/memory": "0.1.0",
+    "@cos/execution": "0.1.0"
   }
 }
