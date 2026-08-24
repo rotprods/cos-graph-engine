@@ -1,5 +1,6 @@
 export * from './event-log';
 export * from './transactional-event-log';
+export * from './postgres-event-log';
 export * from './eventbus';
 export * from './recovery';
 export * from './concurrency';
