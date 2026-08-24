@@ -46,9 +46,24 @@ export class GoalExecutionCoordinator {
 
     const resource = `goal:${String(request.goalId)}`;
     let lease: Lease | null = null;
+    let goal: AutonomousGoal | null = null;
+    let previousFencing: unknown;
+    let previousWorker: unknown;
     try {
       lease = this.leases.acquire(resource, workerId, { ttlMs: request.leaseTtlMs ?? 30_000 });
-      const goal = await this.loop.executeGoal(request.goalId);
+      goal = await this.loop.getGoal(request.goalId);
+      if (!goal) throw new Error(`Goal ${String(request.goalId)} not found`);
+
+      // Propagate the lease fence into capability execution. Side-effecting
+      // tool calls are rejected by CapabilityRouter when this metadata is not
+      // present, so direct uncoordinated execution cannot accidentally bypass
+      // the fencing requirement.
+      previousFencing = goal.metadata.executionFencingVersion;
+      previousWorker = goal.metadata.executionWorkerId;
+      goal.metadata.executionFencingVersion = lease.fencingVersion;
+      goal.metadata.executionWorkerId = workerId;
+
+      goal = await this.loop.executeGoal(request.goalId);
       this.leases.assertHeld(resource, lease.token);
 
       const receipt: GoalExecutionReceipt = {
@@ -77,8 +92,14 @@ export class GoalExecutionCoordinator {
       if (record?.status === 'in_progress' && record.owner === workerId) this.idempotency.fail(idempotencyKey, workerId, error);
       throw error;
     } finally {
+      if (goal) {
+        if (previousFencing === undefined) delete goal.metadata.executionFencingVersion;
+        else goal.metadata.executionFencingVersion = previousFencing;
+        if (previousWorker === undefined) delete goal.metadata.executionWorkerId;
+        else goal.metadata.executionWorkerId = previousWorker;
+      }
       if (lease) {
-        try { this.leases.release(resource, lease.token); } catch { /* stale lease cleanup must not release a successor lease */ }
+        try { this.leases.release(resource, lease.token); } catch { /* stale cleanup never releases a successor lease */ }
       }
     }
   }
