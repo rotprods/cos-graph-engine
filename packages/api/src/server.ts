@@ -3,7 +3,7 @@ import { CellHost } from '@cos/runtime';
 import { MemoryManager } from '@cos/memory';
 import { KnowledgeGraph, EmbeddingSystem, OntologySystem } from '@cos/knowledge';
 import { ReasoningEngineRegistry, PlanningEngine, EvaluationSystem, LearningSystem, SelfImprovementSystem, LLMFactory } from '@cos/cognition';
-import { ToolRegistry, CapabilityRouter } from '@cos/execution';
+import { ToolRegistry, CapabilityRouter, createDefaultCapabilityGuard } from '@cos/execution';
 import {
   AgentSystem,
   WorkflowEngine,
@@ -31,6 +31,10 @@ export interface COSConfig {
    */
   policyMode: PolicyMode;
   projectId?: string;
+  /** Filesystem roots accessible to built-in filesystem capability. */
+  filesystemRoots?: string[];
+  /** Explicit host exceptions for the conservative HTTP input guard. */
+  allowedHttpHosts?: string[];
 }
 
 export class COSServer {
@@ -68,6 +72,8 @@ export class COSServer {
       plugins: config?.plugins || [],
       policyMode: config?.policyMode || 'audit',
       projectId: config?.projectId,
+      filesystemRoots: config?.filesystemRoots,
+      allowedHttpHosts: config?.allowedHttpHosts,
     };
 
     this.cellHost = new CellHost();
@@ -82,8 +88,6 @@ export class COSServer {
     this.selfImprovement = new SelfImprovementSystem(this.evaluation, this.learning, this.reasoning);
     this.llm = new LLMFactory();
 
-    // Security decisions and resilience learning are intentionally assembled
-    // before any execution path so all later components can share them.
     this.resilience = new ResilienceRegistry();
     this.resilienceObserver = new ResilienceObserver(this.resilience);
     this.tools = new ToolRegistry();
@@ -106,39 +110,46 @@ export class COSServer {
       });
     });
 
-    this.capabilities = new CapabilityRouter(this.tools, async request => {
-      if (this.config.policyMode === 'disabled') {
-        return { allowed: true, reason: 'policy disabled' };
-      }
+    this.capabilities = new CapabilityRouter(
+      this.tools,
+      async request => {
+        if (this.config.policyMode === 'disabled') {
+          return { allowed: true, reason: 'policy disabled' };
+        }
 
-      const decision = await this.policies.evaluate(
-        'tool.execute',
-        `tool:${request.capability}`,
-        {
-          ...request.context,
-          metadata: {
-            ...(request.context.metadata || {}),
-            capability: request.capability,
-            inputHash: request.inputHash,
-            sideEffecting: request.sideEffecting,
+        const decision = await this.policies.evaluate(
+          'tool.execute',
+          `tool:${request.capability}`,
+          {
+            ...request.context,
+            metadata: {
+              ...(request.context.metadata || {}),
+              capability: request.capability,
+              inputHash: request.inputHash,
+              sideEffecting: request.sideEffecting,
+            },
           },
-        },
-      );
+        );
 
-      if (this.config.policyMode === 'audit') {
+        if (this.config.policyMode === 'audit') {
+          return {
+            allowed: true,
+            requiresApproval: false,
+            reason: `audit-only: ${decision.reason}`,
+          };
+        }
+
         return {
-          allowed: true,
-          requiresApproval: false,
-          reason: `audit-only: ${decision.reason}`,
+          allowed: decision.allowed,
+          requiresApproval: decision.requiresApproval,
+          reason: decision.reason,
         };
-      }
-
-      return {
-        allowed: decision.allowed,
-        requiresApproval: decision.requiresApproval,
-        reason: decision.reason,
-      };
-    });
+      },
+      createDefaultCapabilityGuard({
+        filesystemRoots: this.config.filesystemRoots,
+        allowedHttpHosts: this.config.allowedHttpHosts,
+      }),
+    );
 
     this.autonomousLoop = new AutonomousLoop(
       this.cellHost,
