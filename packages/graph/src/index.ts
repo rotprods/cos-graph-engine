@@ -10,6 +10,7 @@ export * from './level8-knowledge';
 export * from './level9-semantic';
 export * from './level10-embedding';
 export * from './level11-graphrag';
+export * from './context-pack';
 export * from './level12-memory';
 export * from './level13-agent';
 export * from './level14-tool';
