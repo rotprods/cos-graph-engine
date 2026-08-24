@@ -3,8 +3,16 @@ import { CellHost } from '@cos/runtime';
 import { MemoryManager } from '@cos/memory';
 import { KnowledgeGraph, EmbeddingSystem, OntologySystem } from '@cos/knowledge';
 import { ReasoningEngineRegistry, PlanningEngine, EvaluationSystem, LearningSystem, SelfImprovementSystem, LLMFactory } from '@cos/cognition';
-import { ToolRegistry } from '@cos/execution';
-import { AgentSystem, WorkflowEngine, PolicyEngine, AutonomousLoop, AutonomousGoal, AutonomousStepResult } from '@cos/orchestration';
+import { ToolRegistry, CapabilityRouter } from '@cos/execution';
+import {
+  AgentSystem,
+  WorkflowEngine,
+  PolicyEngine,
+  AutonomousLoop,
+  AutonomousGoal,
+  AutonomousStepResult,
+  GoalExecutionCoordinator,
+} from '@cos/orchestration';
 import { TelemetrySystem } from '@cos/observability';
 
 export type PolicyMode = 'disabled' | 'audit' | 'enforce';
@@ -35,7 +43,9 @@ export class COSServer {
   public readonly selfImprovement: SelfImprovementSystem;
   public readonly llm: LLMFactory;
   public readonly autonomousLoop: AutonomousLoop;
+  public readonly goalCoordinator: GoalExecutionCoordinator;
   public readonly tools: ToolRegistry;
+  public readonly capabilities: CapabilityRouter;
   public readonly agents: AgentSystem;
   public readonly workflows: WorkflowEngine;
   public readonly policies: PolicyEngine;
@@ -65,11 +75,58 @@ export class COSServer {
     this.learning = new LearningSystem();
     this.selfImprovement = new SelfImprovementSystem(this.evaluation, this.learning, this.reasoning);
     this.llm = new LLMFactory();
-    this.autonomousLoop = new AutonomousLoop(this.cellHost, this.memory, this.planning, this.evaluation, this.selfImprovement);
+
+    // Policy and capability infrastructure must exist BEFORE autonomous
+    // execution is assembled; otherwise tool execution can bypass enforcement.
     this.tools = new ToolRegistry();
+    this.policies = new PolicyEngine();
+    this.capabilities = new CapabilityRouter(this.tools, async request => {
+      if (this.config.policyMode === 'disabled') {
+        return { allowed: true, reason: 'policy disabled' };
+      }
+
+      const decision = await this.policies.evaluate(
+        'tool.execute',
+        `tool:${request.capability}`,
+        {
+          ...request.context,
+          metadata: {
+            ...(request.context.metadata || {}),
+            capability: request.capability,
+            inputHash: request.inputHash,
+            sideEffecting: request.sideEffecting,
+          },
+        },
+      );
+
+      // Audit mode deliberately records the real decision but does not block
+      // legacy execution. Authority Gate requires policyMode=enforce.
+      if (this.config.policyMode === 'audit') {
+        return {
+          allowed: true,
+          requiresApproval: false,
+          reason: `audit-only: ${decision.reason}`,
+        };
+      }
+
+      return {
+        allowed: decision.allowed,
+        requiresApproval: decision.requiresApproval,
+        reason: decision.reason,
+      };
+    });
+
+    this.autonomousLoop = new AutonomousLoop(
+      this.cellHost,
+      this.memory,
+      this.planning,
+      this.evaluation,
+      this.selfImprovement,
+      this.capabilities,
+    );
+    this.goalCoordinator = new GoalExecutionCoordinator(this.autonomousLoop);
     this.agents = new AgentSystem();
     this.workflows = new WorkflowEngine();
-    this.policies = new PolicyEngine();
     this.telemetry = new TelemetrySystem();
   }
 
@@ -172,6 +229,7 @@ export class COSServer {
       knowledge: await this.knowledge.stats(),
       reasoning: Array.from(this.reasoning.getCapabilities().keys()).length,
       tools: this.tools.getAll().length,
+      capabilities: this.capabilities.list().map(definition => definition.name),
       agents: this.agents.agentCount,
       workflows: this.workflows.workflowCount,
       policy: {
@@ -186,6 +244,10 @@ export class COSServer {
   }
 
   async createGoal(description: string, context?: Partial<CellContext>): Promise<AutonomousGoal> {
+    await this.authorize('goal.create', 'autonomous:goal', {
+      traceId: context?.traceId || `goal-create_${Date.now()}`,
+      ...context,
+    });
     return this.autonomousLoop.createGoal(description, context);
   }
 
@@ -193,11 +255,31 @@ export class COSServer {
     return this.autonomousLoop.getActiveGoals();
   }
 
+  /**
+   * Full-goal execution always passes through the lease/idempotency coordinator.
+   * This is the authority-grade path for side-effecting tool steps.
+   */
   async executeGoal(goalId: EntityId): Promise<AutonomousGoal> {
-    return this.autonomousLoop.executeGoal(goalId);
+    const goal = await this.autonomousLoop.getGoal(goalId);
+    if (!goal) throw new Error(`Goal ${String(goalId)} not found`);
+    await this.authorize('goal.execute', `autonomous:goal:${String(goalId)}`, goal.context);
+
+    await this.goalCoordinator.execute({
+      goalId,
+      idempotencyKey: `goal-execution:${String(goalId)}`,
+      workerId: `cos-server:${this.config.host}:${this.config.port}`,
+    });
+    const completed = await this.autonomousLoop.getGoal(goalId);
+    if (!completed) throw new Error(`Goal ${String(goalId)} disappeared after execution`);
+    return completed;
   }
 
   async executeNextStep(goalId: EntityId): Promise<AutonomousStepResult | null> {
+    const goal = await this.autonomousLoop.getGoal(goalId);
+    if (!goal) throw new Error(`Goal ${String(goalId)} not found`);
+    await this.authorize('goal.step.execute', `autonomous:goal:${String(goalId)}`, goal.context);
+    // Direct single-step execution intentionally has no fencing metadata. Read-
+    // only steps may execute; side-effecting CapabilityRouter calls fail closed.
     return this.autonomousLoop.executeNextStep(goalId);
   }
 
@@ -211,9 +293,6 @@ export class COSServer {
       await this.policies.assertAllowed(action, resource, context);
       return;
     }
-
-    // Audit mode is migration-only: a decision is always computed and recorded,
-    // but legacy execution is not blocked. Authority Gate forbids this mode.
     await this.policies.evaluate(action, resource, context);
   }
 }
