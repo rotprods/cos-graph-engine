@@ -1,0 +1,68 @@
+name: W13 Authority Qualification
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: w13-authority-qualification
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Lockfile truth preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts
+          if ! git diff --exit-code -- package-lock.json; then
+            mkdir -p artifacts/w13
+            cp package-lock.json artifacts/w13/generated-package-lock.json
+            echo 'FAIL: package-lock.json is stale. Commit the generated lock artifact and rerun W13.'
+            exit 1
+          fi
+
+      - name: Clean deterministic install
+        run: npm ci
+
+      - name: Canonical TypeScript build graph
+        run: npx tsc -p tsconfig.build.json --noEmit
+
+      - name: Strict authority-path TypeScript gate
+        run: npx tsc -p tsconfig.authority.json --noEmit
+
+      - name: WASM build
+        run: npm run asbuild
+
+      - name: Authority contracts
+        run: |
+          npm run test:authority
+          npx tsx scripts/w13-provider-contract.ts
+          npx tsx scripts/w13-state-partial-commit-contract.ts
+
+      - name: Full canonical regression
+        run: npm run test:all
+
+      - name: Upload evidence bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cos-w13-authority-evidence
+          path: artifacts/w13/
+          if-no-files-found: warn
+          retention-days: 30

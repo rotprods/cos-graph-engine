@@ -25,6 +25,7 @@
     "wasm:build": "npm run asbuild",
     "test": "npx tsx scripts/run-tests.ts",
     "test:all": "npx tsx scripts/run-tests.ts && npx tsx scripts/test-level1-diamond.ts && npx tsx scripts/test-level1-mutation.ts && npx tsx scripts/test-level3-consistency.ts && npx tsx scripts/test-level3-mutation.ts && npx tsx scripts/test-level7-compute.ts && npx tsx scripts/test-levels-12-19.ts && npx tsx scripts/test-pipeline-l45l6.ts && npx tsx scripts/test-pipeline-l891011.ts && npx tsx scripts/test-pipeline-l12131415.ts && npx tsx scripts/test-pipeline-l16171819.ts && npx tsx scripts/test-cli-visualizer.ts",
+    "test:authority": "npx tsx scripts/w13-authority-contract.ts",
     "test:csr": "npx tsx scripts/test-csr.ts",
     "test:pruning": "npx tsx scripts/test-pruning.ts",
     "test:benchmark": "npx tsx scripts/test-benchmark.ts",

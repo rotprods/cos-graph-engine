@@ -6,3 +6,4 @@ export * from './cell';
 export * from './identity';
 export * from './integrity';
 export * from './temporal';
+export * from './memory-authority';

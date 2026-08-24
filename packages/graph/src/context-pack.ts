@@ -1,10 +1,15 @@
 import { stableHash128 } from '@cos/core';
-import {
-  GraphRAGEngine,
-  type RankedChunk,
-  type RetrievalScope,
-  type RetrievalSensitivity,
+import type {
+  RankedChunk,
+  RetrievalScope,
+  RetrievalSensitivity,
 } from './level11-graphrag';
+import type { ScopedGraphRetriever } from './authority-graphrag';
+
+export interface VersionedScopedGraphRetriever extends ScopedGraphRetriever {
+  readonly projectionVersion?: number;
+  readonly projectionHash?: string;
+}
 
 export interface ContextPackItem {
   chunkId: string;
@@ -27,6 +32,7 @@ export interface ContextPack {
   asOf: string;
   permission: RetrievalSensitivity;
   projectionVersion: number;
+  projectionHash?: string;
   maxTokens: number;
   estimatedTokens: number;
   items: ContextPackItem[];
@@ -44,20 +50,22 @@ export interface ContextPackCompileRequest {
   asOf?: string;
   projectionVersion: number;
   expectedProjectionVersion?: number;
+  expectedProjectionHash?: string;
   maxTokens?: number;
   minScore?: number;
   allowGlobal?: boolean;
 }
 
 /**
- * Converts scope-safe GraphRAG evidence into a deterministic, bounded context
+ * Converts scope-safe retrieval evidence into a deterministic, bounded context
  * contract suitable for cross-agent handoff.
  *
- * ContextPack is deliberately separate from model prompting. No private or
- * stale evidence can be "filtered later" after prompt construction.
+ * The compiler depends on a structural retriever contract rather than the
+ * legacy GraphRAG class. AuthorityGraphRAGIndex can therefore provide strict
+ * deterministic projection semantics while existing callers remain compatible.
  */
 export class ContextPackCompiler {
-  constructor(private readonly graphRag: GraphRAGEngine) {}
+  constructor(private readonly graphRag: VersionedScopedGraphRetriever) {}
 
   compile(request: ContextPackCompileRequest): ContextPack {
     const projectId = request.projectId.trim();
@@ -67,12 +75,28 @@ export class ContextPackCompiler {
     if (!Number.isInteger(request.projectionVersion) || request.projectionVersion < 0) {
       throw new Error('projectionVersion must be a non-negative integer');
     }
+
+    const retrieverVersion = this.graphRag.projectionVersion;
+    if (retrieverVersion !== undefined && retrieverVersion !== request.projectionVersion) {
+      throw new Error(
+        `STALE_CONTEXT_RETRIEVER requested=${request.projectionVersion} current=${retrieverVersion}`,
+      );
+    }
     if (
       request.expectedProjectionVersion !== undefined
       && request.expectedProjectionVersion !== request.projectionVersion
     ) {
       throw new Error(
         `STALE_CONTEXT_PROJECTION expected=${request.expectedProjectionVersion} current=${request.projectionVersion}`,
+      );
+    }
+    if (
+      request.expectedProjectionHash !== undefined
+      && this.graphRag.projectionHash !== undefined
+      && request.expectedProjectionHash !== this.graphRag.projectionHash
+    ) {
+      throw new Error(
+        `STALE_CONTEXT_HASH expected=${request.expectedProjectionHash} current=${this.graphRag.projectionHash}`,
       );
     }
 
@@ -98,10 +122,13 @@ export class ContextPackCompiler {
       scope,
     );
 
-    // Reserve budget for headers/provenance and use deterministic greedy packing
-    // by ranking score. 4 chars/token is intentionally conservative enough for
-    // planning; model-specific tokenizers may replace this estimator later.
-    const header = `PROJECT: ${projectId}\nTASK: ${task}\nAS_OF: ${asOf}\nPROJECTION: ${request.projectionVersion}\n`;
+    const header = [
+      `PROJECT: ${projectId}`,
+      `TASK: ${task}`,
+      `AS_OF: ${asOf}`,
+      `PROJECTION: ${request.projectionVersion}`,
+      this.graphRag.projectionHash ? `PROJECTION_HASH: ${this.graphRag.projectionHash}` : null,
+    ].filter((line): line is string => Boolean(line)).join('\n') + '\n';
     const headerTokens = this.estimateTokens(header);
     let remaining = Math.max(0, maxTokens - headerTokens);
     const items: ContextPackItem[] = [];
@@ -135,6 +162,7 @@ export class ContextPackCompiler {
       asOf,
       permission,
       projectionVersion: request.projectionVersion,
+      projectionHash: this.graphRag.projectionHash || null,
       evidenceHash,
       maxTokens,
     })}`;
@@ -147,6 +175,7 @@ export class ContextPackCompiler {
       asOf,
       permission,
       projectionVersion: request.projectionVersion,
+      projectionHash: this.graphRag.projectionHash,
       maxTokens,
       estimatedTokens,
       items,
@@ -156,10 +185,15 @@ export class ContextPackCompiler {
     };
   }
 
-  assertCurrent(pack: ContextPack, currentProjectionVersion: number): void {
+  assertCurrent(pack: ContextPack, currentProjectionVersion: number, currentProjectionHash?: string): void {
     if (pack.projectionVersion !== currentProjectionVersion) {
       throw new Error(
         `STALE_CONTEXT_PACK pack=${pack.projectionVersion} current=${currentProjectionVersion}`,
+      );
+    }
+    if (pack.projectionHash && currentProjectionHash && pack.projectionHash !== currentProjectionHash) {
+      throw new Error(
+        `STALE_CONTEXT_PACK_HASH pack=${pack.projectionHash} current=${currentProjectionHash}`,
       );
     }
   }
