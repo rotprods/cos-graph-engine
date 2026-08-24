@@ -1,0 +1,61 @@
+name: Hardening Shadow CI
+
+on:
+  push:
+    branches:
+      - 'hardening/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+
+concurrency:
+  group: hardening-shadow-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  canonical-truth:
+    name: Canonical truth — install, typecheck, build, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Clean deterministic install
+        run: npm ci
+      - name: TypeScript build check
+        run: npx tsc -p tsconfig.build.json --noEmit
+      - name: WASM build — fail closed
+        run: npm run asbuild
+      - name: Level 1 correctness smoke
+        run: npm run test:l1
+      - name: Full canonical test suite
+        run: npm run test:all
+
+  ci-contract:
+    name: CI truth contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject known fail-open patterns in hardening workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          file='.github/workflows/hardening-shadow-ci.yml'
+          if grep -En '\|\|[[:space:]]*echo|continue-on-error:[[:space:]]*true' "$file"; then
+            echo 'FAIL: hardening CI contains a fail-open construct'
+            exit 1
+          fi
+          echo 'PASS: hardening CI is fail-closed'
+
+  complete:
+    name: Hardening shadow gate
+    runs-on: ubuntu-latest
+    needs: [canonical-truth, ci-contract]
+    if: success()
+    steps:
+      - run: echo 'PASS — hardening shadow CI is green with no suppressed required failures'
