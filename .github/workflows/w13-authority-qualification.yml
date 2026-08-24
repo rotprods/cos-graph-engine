@@ -1,0 +1,79 @@
+name: W13 Authority Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Qualification branch/ref'
+        required: true
+        default: 'hardening/w13-authority-qualification'
+      run_benchmarks:
+        description: 'Run benchmarks after correctness passes'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: w13-authority-qualification
+  cancel-in-progress: false
+
+jobs:
+  authority-qualification:
+    name: W13 authority qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout requested ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Clean deterministic install
+        run: npm ci
+
+      - name: Toolchain evidence
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          npx --no-install tsc --version
+          npx --no-install tsx --version
+
+      - name: Legacy build-graph typecheck
+        run: npm run typecheck:build
+
+      - name: Strict authority-surface typecheck
+        run: npm run typecheck:authority
+
+      - name: WASM build
+        run: npm run asbuild
+
+      - name: Canonical regression suites
+        run: npm run test:all
+
+      - name: L2 authority semantics
+        run: npm run test:l2:authority
+
+      - name: Cross-stack authority negative suite
+        run: npm run test:w13:authority
+
+      - name: Historically orphaned/excluded suites
+        run: npm run test:w13:orphans
+
+      - name: Graph benchmark compatibility smoke
+        if: ${{ inputs.run_benchmarks }}
+        run: npm run benchmark:graph
+
+      - name: Scientific benchmark campaign
+        if: ${{ inputs.run_benchmarks }}
+        run: npm run benchmark:report
