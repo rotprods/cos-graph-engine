@@ -67,6 +67,9 @@ jobs:
       - name: Cross-stack authority negative suite
         run: npm run test:w13:authority
 
+      - name: Historically orphaned/excluded suites
+        run: npm run test:w13:orphans
+
       - name: Graph benchmark compatibility smoke
         if: ${{ inputs.run_benchmarks }}
         run: npm run benchmark:graph
