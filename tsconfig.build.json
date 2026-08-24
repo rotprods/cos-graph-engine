@@ -28,6 +28,7 @@
       "@cos/infrastructure": ["./packages/infrastructure/src"],
       "@cos/deployment": ["./packages/deployment/src"],
       "@cos/graph": ["./packages/graph/src"],
+      "@cos/hub": ["./packages/hub/src"],
       "@cos/visualization": ["./packages/visualization/src"],
       "@cos/wasm": ["./packages/wasm/src"]
     }
@@ -45,6 +46,7 @@
     "packages/infrastructure/src/**/*.ts",
     "packages/deployment/src/**/*.ts",
     "packages/graph/src/**/*.ts",
+    "packages/hub/src/**/*.ts",
     "packages/visualization/src/**/*.ts",
     "packages/wasm/src/**/*.ts"
   ]
