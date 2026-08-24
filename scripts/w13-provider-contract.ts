@@ -78,13 +78,19 @@ async function main(): Promise<void> {
     if (!duplicate.result?.duplicate || duplicate.result.applied) {
       throw new Error('duplicate delivery was not suppressed');
     }
-    if ((await eventLog.latestCursor()).sequence !== 2) {
+    // First provider observation produces two transitions (init + change). Each
+    // transition has one command event and one explicit outcome event.
+    if ((await eventLog.latestCursor()).sequence !== 4) {
       throw new Error('duplicate delivery changed event-log cursor');
     }
-    checks.push({ name: 'GitHub delivery ID is idempotent', passed: true });
+    const replay = await hub.replayRepoStates();
+    if (replay.commands !== 2 || replay.outcomes !== 2 || replay.applied !== 2) {
+      throw new Error('provider event command/outcome replay did not reproduce the projection');
+    }
+    checks.push({ name: 'GitHub delivery ID is idempotent and replayable', passed: true });
   } catch (error) {
     checks.push({
-      name: 'GitHub delivery ID is idempotent',
+      name: 'GitHub delivery ID is idempotent and replayable',
       passed: false,
       detail: error instanceof Error ? error.message : String(error),
     });
