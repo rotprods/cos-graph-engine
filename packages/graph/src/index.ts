@@ -11,6 +11,7 @@ export * from './level9-semantic';
 export * from './level10-embedding';
 export * from './level11-graphrag';
 export * from './authority-graphrag';
+export * from './authority-graphrag-v2';
 export * from './context-pack';
 export * from './level12-memory';
 export * from './level13-agent';
