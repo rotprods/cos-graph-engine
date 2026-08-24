@@ -30,15 +30,36 @@ export interface StateDispatchFailure {
   actualRevision: number;
   occurredAt: string;
   error: string;
+  /** True when the legacy machine mutated state before an async callback failed. */
+  partialCommit: boolean;
+}
+
+export class PartialStateTransitionError extends Error {
+  constructor(
+    readonly event: string,
+    readonly previousState: StateId,
+    readonly actualState: StateId,
+    readonly revision: number,
+    readonly originalError: unknown,
+  ) {
+    super(
+      `PARTIAL_TRANSITION_COMMIT event=${event} previous=${previousState} actual=${actualState} revision=${revision}: ${
+        originalError instanceof Error ? originalError.message : String(originalError)
+      }`,
+    );
+    this.name = 'PartialStateTransitionError';
+  }
 }
 
 /**
  * Serializes asynchronous state transitions and adds expected-state/revision
  * fencing without changing the legacy StateMachine implementation.
  *
- * It is the authority path for multi-writer state projection. The wrapped
- * machine still owns guards/actions/entry/exit semantics; this wrapper ensures
- * only one transition evaluates/commits at a time.
+ * A legacy transition callback can fail after the machine has already changed
+ * state. That condition cannot be rolled back generically because callback side
+ * effects are opaque. Instead, this wrapper detects the partial commit, advances
+ * the revision fence and throws an explicit PartialStateTransitionError. A stale
+ * writer can therefore never commit against the pre-failure revision.
  */
 export class VersionedStateMachine {
   private readonly machine: StateMachine;
@@ -76,8 +97,6 @@ export class VersionedStateMachine {
     options: StateDispatchOptions = {},
   ): Promise<StateDispatchReceipt> {
     const operation = this.dispatchTail.then(() => this.dispatch(event, payload, options));
-    // The queue must continue after a rejected transition; callers still receive
-    // the original rejection through `operation`.
     this.dispatchTail = operation.then(() => undefined, () => undefined);
     return operation;
   }
@@ -126,6 +145,7 @@ export class VersionedStateMachine {
 
     const previousState = this.state;
     const previousRevision = this.revision;
+    const previousContext = this.contextData;
     try {
       if (options.expectedState !== undefined && options.expectedState !== previousState) {
         throw new Error(`STALE_STATE expected=${options.expectedState} current=${previousState}`);
@@ -137,7 +157,7 @@ export class VersionedStateMachine {
       const applied = await this.machine.send(normalizedEvent, payload);
       if (!applied) {
         const failure = `TRANSITION_REJECTED event=${normalizedEvent} state=${previousState}`;
-        this.recordFailure(normalizedEvent, options, failure);
+        this.recordFailure(normalizedEvent, options, failure, false);
         return {
           event: normalizedEvent,
           previousState,
@@ -160,13 +180,36 @@ export class VersionedStateMachine {
         stateHash: this.snapshot().stateHash,
       };
     } catch (error) {
+      const currentContext = this.contextData;
+      const partialCommit = this.state !== previousState
+        || currentContext.transitions !== previousContext.transitions
+        || currentContext.history.length !== previousContext.history.length;
+
+      if (partialCommit) {
+        this.revision += 1;
+        const partialError = new PartialStateTransitionError(
+          normalizedEvent,
+          previousState,
+          this.state,
+          this.revision,
+          error,
+        );
+        this.recordFailure(normalizedEvent, options, partialError.message, true);
+        throw partialError;
+      }
+
       const message = error instanceof Error ? error.message : String(error);
-      this.recordFailure(normalizedEvent, options, message);
+      this.recordFailure(normalizedEvent, options, message, false);
       throw error;
     }
   }
 
-  private recordFailure(event: string, options: StateDispatchOptions, error: string): void {
+  private recordFailure(
+    event: string,
+    options: StateDispatchOptions,
+    error: string,
+    partialCommit: boolean,
+  ): void {
     this.failures.push({
       event,
       expectedState: options.expectedState,
@@ -175,6 +218,7 @@ export class VersionedStateMachine {
       actualRevision: this.revision,
       occurredAt: new Date().toISOString(),
       error,
+      partialCommit,
     });
     if (this.failures.length > this.maxFailures) {
       this.failures = this.failures.slice(-this.maxFailures);
