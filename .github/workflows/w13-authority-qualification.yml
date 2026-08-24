@@ -43,6 +43,9 @@ jobs:
       - name: Canonical TypeScript build graph
         run: npx tsc -p tsconfig.build.json --noEmit
 
+      - name: Strict authority-path TypeScript gate
+        run: npx tsc -p tsconfig.authority.json --noEmit
+
       - name: WASM build
         run: npm run asbuild
 
