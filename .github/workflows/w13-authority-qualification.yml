@@ -1,0 +1,40 @@
+name: W13 Authority Qualification
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: w13-authority-qualification
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Clean deterministic install
+        run: npm ci
+      - name: Canonical TypeScript build graph
+        run: npx tsc -p tsconfig.build.json --noEmit
+      - name: WASM build
+        run: npm run asbuild
+      - name: Authority contract
+        run: npx tsx scripts/w13-authority-contract.ts
+      - name: Full canonical regression
+        run: npm run test:all
+      - name: Upload evidence bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: cos-w13-authority-evidence
+          path: artifacts/w13/
+          if-no-files-found: error
+          retention-days: 30
