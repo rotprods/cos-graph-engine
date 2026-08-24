@@ -1,58 +1,112 @@
 import {
   EntityId, CellContext, PolicyRule, PolicyCondition,
-  PolicyDecision, IPolicyEngine, Permission,
+  PolicyDecision, IPolicyEngine,
 } from '@cos/core';
 import { generateId } from '@cos/core';
 
+export interface PolicyEvaluationAudit {
+  id: EntityId;
+  timestamp: string;
+  action: string;
+  resource: string;
+  traceId: string;
+  principal?: string;
+  decision: 'allow' | 'deny' | 'require_approval';
+  matchedRuleIds: EntityId[];
+  reason: string;
+}
+
+export class PolicyDeniedError extends Error {
+  constructor(
+    readonly action: string,
+    readonly resource: string,
+    readonly decision: PolicyDecision,
+  ) {
+    super(`Policy denied '${action}' on '${resource}': ${decision.reason}`);
+    this.name = 'PolicyDeniedError';
+  }
+}
+
+export class PolicyApprovalRequiredError extends Error {
+  constructor(
+    readonly action: string,
+    readonly resource: string,
+    readonly decision: PolicyDecision,
+  ) {
+    super(`Policy approval required for '${action}' on '${resource}': ${decision.reason}`);
+    this.name = 'PolicyApprovalRequiredError';
+  }
+}
+
+/**
+ * Default-deny policy engine.
+ *
+ * Unknown fields/operators, invalid operand types and unsafe regex patterns all
+ * fail closed. Equal-priority conflicts resolve DENY > REQUIRE_APPROVAL > ALLOW,
+ * so rule insertion order can never weaken policy.
+ */
 export class PolicyEngine implements IPolicyEngine {
   private rules: Map<EntityId, PolicyRule> = new Map();
+  private audit: PolicyEvaluationAudit[] = [];
+  private readonly maxAuditEntries: number;
+
+  constructor(maxAuditEntries = 10000) {
+    this.maxAuditEntries = Math.max(1, maxAuditEntries);
+  }
 
   async evaluate(action: string, resource: string, context: CellContext): Promise<PolicyDecision> {
     const matchedRules: PolicyRule[] = [];
 
     for (const rule of this.rules.values()) {
       if (!rule.enabled) continue;
-
-      // Check action match
-      const actionMatch = rule.actions.includes(action) || rule.actions.includes('*');
-      if (!actionMatch) continue;
-
-      // Check resource match
-      const resourceMatch = rule.resources.includes(resource) || rule.resources.includes('*');
-      if (!resourceMatch) continue;
-
-      // Check conditions
-      const conditionsMet = this.evaluateConditions(rule.conditions, context);
-      if (!conditionsMet) continue;
-
+      if (!(rule.actions.includes(action) || rule.actions.includes('*'))) continue;
+      if (!(rule.resources.includes(resource) || rule.resources.includes('*'))) continue;
+      if (!this.evaluateConditions(rule.conditions, context)) continue;
       matchedRules.push(rule);
     }
 
-    // Default: deny if no rules matched
+    let decision: PolicyDecision;
     if (matchedRules.length === 0) {
-      return {
+      decision = {
         allowed: false,
         requiresApproval: false,
         matchedRules: [],
-        reason: `No policy matched action '${action}' on resource '${resource}'`,
+        reason: `DENY: no policy matched action '${action}' on resource '${resource}'`,
+      };
+    } else {
+      const effectRank: Record<PolicyRule['effect'], number> = {
+        deny: 3,
+        require_approval: 2,
+        allow: 1,
+      };
+      matchedRules.sort((a, b) =>
+        b.priority - a.priority || effectRank[b.effect] - effectRank[a.effect] || String(a.id).localeCompare(String(b.id)),
+      );
+      const topRule = matchedRules[0];
+      decision = {
+        allowed: topRule.effect === 'allow',
+        requiresApproval: topRule.effect === 'require_approval',
+        matchedRules: [topRule],
+        reason: `${topRule.effect.toUpperCase()}: ${topRule.name} (priority ${topRule.priority})`,
       };
     }
 
-    // Highest priority rule wins
-    matchedRules.sort((a, b) => b.priority - a.priority);
-    const topRule = matchedRules[0];
+    this.recordAudit(action, resource, context, decision);
+    return decision;
+  }
 
-    return {
-      allowed: topRule.effect === 'allow',
-      requiresApproval: topRule.effect === 'require_approval',
-      matchedRules: [topRule],
-      reason: `${topRule.effect.toUpperCase()}: ${topRule.name} (priority ${topRule.priority})`,
-    };
+  /** Enforcement helper for execution paths: evaluating policy without checking the result is not sufficient. */
+  async assertAllowed(action: string, resource: string, context: CellContext): Promise<void> {
+    const decision = await this.evaluate(action, resource, context);
+    if (decision.requiresApproval) throw new PolicyApprovalRequiredError(action, resource, decision);
+    if (!decision.allowed) throw new PolicyDeniedError(action, resource, decision);
   }
 
   async addRule(rule: PolicyRule): Promise<EntityId> {
     const id = rule.id || generateId();
-    this.rules.set(id, { ...rule, id });
+    if (this.rules.has(id)) throw new Error(`Policy rule ${String(id)} already exists`);
+    if (!Number.isFinite(rule.priority)) throw new Error(`Policy rule ${String(id)} has invalid priority`);
+    this.rules.set(id, { ...rule, id, actions: [...rule.actions], resources: [...rule.resources], conditions: [...rule.conditions] });
     return id;
   }
 
@@ -61,23 +115,48 @@ export class PolicyEngine implements IPolicyEngine {
   }
 
   async getRules(): Promise<PolicyRule[]> {
-    return Array.from(this.rules.values());
+    return Array.from(this.rules.values()).map(rule => ({
+      ...rule,
+      actions: [...rule.actions],
+      resources: [...rule.resources],
+      conditions: [...rule.conditions],
+    }));
+  }
+
+  getAuditLog(limit = 100): PolicyEvaluationAudit[] {
+    return this.audit.slice(-Math.max(0, limit)).map(entry => ({ ...entry, matchedRuleIds: [...entry.matchedRuleIds] }));
+  }
+
+  clearAuditLog(): void {
+    this.audit = [];
   }
 
   private evaluateConditions(conditions: PolicyCondition[], context: CellContext): boolean {
     for (const condition of conditions) {
-      const contextValue = this.getContextValue(condition.field, context);
-      if (!this.evaluateCondition(condition, contextValue)) return false;
+      const resolved = this.getContextValue(condition.field, context);
+      if (!resolved.found) return false;
+      if (!this.evaluateCondition(condition, resolved.value)) return false;
     }
     return true;
   }
 
-  private getContextValue(field: string, context: CellContext): unknown {
+  private getContextValue(field: string, context: CellContext): { found: boolean; value: unknown } {
     switch (field) {
-      case 'traceId': return context.traceId;
-      case 'userId': return context.userId;
-      case 'sessionId': return context.sessionId;
-      default: return undefined;
+      case 'traceId': return { found: true, value: context.traceId };
+      case 'userId': return { found: context.userId !== undefined, value: context.userId };
+      case 'sessionId': return { found: context.sessionId !== undefined, value: context.sessionId };
+      case 'budget.amount': return { found: context.budget !== undefined, value: context.budget?.amount };
+      case 'budget.units': return { found: context.budget !== undefined, value: context.budget?.units };
+      default: {
+        const prefix = 'metadata.';
+        if (field.startsWith(prefix) && context.metadata) {
+          const key = field.slice(prefix.length);
+          if (key && Object.prototype.hasOwnProperty.call(context.metadata, key)) {
+            return { found: true, value: context.metadata[key] };
+          }
+        }
+        return { found: false, value: undefined };
+      }
     }
   }
 
@@ -85,9 +164,51 @@ export class PolicyEngine implements IPolicyEngine {
     switch (condition.operator) {
       case 'eq': return value === condition.value;
       case 'neq': return value !== condition.value;
+      case 'gt': return this.numericCompare(value, condition.value, (a, b) => a > b);
+      case 'gte': return this.numericCompare(value, condition.value, (a, b) => a >= b);
+      case 'lt': return this.numericCompare(value, condition.value, (a, b) => a < b);
+      case 'lte': return this.numericCompare(value, condition.value, (a, b) => a <= b);
       case 'in': return Array.isArray(condition.value) && condition.value.includes(value);
       case 'not_in': return Array.isArray(condition.value) && !condition.value.includes(value);
-      default: return true;
+      case 'contains': {
+        if (typeof value === 'string' && typeof condition.value === 'string') return value.includes(condition.value);
+        if (Array.isArray(value)) return value.includes(condition.value);
+        return false;
+      }
+      case 'matches': {
+        if (typeof value !== 'string' || typeof condition.value !== 'string') return false;
+        if (condition.value.length === 0 || condition.value.length > 256) return false;
+        try {
+          return new RegExp(condition.value).test(value);
+        } catch {
+          return false;
+        }
+      }
+      default:
+        // Runtime inputs may bypass TypeScript. Unknown operators must never
+        // become implicit authorization.
+        return false;
     }
+  }
+
+  private numericCompare(a: unknown, b: unknown, compare: (left: number, right: number) => boolean): boolean {
+    return typeof a === 'number' && Number.isFinite(a)
+      && typeof b === 'number' && Number.isFinite(b)
+      && compare(a, b);
+  }
+
+  private recordAudit(action: string, resource: string, context: CellContext, decision: PolicyDecision): void {
+    this.audit.push({
+      id: generateId(),
+      timestamp: new Date().toISOString(),
+      action,
+      resource,
+      traceId: context.traceId,
+      principal: context.userId,
+      decision: decision.requiresApproval ? 'require_approval' : decision.allowed ? 'allow' : 'deny',
+      matchedRuleIds: decision.matchedRules.map(rule => rule.id),
+      reason: decision.reason,
+    });
+    if (this.audit.length > this.maxAuditEntries) this.audit = this.audit.slice(-this.maxAuditEntries);
   }
 }

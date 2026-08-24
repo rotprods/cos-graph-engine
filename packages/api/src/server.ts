@@ -1,4 +1,4 @@
-import { EntityId, CellContext, CellOutput, CogCellDefinition, Health, GraphStats } from '@cos/core';
+import { EntityId, CellContext, CellOutput, Health } from '@cos/core';
 import { CellHost } from '@cos/runtime';
 import { MemoryManager } from '@cos/memory';
 import { KnowledgeGraph, EmbeddingSystem, OntologySystem } from '@cos/knowledge';
@@ -7,12 +7,19 @@ import { ToolRegistry } from '@cos/execution';
 import { AgentSystem, WorkflowEngine, PolicyEngine, AutonomousLoop, AutonomousGoal, AutonomousStepResult } from '@cos/orchestration';
 import { TelemetrySystem } from '@cos/observability';
 
+export type PolicyMode = 'disabled' | 'audit' | 'enforce';
+
 export interface COSConfig {
   host: string;
   port: number;
   maxMemory: number;
   logLevel: string;
   plugins: string[];
+  /**
+   * `audit` evaluates every protected execution without breaking legacy callers.
+   * `enforce` is required before COS may be promoted to authoritative runtime.
+   */
+  policyMode: PolicyMode;
 }
 
 export class COSServer {
@@ -44,9 +51,9 @@ export class COSServer {
       maxMemory: config?.maxMemory || 1024,
       logLevel: config?.logLevel || 'info',
       plugins: config?.plugins || [],
+      policyMode: config?.policyMode || 'audit',
     };
 
-    // Initialize all subsystems
     this.cellHost = new CellHost();
     this.memory = new MemoryManager();
     this.knowledge = new KnowledgeGraph();
@@ -78,9 +85,6 @@ export class COSServer {
     console.log('[COS] Server shut down');
   }
 
-  // ========== API Methods ==========
-
-  // Process a cognitive request through the system
   async process(request: {
     input: unknown;
     target?: EntityId;
@@ -93,8 +97,8 @@ export class COSServer {
       ...request.context,
     };
 
-    // Route through reasoning if specified
     if (request.reasoning) {
+      await this.authorize('reason', `reasoning:${request.reasoning}`, context);
       const steps = await this.reasoning.reason(
         request.reasoning as any,
         { problem: JSON.stringify(request.input) },
@@ -110,16 +114,18 @@ export class COSServer {
         memoryUpdates: [],
         events: [],
         errors: [],
-        metadata: { traceId: context.traceId },
+        metadata: { traceId: context.traceId, policyMode: this.config.policyMode },
       };
     }
 
-    // Route to a specific cell
     if (request.target) {
-      return this.cellHost.getCell(request.target)!.process(request.input, context);
+      await this.authorize('process', `cell:${String(request.target)}`, context);
+      const cell = this.cellHost.getCell(request.target);
+      if (!cell) throw new Error(`Target cell ${String(request.target)} not found`);
+      return cell.process(request.input, context);
     }
 
-    // Default: return input as-is
+    await this.authorize('process', 'system:passthrough', context);
     return {
       id: '' as EntityId,
       result: request.input,
@@ -130,11 +136,10 @@ export class COSServer {
       memoryUpdates: [],
       events: [],
       errors: [],
-      metadata: { traceId: context.traceId },
+      metadata: { traceId: context.traceId, policyMode: this.config.policyMode },
     };
   }
 
-  // System health
   async getHealth(): Promise<Record<string, Health>> {
     const cellHealth = await this.cellHost.getSystemHealth();
     return {
@@ -155,7 +160,6 @@ export class COSServer {
     };
   }
 
-  // System stats
   async getStats(): Promise<Record<string, unknown>> {
     return {
       runtime: {
@@ -170,6 +174,10 @@ export class COSServer {
       tools: this.tools.getAll().length,
       agents: this.agents.agentCount,
       workflows: this.workflows.workflowCount,
+      policy: {
+        mode: this.config.policyMode,
+        auditEntries: this.policies.getAuditLog(Number.MAX_SAFE_INTEGER).length,
+      },
       telemetry: {
         events: this.telemetry.eventCount,
         metrics: this.telemetry.metricCount,
@@ -177,7 +185,6 @@ export class COSServer {
     };
   }
 
-  // Autonomous goal methods
   async createGoal(description: string, context?: Partial<CellContext>): Promise<AutonomousGoal> {
     return this.autonomousLoop.createGoal(description, context);
   }
@@ -196,5 +203,17 @@ export class COSServer {
 
   async getCompletedGoals(): Promise<AutonomousGoal[]> {
     return this.autonomousLoop.getCompletedGoals();
+  }
+
+  private async authorize(action: string, resource: string, context: CellContext): Promise<void> {
+    if (this.config.policyMode === 'disabled') return;
+    if (this.config.policyMode === 'enforce') {
+      await this.policies.assertAllowed(action, resource, context);
+      return;
+    }
+
+    // Audit mode is migration-only: a decision is always computed and recorded,
+    // but legacy execution is not blocked. Authority Gate forbids this mode.
+    await this.policies.evaluate(action, resource, context);
   }
 }
