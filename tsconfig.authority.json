@@ -1,0 +1,40 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false
+  },
+  "include": [
+    "packages/core/src/identity.ts",
+    "packages/core/src/temporal.ts",
+    "packages/core/src/integrity.ts",
+    "packages/runtime/src/event-log.ts",
+    "packages/runtime/src/transactional-event-log.ts",
+    "packages/runtime/src/postgres-event-log.ts",
+    "packages/runtime/src/recovery.ts",
+    "packages/runtime/src/concurrency.ts",
+    "packages/memory/src/postgres-memory-store.ts",
+    "packages/memory/src/temporal-memory.ts",
+    "packages/memory/src/canonical-temporal-index.ts",
+    "packages/execution/src/tool-runtime.ts",
+    "packages/execution/src/strict-tool-registry.ts",
+    "packages/execution/src/capability-router.ts",
+    "packages/orchestration/src/policy.ts",
+    "packages/orchestration/src/autonomous-loop.ts",
+    "packages/orchestration/src/execution-coordinator.ts",
+    "packages/orchestration/src/resilience.ts",
+    "packages/orchestration/src/resilience-observer.ts",
+    "packages/graph/src/property-graph.ts",
+    "packages/graph/src/bidirectional-csr.ts",
+    "packages/graph/src/authority-graphrag.ts",
+    "packages/graph/src/authority-graphrag-v2.ts",
+    "packages/graph/src/context-pack.ts",
+    "packages/graph/src/level2-state.ts",
+    "packages/hub/src/**/*.ts",
+    "packages/api/src/server.ts"
+  ]
+}

@@ -1,23 +1,48 @@
 # HANDOFF — COS Graph Engine
 
 ## Recovery point
-Project is in Convergence & Hardening Era. Read `README_FIRST.md` before continuing.
+W2→W12.4 architecture/code hardening is **FROZEN**. Read `README_FIRST.md`, `GOAL.md`, `STATE.md`, this file, `docs/hardening/W12_4_AUTHORITY_CLOSURE_PLAN.md`, and `docs/hardening/20D_AUTHORITY_MATRIX.md` before mutation.
 
-Latest implemented layer in the stacked chain before this branch: W12.1 Memory Integrity (#31). This branch adds the cold-start/governance layer.
+Frozen implementation branch: `hardening/w12-4-authority-closure`
+Draft PR: #35
+Authority state: SHADOW_ONLY
+Next phase: W13 AUTHORITY QUALIFICATION
+Automatic CI/CD: OFF
 
-## Next exact actions
-1. Create/finish W12.3 zero-cost infra/release posture.
-2. Reconcile the existing `@cos/hub` work conceptually with W3/W4/W5/W7/W12 contracts; do not blindly merge historical PR #13.
-3. Create `docs/hardening/20D_10_10_CONVERGENCE_MATRIX.md` mapping every audited dimension to code/PRs and unresolved gaps.
-4. Complete remaining high-value code gaps, especially W2 CSR and W8/W9 runtime wiring.
-5. Perform cross-stack compile/adversarial review.
-6. Only at W13 run consolidated tests, manual CI, replay, restore, security and benchmark qualification.
+## What exists in code
+Graph mutation invariants, deterministic identity, bi-temporal/provenance contracts, durable events, recovery, policy enforcement, autonomous execution, CAS/leases/idempotency, resilience, scientific benchmark contracts, scoped GraphRAG, memory integrity, cold-start governance, authority CSR, real capability routing, Postgres event/memory adapters, Agentic Hub, deterministic/verified context projection, temporal-memory envelopes, strict Hub recovery and serialized state transitions.
 
-## Branch discipline
-PRs are intentionally stacked. Before editing, verify the parent branch/PR. Do not retarget or merge them independently until convergence ordering is reviewed.
+Latest preflight additions:
+- `VerifiedAuthorityGraphRAGEngine` — derived sensitivity before relation identity + mandatory source recordedAt;
+- `VerifiedAgenticContextProjector` — authority-only project→context path;
+- `CanonicalTemporalMemoryIndex` — ISO/SQL-null normalization before persistence hashing;
+- `StrictHubRecoveryCoordinator` — unresolved definitions fail closed by default;
+- root build graph now includes `@cos/hub`;
+- `tsconfig.authority.json` provides a strict authority-surface typecheck.
 
-## Safety/cost
-Do not enable automatic GitHub Actions, release, Docker push or deployment while Convergence Era is active. Any required remote verification is explicit/manual.
+## W13 exact mission
+W13 may fix evidence-backed defects only. It may not add new graph levels, product breadth, speculative frameworks or paid infrastructure.
 
-## Definition of handoff completeness
-A future agent must be able to identify the North Star, mode, PR stack, blocker/gaps and next exact action from repository files alone without relying on prior chat context.
+Run, in order:
+1. clean checkout / dependency install / lockfile reconciliation;
+2. legacy build typecheck + strict authority typecheck;
+3. build all affected workspaces;
+4. canonical suites + orphan-test inventory;
+5. reconcile intentional L2 compatibility changes without restoring mutable canonical state;
+6. negative/property/security tests;
+7. concurrency/fencing/idempotency contention;
+8. event/graph/context deterministic replay;
+9. Postgres adapter contract fixtures;
+10. corrupted snapshot + empty-database restore;
+11. scientific benchmarks with seeded fixtures/distribution evidence;
+12. observability/near-miss evidence;
+13. blind cold-agent resume from repository files only;
+14. 20D re-audit with evidence links.
+
+A failure is useful evidence. Do not suppress it with `|| true`, `|| echo`, skipped required suites or relaxed authority contracts.
+
+## Known compatibility item
+Historical L2 tests and `scripts/graph-benchmark.ts` mutated `fsm.contextData.data` directly. `contextData` is intentionally copy-safe now. W13 must migrate those callers to an explicit supported setup mechanism or change fixtures; do not re-expose mutable canonical state merely to make old tests green.
+
+## Merge discipline
+All hardening PRs are stacked. Do not merge independently before W13 proves the canonical chain. Final merges must use expected head SHA and dependency order. CD remains OFF after merge until a separate release decision.

@@ -1,10 +1,22 @@
-import { stableHash128 } from '@cos/core';
-import {
-  GraphRAGEngine,
-  type RankedChunk,
-  type RetrievalScope,
-  type RetrievalSensitivity,
+import { sha256Hex, stableHash128 } from '@cos/core';
+import type {
+  RankedChunk,
+  RetrievalScope,
+  RetrievalSensitivity,
 } from './level11-graphrag';
+
+export interface ScopedContextRetriever {
+  retrieveScoped(
+    queryEmbedding: number[],
+    queryEntities?: string[],
+    scope?: RetrievalScope,
+  ): {
+    rankedChunks: RankedChunk[];
+    chunks: unknown[];
+    entities: string[];
+    relations: unknown[];
+  };
+}
 
 export interface ContextPackItem {
   chunkId: string;
@@ -27,12 +39,18 @@ export interface ContextPack {
   asOf: string;
   permission: RetrievalSensitivity;
   projectionVersion: number;
+  projectionHash?: string;
   maxTokens: number;
   estimatedTokens: number;
   items: ContextPackItem[];
   provenance: string[];
   context: string;
+  /** Fast deterministic fingerprint used for IDs/cache keys. */
   evidenceHash: string;
+  evidenceHashAlgorithm: 'fnv128-deterministic';
+  /** Cryptographic evidence digest populated by compileVerified(). */
+  evidenceIntegrity?: string;
+  evidenceIntegrityAlgorithm?: 'sha-256';
 }
 
 export interface ContextPackCompileRequest {
@@ -42,22 +60,26 @@ export interface ContextPackCompileRequest {
   queryEntities?: string[];
   permission?: RetrievalSensitivity;
   asOf?: string;
+  generatedAt?: string;
   projectionVersion: number;
   expectedProjectionVersion?: number;
+  projectionHash?: string;
+  expectedProjectionHash?: string;
   maxTokens?: number;
   minScore?: number;
   allowGlobal?: boolean;
 }
 
 /**
- * Converts scope-safe GraphRAG evidence into a deterministic, bounded context
+ * Converts scope-safe retrieval evidence into a deterministic, bounded context
  * contract suitable for cross-agent handoff.
  *
- * ContextPack is deliberately separate from model prompting. No private or
- * stale evidence can be "filtered later" after prompt construction.
+ * ContextPack is deliberately separate from model prompting. Scope, temporal
+ * validity and sensitivity are resolved by the retriever before content reaches
+ * this compiler; provenance is mandatory before an item enters the pack.
  */
 export class ContextPackCompiler {
-  constructor(private readonly graphRag: GraphRAGEngine) {}
+  constructor(private readonly retriever: ScopedContextRetriever) {}
 
   compile(request: ContextPackCompileRequest): ContextPack {
     const projectId = request.projectId.trim();
@@ -75,6 +97,14 @@ export class ContextPackCompiler {
         `STALE_CONTEXT_PROJECTION expected=${request.expectedProjectionVersion} current=${request.projectionVersion}`,
       );
     }
+    if (
+      request.expectedProjectionHash !== undefined
+      && request.expectedProjectionHash !== request.projectionHash
+    ) {
+      throw new Error(
+        `STALE_CONTEXT_HASH expected=${request.expectedProjectionHash} current=${request.projectionHash || 'missing'}`,
+      );
+    }
 
     const maxTokens = request.maxTokens ?? 4_000;
     if (!Number.isInteger(maxTokens) || maxTokens < 128 || maxTokens > 128_000) {
@@ -82,7 +112,9 @@ export class ContextPackCompiler {
     }
 
     const asOf = request.asOf || new Date().toISOString();
+    const generatedAt = request.generatedAt || new Date().toISOString();
     if (!Number.isFinite(Date.parse(asOf))) throw new Error(`Invalid ContextPack asOf '${asOf}'`);
+    if (!Number.isFinite(Date.parse(generatedAt))) throw new Error(`Invalid ContextPack generatedAt '${generatedAt}'`);
     const permission = request.permission ?? 'internal';
     const scope: RetrievalScope = {
       projectId,
@@ -92,16 +124,19 @@ export class ContextPackCompiler {
       minScore: request.minScore ?? 0,
     };
 
-    const retrieved = this.graphRag.retrieveScoped(
+    const retrieved = this.retriever.retrieveScoped(
       request.queryEmbedding,
       request.queryEntities || [],
       scope,
     );
 
-    // Reserve budget for headers/provenance and use deterministic greedy packing
-    // by ranking score. 4 chars/token is intentionally conservative enough for
-    // planning; model-specific tokenizers may replace this estimator later.
-    const header = `PROJECT: ${projectId}\nTASK: ${task}\nAS_OF: ${asOf}\nPROJECTION: ${request.projectionVersion}\n`;
+    const header = [
+      `PROJECT: ${projectId}`,
+      `TASK: ${task}`,
+      `AS_OF: ${asOf}`,
+      `PROJECTION_VERSION: ${request.projectionVersion}`,
+      `PROJECTION_HASH: ${request.projectionHash || 'unspecified'}`,
+    ].join('\n') + '\n';
     const headerTokens = this.estimateTokens(header);
     let remaining = Math.max(0, maxTokens - headerTokens);
     const items: ContextPackItem[] = [];
@@ -123,18 +158,24 @@ export class ContextPackCompiler {
     }
 
     const provenance = Array.from(new Set(items.map(item => item.provenanceRef))).sort();
-    const evidenceHash = stableHash128(items.map(item => ({
+    const evidenceProjection = items.map(item => ({
       id: item.chunkId,
       score: item.score,
       provenance: item.provenanceRef,
       text: item.text,
-    })));
+      projectId: item.projectId || null,
+      sensitivity: item.sensitivity,
+      validFrom: item.validFrom || null,
+      validUntil: item.validUntil || null,
+    }));
+    const evidenceHash = stableHash128(evidenceProjection);
     const id = `ctx_${stableHash128({
       projectId,
       task,
       asOf,
       permission,
       projectionVersion: request.projectionVersion,
+      projectionHash: request.projectionHash || null,
       evidenceHash,
       maxTokens,
     })}`;
@@ -143,23 +184,61 @@ export class ContextPackCompiler {
       id,
       projectId,
       task,
-      generatedAt: new Date().toISOString(),
+      generatedAt,
       asOf,
       permission,
       projectionVersion: request.projectionVersion,
+      projectionHash: request.projectionHash,
       maxTokens,
       estimatedTokens,
       items,
       provenance,
       context,
       evidenceHash,
+      evidenceHashAlgorithm: 'fnv128-deterministic',
     };
   }
 
-  assertCurrent(pack: ContextPack, currentProjectionVersion: number): void {
+  async compileVerified(request: ContextPackCompileRequest): Promise<ContextPack> {
+    const pack = this.compile(request);
+    const evidenceIntegrity = await sha256Hex({
+      projectId: pack.projectId,
+      task: pack.task,
+      asOf: pack.asOf,
+      permission: pack.permission,
+      projectionVersion: pack.projectionVersion,
+      projectionHash: pack.projectionHash || null,
+      items: pack.items,
+      provenance: pack.provenance,
+    });
+    return {
+      ...pack,
+      id: `ctx_${stableHash128({
+        baseId: pack.id,
+        evidenceIntegrity,
+      })}`,
+      evidenceIntegrity,
+      evidenceIntegrityAlgorithm: 'sha-256',
+    };
+  }
+
+  assertCurrent(
+    pack: ContextPack,
+    currentProjectionVersion: number,
+    currentProjectionHash?: string,
+  ): void {
     if (pack.projectionVersion !== currentProjectionVersion) {
       throw new Error(
         `STALE_CONTEXT_PACK pack=${pack.projectionVersion} current=${currentProjectionVersion}`,
+      );
+    }
+    if (
+      pack.projectionHash !== undefined
+      && currentProjectionHash !== undefined
+      && pack.projectionHash !== currentProjectionHash
+    ) {
+      throw new Error(
+        `STALE_CONTEXT_PACK_HASH pack=${pack.projectionHash} current=${currentProjectionHash}`,
       );
     }
   }
@@ -168,6 +247,9 @@ export class ContextPackCompiler {
     const chunk = candidate.chunk;
     if (!chunk.provenanceRef) {
       throw new Error(`AUTHORITY_CONTEXT_REQUIRES_PROVENANCE chunk=${chunk.id}`);
+    }
+    if (chunk.projectId === undefined && chunk.sensitivity === 'restricted') {
+      throw new Error(`RESTRICTED_GLOBAL_CONTEXT_FORBIDDEN chunk=${chunk.id}`);
     }
     return {
       chunkId: chunk.id,
