@@ -83,6 +83,20 @@ export interface AgenticResource {
   observedAt?: string;
   recordedAt: string;
   metadata: Record<string, unknown>;
+  revision: number;
+  contentHash: string;
+}
+
+export interface AgenticResourceUpdate {
+  title?: string;
+  status?: string;
+  sensitivity?: AgenticSensitivity;
+  provenanceRef?: string;
+  validFrom?: string;
+  validUntil?: string | null;
+  observedAt?: string;
+  recordedAt?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AgenticRelationInput {
@@ -112,10 +126,24 @@ export interface AgenticRelation {
   validUntil?: string | null;
   recordedAt: string;
   metadata: Record<string, unknown>;
+  revision: number;
+  contentHash: string;
+}
+
+export interface AgenticRelationUpdate {
+  confidence?: number;
+  sensitivity?: AgenticSensitivity;
+  provenanceRef?: string;
+  validFrom?: string;
+  validUntil?: string | null;
+  recordedAt?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AgenticGraphScope {
   projectId?: string;
+  /** Include records with no projectId as shared/global authority context. */
+  includeGlobal?: boolean;
   maxSensitivity?: AgenticSensitivity;
   asOf?: string;
 }
@@ -126,11 +154,12 @@ export interface AgenticNeighborhood {
 }
 
 /**
- * Compact authority projection for AGENTIC_SYSTEMS_OS resources.
+ * Compact versioned authority projection for AGENTIC_SYSTEMS_OS resources.
  *
- * It stores identifiers, topology, provenance and compact metadata — not raw
- * conversation bodies. Raw/cold content remains in Drive/provider exports and
- * is referenced by provenance/source pointers.
+ * Canonical identity/type/project scope are immutable. Mutations require an
+ * expected revision and update deterministic content hashes. Replaying the same
+ * create/relation input is idempotent only when all explicitly supplied fields
+ * agree; conflicting reuse fails instead of silently returning stale state.
  */
 export class AgenticResourceRegistry {
   private readonly resources = new Map<string, AgenticResource>();
@@ -142,45 +171,65 @@ export class AgenticResourceRegistry {
   private readonly incoming = new Map<string, Set<string>>();
 
   addResource(input: AgenticResourceInput): AgenticResource {
-    const title = input.title.trim();
-    const provenanceRef = input.provenanceRef.trim();
-    if (!title) throw new Error('Agentic resource title must not be empty');
-    if (!provenanceRef) throw new Error('Agentic resource provenanceRef must not be empty');
-    validateTemporal(input.validFrom, input.validUntil, input.observedAt, input.recordedAt);
-
+    validateResourceInput(input);
     const identity = canonicalIdentity(input.identity, resourcePrefix(input.type));
     const existing = this.resources.get(identity.id);
     if (existing) {
       if (existing.canonicalUri !== identity.uri || existing.type !== input.type) {
         throw new Error(`Agentic identity collision for ${identity.id}`);
       }
+      assertResourceReplayCompatible(existing, input);
       return cloneResource(existing);
     }
-    if (this.uriToId.has(identity.uri)) {
-      throw new Error(`Canonical URI already registered: ${identity.uri}`);
-    }
+    if (this.uriToId.has(identity.uri)) throw new Error(`Canonical URI already registered: ${identity.uri}`);
 
-    const resource: AgenticResource = {
+    const base = {
       id: identity.id,
       canonicalUri: identity.uri,
       type: input.type,
-      title,
-      projectId: input.projectId,
-      status: input.status || 'active',
+      title: input.title.trim(),
+      projectId: normalizeProjectId(input.projectId),
+      status: normalizeStatus(input.status || 'active'),
       sensitivity: input.sensitivity || 'internal',
-      provenanceRef,
+      provenanceRef: input.provenanceRef.trim(),
       validFrom: input.validFrom,
       validUntil: input.validUntil,
       observedAt: input.observedAt,
       recordedAt: input.recordedAt || new Date().toISOString(),
       metadata: structuredClone(input.metadata || {}),
+      revision: 1,
     };
+    const resource: AgenticResource = { ...base, contentHash: resourceHash(base) };
 
     this.resources.set(resource.id, resource);
     this.uriToId.set(resource.canonicalUri, resource.id);
     indexAdd(this.byType, resource.type, resource.id);
     if (resource.projectId) indexAdd(this.byProject, resource.projectId, resource.id);
     return cloneResource(resource);
+  }
+
+  updateResource(idOrUri: string, expectedRevision: number, updates: AgenticResourceUpdate): AgenticResource {
+    const current = this.requireResource(idOrUri);
+    assertExpectedRevision('resource', current.id, expectedRevision, current.revision);
+    const nextBase = {
+      ...current,
+      title: updates.title !== undefined ? updates.title.trim() : current.title,
+      status: updates.status !== undefined ? normalizeStatus(updates.status) : current.status,
+      sensitivity: updates.sensitivity ?? current.sensitivity,
+      provenanceRef: updates.provenanceRef !== undefined ? updates.provenanceRef.trim() : current.provenanceRef,
+      validFrom: updates.validFrom !== undefined ? updates.validFrom : current.validFrom,
+      validUntil: Object.prototype.hasOwnProperty.call(updates, 'validUntil') ? updates.validUntil : current.validUntil,
+      observedAt: updates.observedAt !== undefined ? updates.observedAt : current.observedAt,
+      recordedAt: updates.recordedAt || new Date().toISOString(),
+      metadata: updates.metadata !== undefined ? structuredClone(updates.metadata) : structuredClone(current.metadata),
+      revision: current.revision + 1,
+    };
+    if (!nextBase.title) throw new Error('Agentic resource title must not be empty');
+    if (!nextBase.provenanceRef) throw new Error('Agentic resource provenanceRef must not be empty');
+    validateTemporal(nextBase.validFrom, nextBase.validUntil, nextBase.observedAt, nextBase.recordedAt);
+    const next: AgenticResource = { ...nextBase, contentHash: resourceHash(nextBase) };
+    this.resources.set(current.id, next);
+    return cloneResource(next);
   }
 
   getResource(idOrUri: string): AgenticResource | null {
@@ -190,51 +239,81 @@ export class AgenticResourceRegistry {
   }
 
   addRelation(input: AgenticRelationInput): AgenticRelation {
+    validateRelationInput(input);
     const from = this.resources.get(input.from);
     const to = this.resources.get(input.to);
     if (!from) throw new Error(`Relation source ${input.from} does not exist`);
     if (!to) throw new Error(`Relation target ${input.to} does not exist`);
-    if (!input.provenanceRef.trim()) throw new Error('Agentic relation provenanceRef must not be empty');
-    const confidence = input.confidence ?? 1;
-    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error('Relation confidence must be in [0,1]');
-    validateTemporal(input.validFrom, input.validUntil, undefined, input.recordedAt);
+    const projectId = normalizeProjectId(input.projectId);
+    if (projectId && from.projectId && from.projectId !== projectId) throw new Error('Relation project scope conflicts with source');
+    if (projectId && to.projectId && to.projectId !== projectId) throw new Error('Relation project scope conflicts with target');
 
     const id = `arel_${stableHash128({
       type: input.type,
       from: input.from,
       to: input.to,
-      projectId: input.projectId || null,
+      projectId: projectId || null,
       validFrom: input.validFrom || null,
-      provenanceRef: input.provenanceRef,
+      provenanceRef: input.provenanceRef.trim(),
     })}`;
     const existing = this.relations.get(id);
-    if (existing) return cloneRelation(existing);
+    if (existing) {
+      assertRelationReplayCompatible(existing, input);
+      return cloneRelation(existing);
+    }
 
-    const relation: AgenticRelation = {
+    const base = {
       id,
       type: input.type,
       from: input.from,
       to: input.to,
-      projectId: input.projectId,
-      confidence,
+      projectId,
+      confidence: input.confidence ?? 1,
       sensitivity: input.sensitivity || maxSensitivity(from.sensitivity, to.sensitivity),
       provenanceRef: input.provenanceRef.trim(),
       validFrom: input.validFrom,
       validUntil: input.validUntil,
       recordedAt: input.recordedAt || new Date().toISOString(),
       metadata: structuredClone(input.metadata || {}),
+      revision: 1,
     };
+    const relation: AgenticRelation = { ...base, contentHash: relationHash(base) };
     this.relations.set(id, relation);
     indexAdd(this.outgoing, relation.from, id);
     indexAdd(this.incoming, relation.to, id);
     return cloneRelation(relation);
   }
 
+  updateRelation(id: string, expectedRevision: number, updates: AgenticRelationUpdate): AgenticRelation {
+    const current = this.relations.get(id);
+    if (!current) throw new Error(`Agentic relation ${id} not found`);
+    assertExpectedRevision('relation', id, expectedRevision, current.revision);
+    const nextBase = {
+      ...current,
+      confidence: updates.confidence ?? current.confidence,
+      sensitivity: updates.sensitivity ?? current.sensitivity,
+      provenanceRef: updates.provenanceRef !== undefined ? updates.provenanceRef.trim() : current.provenanceRef,
+      validFrom: updates.validFrom !== undefined ? updates.validFrom : current.validFrom,
+      validUntil: Object.prototype.hasOwnProperty.call(updates, 'validUntil') ? updates.validUntil : current.validUntil,
+      recordedAt: updates.recordedAt || new Date().toISOString(),
+      metadata: updates.metadata !== undefined ? structuredClone(updates.metadata) : structuredClone(current.metadata),
+      revision: current.revision + 1,
+    };
+    if (!Number.isFinite(nextBase.confidence) || nextBase.confidence < 0 || nextBase.confidence > 1) {
+      throw new Error('Relation confidence must be in [0,1]');
+    }
+    if (!nextBase.provenanceRef) throw new Error('Agentic relation provenanceRef must not be empty');
+    validateTemporal(nextBase.validFrom, nextBase.validUntil, undefined, nextBase.recordedAt);
+    const next: AgenticRelation = { ...nextBase, contentHash: relationHash(nextBase) };
+    this.relations.set(id, next);
+    return cloneRelation(next);
+  }
+
   listResources(scope: AgenticGraphScope = {}): AgenticResource[] {
     const max = SENSITIVITY_ORDER[scope.maxSensitivity || 'internal'];
     const asOf = parseAsOf(scope.asOf);
     const candidates = scope.projectId
-      ? Array.from(this.byProject.get(scope.projectId) || [], id => this.resources.get(id)!).filter(Boolean)
+      ? this.projectCandidates(scope.projectId, scope.includeGlobal ?? false)
       : Array.from(this.resources.values());
     return candidates
       .filter(resource => SENSITIVITY_ORDER[resource.sensitivity] <= max && temporalVisible(resource, asOf))
@@ -246,7 +325,7 @@ export class AgenticResourceRegistry {
     const max = SENSITIVITY_ORDER[scope.maxSensitivity || 'internal'];
     const asOf = parseAsOf(scope.asOf);
     return Array.from(this.relations.values())
-      .filter(relation => (!scope.projectId || relation.projectId === scope.projectId)
+      .filter(relation => relationScopeMatches(relation, scope)
         && SENSITIVITY_ORDER[relation.sensitivity] <= max
         && temporalVisible(relation, asOf))
       .map(cloneRelation)
@@ -260,14 +339,11 @@ export class AgenticResourceRegistry {
     relationTypes?: AgenticRelationType[],
   ): AgenticNeighborhood {
     if (!Number.isInteger(depth) || depth < 0 || depth > 5) throw new Error('Neighborhood depth must be in [0,5]');
-    const start = this.resources.get(startId);
-    if (!start) throw new Error(`Resource ${startId} not found`);
-
+    if (!this.resources.has(startId)) throw new Error(`Resource ${startId} not found`);
     const visibleResources = new Map(this.listResources(scope).map(resource => [resource.id, resource]));
     if (!visibleResources.has(startId)) return { resources: [], relations: [] };
     const visibleRelations = new Map(this.listRelations(scope).map(relation => [relation.id, relation]));
     const allowedTypes = relationTypes ? new Set(relationTypes) : null;
-
     const seenResources = new Set<string>([startId]);
     const seenRelations = new Set<string>();
     const queue: Array<{ id: string; depth: number }> = [{ id: startId, depth: 0 }];
@@ -276,10 +352,7 @@ export class AgenticResourceRegistry {
     while (head < queue.length) {
       const current = queue[head++];
       if (current.depth >= depth) continue;
-      const edgeIds = new Set([
-        ...(this.outgoing.get(current.id) || []),
-        ...(this.incoming.get(current.id) || []),
-      ]);
+      const edgeIds = new Set([...(this.outgoing.get(current.id) || []), ...(this.incoming.get(current.id) || [])]);
       for (const relationId of edgeIds) {
         const relation = visibleRelations.get(relationId);
         if (!relation || (allowedTypes && !allowedTypes.has(relation.type))) continue;
@@ -299,10 +372,84 @@ export class AgenticResourceRegistry {
     };
   }
 
-  /** Deterministic compact projection hash for replay comparison, not cryptographic integrity. */
   projectionHash(scope: AgenticGraphScope = {}): string {
     return stableHash128({ resources: this.listResources(scope), relations: this.listRelations(scope) });
   }
+
+  private requireResource(idOrUri: string): AgenticResource {
+    const id = this.resources.has(idOrUri) ? idOrUri : this.uriToId.get(idOrUri);
+    const resource = id ? this.resources.get(id) : undefined;
+    if (!resource) throw new Error(`Agentic resource ${idOrUri} not found`);
+    return resource;
+  }
+
+  private projectCandidates(projectId: string, includeGlobal: boolean): AgenticResource[] {
+    const ids = new Set(this.byProject.get(projectId) || []);
+    if (includeGlobal) {
+      for (const resource of this.resources.values()) if (!resource.projectId) ids.add(resource.id);
+    }
+    return Array.from(ids, id => this.resources.get(id)!).filter(Boolean);
+  }
+}
+
+function validateResourceInput(input: AgenticResourceInput): void {
+  if (!input.title.trim()) throw new Error('Agentic resource title must not be empty');
+  if (!input.provenanceRef.trim()) throw new Error('Agentic resource provenanceRef must not be empty');
+  validateTemporal(input.validFrom, input.validUntil, input.observedAt, input.recordedAt);
+}
+
+function validateRelationInput(input: AgenticRelationInput): void {
+  if (!input.provenanceRef.trim()) throw new Error('Agentic relation provenanceRef must not be empty');
+  if (input.from === input.to) throw new Error('Agentic relation cannot self-reference');
+  const confidence = input.confidence ?? 1;
+  if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) throw new Error('Relation confidence must be in [0,1]');
+  validateTemporal(input.validFrom, input.validUntil, undefined, input.recordedAt);
+}
+
+function assertResourceReplayCompatible(existing: AgenticResource, input: AgenticResourceInput): void {
+  const conflicts: string[] = [];
+  compareExplicit(conflicts, 'title', existing.title, input.title.trim());
+  compareExplicit(conflicts, 'projectId', existing.projectId, normalizeProjectId(input.projectId));
+  if (input.status !== undefined) compareExplicit(conflicts, 'status', existing.status, normalizeStatus(input.status));
+  if (input.sensitivity !== undefined) compareExplicit(conflicts, 'sensitivity', existing.sensitivity, input.sensitivity);
+  compareExplicit(conflicts, 'provenanceRef', existing.provenanceRef, input.provenanceRef.trim());
+  if (input.validFrom !== undefined) compareExplicit(conflicts, 'validFrom', existing.validFrom, input.validFrom);
+  if (Object.prototype.hasOwnProperty.call(input, 'validUntil')) compareExplicit(conflicts, 'validUntil', existing.validUntil, input.validUntil);
+  if (input.observedAt !== undefined) compareExplicit(conflicts, 'observedAt', existing.observedAt, input.observedAt);
+  if (input.recordedAt !== undefined) compareExplicit(conflicts, 'recordedAt', existing.recordedAt, input.recordedAt);
+  if (input.metadata !== undefined && stableHash128(existing.metadata) !== stableHash128(input.metadata)) conflicts.push('metadata');
+  if (conflicts.length) throw new Error(`AGENTIC_RESOURCE_CONFLICT id=${existing.id} fields=${conflicts.join(',')}`);
+}
+
+function assertRelationReplayCompatible(existing: AgenticRelation, input: AgenticRelationInput): void {
+  const conflicts: string[] = [];
+  compareExplicit(conflicts, 'type', existing.type, input.type);
+  compareExplicit(conflicts, 'from', existing.from, input.from);
+  compareExplicit(conflicts, 'to', existing.to, input.to);
+  compareExplicit(conflicts, 'projectId', existing.projectId, normalizeProjectId(input.projectId));
+  compareExplicit(conflicts, 'provenanceRef', existing.provenanceRef, input.provenanceRef.trim());
+  if (input.confidence !== undefined) compareExplicit(conflicts, 'confidence', existing.confidence, input.confidence);
+  if (input.sensitivity !== undefined) compareExplicit(conflicts, 'sensitivity', existing.sensitivity, input.sensitivity);
+  if (input.validFrom !== undefined) compareExplicit(conflicts, 'validFrom', existing.validFrom, input.validFrom);
+  if (Object.prototype.hasOwnProperty.call(input, 'validUntil')) compareExplicit(conflicts, 'validUntil', existing.validUntil, input.validUntil);
+  if (input.recordedAt !== undefined) compareExplicit(conflicts, 'recordedAt', existing.recordedAt, input.recordedAt);
+  if (input.metadata !== undefined && stableHash128(existing.metadata) !== stableHash128(input.metadata)) conflicts.push('metadata');
+  if (conflicts.length) throw new Error(`AGENTIC_RELATION_CONFLICT id=${existing.id} fields=${conflicts.join(',')}`);
+}
+
+function compareExplicit(conflicts: string[], field: string, existing: unknown, incoming: unknown): void {
+  if (stableHash128(existing) !== stableHash128(incoming)) conflicts.push(field);
+}
+
+function assertExpectedRevision(kind: string, id: string, expected: number, current: number): void {
+  if (!Number.isSafeInteger(expected) || expected < 1) throw new Error('expectedRevision must be a positive safe integer');
+  if (expected !== current) throw new Error(`STALE_AGENTIC_${kind.toUpperCase()}_REVISION id=${id} expected=${expected} current=${current}`);
+}
+
+function relationScopeMatches(relation: AgenticRelation, scope: AgenticGraphScope): boolean {
+  if (!scope.projectId) return true;
+  if (relation.projectId === scope.projectId) return true;
+  return Boolean(scope.includeGlobal && relation.projectId === undefined);
 }
 
 function resourcePrefix(type: AgenticResourceType): string {
@@ -311,10 +458,7 @@ function resourcePrefix(type: AgenticResourceType): string {
 
 function indexAdd<K>(index: Map<K, Set<string>>, key: K, value: string): void {
   let bucket = index.get(key);
-  if (!bucket) {
-    bucket = new Set<string>();
-    index.set(key, bucket);
-  }
+  if (!bucket) { bucket = new Set<string>(); index.set(key, bucket); }
   bucket.add(value);
 }
 
@@ -322,9 +466,8 @@ function validateTemporal(validFrom?: string, validUntil?: string | null, observ
   for (const [name, value] of [['validFrom', validFrom], ['validUntil', validUntil], ['observedAt', observedAt], ['recordedAt', recordedAt]] as const) {
     if (value !== undefined && value !== null && !Number.isFinite(Date.parse(value))) throw new Error(`Invalid ${name}: ${value}`);
   }
-  if (validFrom && validUntil && Date.parse(validUntil) <= Date.parse(validFrom)) {
-    throw new Error('validUntil must be after validFrom');
-  }
+  if (validFrom && validUntil && Date.parse(validUntil) <= Date.parse(validFrom)) throw new Error('validUntil must be after validFrom');
+  if (observedAt && recordedAt && Date.parse(recordedAt) < Date.parse(observedAt)) throw new Error('recordedAt cannot precede observedAt');
 }
 
 function parseAsOf(value?: string): number {
@@ -342,6 +485,25 @@ function temporalVisible(value: { validFrom?: string; validUntil?: string | null
 
 function maxSensitivity(a: AgenticSensitivity, b: AgenticSensitivity): AgenticSensitivity {
   return SENSITIVITY_ORDER[a] >= SENSITIVITY_ORDER[b] ? a : b;
+}
+
+function normalizeProjectId(value?: string): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
+}
+
+function normalizeStatus(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) throw new Error('Agentic status must not be empty');
+  return normalized;
+}
+
+function resourceHash(resource: Omit<AgenticResource, 'contentHash'>): string {
+  return stableHash128({ ...resource, metadata: resource.metadata });
+}
+
+function relationHash(relation: Omit<AgenticRelation, 'contentHash'>): string {
+  return stableHash128({ ...relation, metadata: relation.metadata });
 }
 
 function cloneResource(resource: AgenticResource): AgenticResource {
