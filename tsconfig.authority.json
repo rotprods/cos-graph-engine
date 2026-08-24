@@ -1,0 +1,38 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "noEmit": true
+  },
+  "include": [
+    "packages/core/src/identity.ts",
+    "packages/core/src/integrity.ts",
+    "packages/core/src/temporal.ts",
+    "packages/core/src/memory-authority.ts",
+    "packages/runtime/src/event-log.ts",
+    "packages/runtime/src/transactional-event-log.ts",
+    "packages/runtime/src/postgres-event-log.ts",
+    "packages/runtime/src/recovery.ts",
+    "packages/runtime/src/concurrency.ts",
+    "packages/memory/src/authority-memory-store.ts",
+    "packages/graph/src/bidirectional-csr.ts",
+    "packages/graph/src/authority-graphrag.ts",
+    "packages/graph/src/context-pack.ts",
+    "packages/graph/src/versioned-state-machine.ts",
+    "packages/execution/src/capability-router.ts",
+    "packages/execution/src/strict-tool-registry.ts",
+    "packages/orchestration/src/policy.ts",
+    "packages/orchestration/src/resilience.ts",
+    "packages/orchestration/src/resilience-observer.ts",
+    "packages/orchestration/src/execution-coordinator.ts",
+    "packages/observability/src/authority.ts",
+    "packages/hub/src/**/*.ts",
+    "packages/api/src/server.ts",
+    "scripts/w13-authority-contract.ts",
+    "scripts/w13-provider-contract.ts",
+    "scripts/w13-state-partial-commit-contract.ts"
+  ]
+}
