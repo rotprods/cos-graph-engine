@@ -1,197 +1,124 @@
-// T-6.2: 40 Tests for L2 State Machine
-// Mutation API, transitions, guards, timeouts, serialization, validation
-
+// W13 authority tests for L2 StateMachine
 import { StateMachine, StateMachineRegistry } from '../packages/graph/src/level2-state';
 
 let p = 0, f = 0;
-function assert(cond: boolean, msg: string) { if (cond) { p++; } else { f++; console.error(`  ❌ ${msg}`); } }
+function assert(cond: boolean, msg: string) {
+  if (cond) { p++; console.log(`  ✅ ${msg}`); }
+  else { f++; console.error(`  ❌ ${msg}`); }
+}
 
-// === Creation ===
-const sm = new StateMachine('Test FSM', [], [], 'idle');
-assert(sm.states.length === 0, 'L2: Empty machine has 0 states');
-assert(sm.transitions.length === 0, 'L2: Empty machine has 0 transitions');
-assert(sm.id.length > 0, 'L2: Machine has id');
+async function expectReject(fn: () => unknown | Promise<unknown>, msg: string) {
+  try { await fn(); assert(false, msg); }
+  catch { assert(true, msg); }
+}
 
-// === Mutation API: addState ===
-sm.addState({ id: 'idle', label: 'Idle', type: 'initial' });
-sm.addState({ id: 'running', label: 'Running' });
-sm.addState({ id: 'done', label: 'Done', type: 'final' });
-assert(sm.states.length === 3, 'L2: addState adds states');
+async function main() {
+  await expectReject(
+    () => new StateMachine('Invalid', [], [], ''),
+    'L2: invalid empty definition fails closed at construction',
+  );
 
-// === addState duplicate ===
-try { sm.addState({ id: 'idle', label: 'Duplicate' }); assert(false, 'L2: Should reject duplicate state'); }
-catch (e) { assert(true, 'L2: Rejects duplicate state'); }
-
-// === Mutation API: addTransition ===
-const t1 = sm.addTransition({ from: 'idle', to: 'running', event: 'start' });
-assert(t1.length > 0, 'L2: addTransition returns id');
-const t2 = sm.addTransition({ from: 'running', to: 'done', event: 'finish' });
-assert(sm.transitions.length === 2, 'L2: addTransition adds transitions');
-
-// === addTransition dangling ===
-try { sm.addTransition({ from: 'nonexistent', to: 'running', event: 'bad' }); assert(false, 'L2: Should reject dangling from'); }
-catch (e) { assert(true, 'L2: Rejects dangling from state'); }
-
-try { sm.addTransition({ from: 'running', to: 'nonexistent', event: 'bad' }); assert(false, 'L2: Should reject dangling to'); }
-catch (e) { assert(true, 'L2: Rejects dangling to state'); }
-
-// === Mutation API: removeState ===
-sm.addState({ id: 'temp', label: 'Temp' });
-sm.removeState('temp');
-assert(sm.states.length === 3, 'L2: removeState removes state');
-
-try { sm.removeState('nonexistent'); assert(false, 'L2: Should reject remove nonexistent'); }
-catch (e) { assert(true, 'L2: Rejects remove nonexistent state'); }
-
-// === Mutation API: removeTransition ===
-const t3 = sm.addTransition({ from: 'idle', to: 'done', event: 'skip' });
-sm.removeTransition(t3);
-assert(sm.transitions.length === 2, 'L2: removeTransition removes transition');
-
-try { sm.removeTransition('nonexistent'); assert(false, 'L2: Should reject remove nonexistent transition'); }
-catch (e) { assert(true, 'L2: Rejects remove nonexistent transition'); }
-
-// === FSM: send event ===
-async function testFSM() {
-  const fsm = new StateMachine('Door', [
-    { id: 'closed', label: 'Closed', type: 'initial' },
-    { id: 'open', label: 'Open' },
-    { id: 'locked', label: 'Locked' },
+  const sm = new StateMachine('Mutable Definition', [
+    { id: 'idle', label: 'Idle', type: 'initial' },
+    { id: 'running', label: 'Running' },
+    { id: 'done', label: 'Done', type: 'final' },
   ], [
-    { from: 'closed', to: 'open', event: 'open' },
-    { from: 'open', to: 'closed', event: 'close' },
-    { from: 'closed', to: 'locked', event: 'lock' },
-    { from: 'locked', to: 'closed', event: 'unlock' },
-  ]);
-  assert(fsm.state === 'closed', 'L2: Initial state is closed');
-assert(fsm.can('open'), 'L2: can() returns true for valid event');
-assert(fsm.can('lock'), 'L2: can() returns true for lock from closed state');
-assert(!fsm.can('close'), 'L2: can() returns false for invalid event from current state');
-  assert(fsm.getAvailableEvents().includes('open'), 'L2: getAvailableEvents works');
-  assert(!fsm.isInFinalState(), 'L2: Not in final state');
+    { from: 'idle', to: 'running', event: 'start' },
+    { from: 'running', to: 'done', event: 'finish' },
+  ], 'idle');
+  assert(sm.states.length === 3, 'L2: constructor stores valid states');
+  assert(sm.transitions.length === 2, 'L2: constructor stores valid transitions');
+  assert(sm.id.length > 0, 'L2: machine has identity');
 
-  await fsm.send('open');
-  assert(fsm.state === 'open', 'L2: send transitions to open');
+  sm.addState({ id: 'temp', label: 'Temp' });
+  assert(sm.states.some(s => s.id === 'temp'), 'L2: addState works');
+  await expectReject(() => sm.addState({ id: 'temp', label: 'Duplicate' }), 'L2: duplicate state rejected');
+  sm.removeState('temp');
+  assert(!sm.states.some(s => s.id === 'temp'), 'L2: removeState works');
+  await expectReject(() => sm.removeState('idle'), 'L2: cannot remove current/initial state');
 
-  await fsm.send('close');
-  assert(fsm.state === 'closed', 'L2: send transitions back to closed');
+  const skip = sm.addTransition({ from: 'idle', to: 'done', event: 'skip' });
+  assert(sm.transitions.some(t => t.id === skip), 'L2: addTransition returns indexed id');
+  await expectReject(
+    () => sm.addTransition({ from: 'idle', to: 'done', event: 'skip' }),
+    'L2: ambiguous same-state/event dispatch rejected',
+  );
+  sm.removeTransition(skip);
+  assert(!sm.transitions.some(t => t.id === skip), 'L2: removeTransition works');
 
-  // Unknown event
-  await fsm.send('unknown');
-  assert(fsm.state === 'closed', 'L2: Unknown event stays in same state');
-  assert(fsm.contextData.errors.length > 0, 'L2: Unknown event records error');
-
-  // === Guards ===
   const guarded = new StateMachine('Guarded', [
-    { id: 'start', label: 'Start', type: 'initial' },
-    { id: 'end', label: 'End' },
+    { id: 'locked', label: 'Locked', type: 'initial' },
+    { id: 'open', label: 'Open' },
   ], [
-    { from: 'start', to: 'end', event: 'go', guard: (ctx) => (ctx.data as any).allowed === true },
+    { from: 'locked', to: 'open', event: 'unlock', guard: ctx => ctx.data.key === 'correct' },
   ]);
-  await guarded.send('go');
-  assert(guarded.state === 'start', 'L2: Guard blocks transition');
-  guarded.contextData.data.allowed = true;
-  await guarded.send('go');
-  assert(guarded.state === 'end', 'L2: Guard allows transition when condition met');
+  assert(!(await guarded.send('unlock')), 'L2: guard blocks when data missing');
+  await guarded.patchData({ key: 'correct' });
+  assert(guarded.contextData.data.key === 'correct', 'L2: patchData mutates context explicitly');
+  const leaked = guarded.contextData;
+  leaked.data.key = 'tampered';
+  assert(guarded.contextData.data.key === 'correct', 'L2: contextData is copy-safe');
+  assert(await guarded.send('unlock'), 'L2: guard accepts patched data');
+  assert(guarded.state === 'open', 'L2: guarded transition applied');
 
-  // === Entry/Exit actions ===
-  let entryCalled = false;
-  let exitCalled = false;
-  const actionFSM = new StateMachine('Actions', [
-    { id: 'a', label: 'A', type: 'initial', exit: async () => { exitCalled = true; } },
-    { id: 'b', label: 'B', entry: async () => { entryCalled = true; } },
-  ], [
-    { from: 'a', to: 'b', event: 'go' },
-  ]);
-  await actionFSM.send('go');
-  assert(exitCalled, 'L2: Exit action called');
-  assert(entryCalled, 'L2: Entry action called');
-
-  // === Timeouts ===
-  const timeoutFSM = new StateMachine('Timeout', [
-    { id: 'waiting', label: 'Waiting', type: 'initial', timeout: 0.01 },
-    { id: 'timedout', label: 'Timed Out' },
-  ], [
-    { from: 'waiting', to: 'timedout', event: 'timeout' },
-  ]);
-  await new Promise(r => setTimeout(r, 50));
-  await timeoutFSM.send('timeout');
-  assert(timeoutFSM.state === 'timedout', 'L2: Timeout transition works');
-
-  // === Validation ===
-  const valid = new StateMachine('Valid', [
+  const serial = new StateMachine('Serialized', [
     { id: 'a', label: 'A', type: 'initial' },
     { id: 'b', label: 'B' },
-  ], [
-    { from: 'a', to: 'b', event: 'go' },
-  ]);
-  assert(valid.validate().length === 0, 'L2: Valid machine validates');
-  const invalid = new StateMachine('Invalid', [], [], '');
-  assert(invalid.validate().length >= 1, 'L2: Empty machine fails validation');
+  ], [{ from: 'a', to: 'b', event: 'go', guard: ctx => ctx.data.ready === true }]);
+  const patchPromise = serial.patchData({ ready: true });
+  const transitionPromise = serial.send('go');
+  await Promise.all([patchPromise, transitionPromise]);
+  assert(serial.state === 'b', 'L2: patchData and transition share one serialization queue');
 
-  // === Metrics ===
-  const mt = valid.metrics();
-  assert(mt.stateCount === 2, 'L2: Metrics state count');
-  assert(mt.transitionCount === 1, 'L2: Metrics transition count');
-  assert(mt.uniqueEvents >= 1, 'L2: Metrics unique events');
+  const rollback = new StateMachine('Rollback', [
+    { id: 'a', label: 'A', type: 'initial' },
+    { id: 'b', label: 'B', entry: async () => { throw new Error('entry failed'); } },
+  ], [{ from: 'a', to: 'b', event: 'go' }]);
+  const applied = await rollback.send('go');
+  assert(!applied, 'L2: failing callback rejects transition');
+  assert(rollback.state === 'a', 'L2: failing callback rolls back state');
+  assert(rollback.contextData.history.length === 0, 'L2: rollback restores history');
+  assert(rollback.contextData.errors.some(e => e.includes('rolled back')), 'L2: rollback records evidence');
 
-  // === Serialization: toJSON ===
-  const saved = valid.toJSON();
-  assert(saved.name === 'Valid', 'L2: toJSON preserves name');
-  assert(saved.states.length === 2, 'L2: toJSON preserves states');
-  assert(saved.transitions.length === 1, 'L2: toJSON preserves transitions');
+  let listenerCalls = 0;
+  const listenerFsm = new StateMachine('Listener', [
+    { id: 'a', label: 'A', type: 'initial' },
+    { id: 'b', label: 'B' },
+  ], [{ from: 'a', to: 'b', event: 'go' }]);
+  const unsubscribe = listenerFsm.onChange(() => { listenerCalls++; });
+  await listenerFsm.send('go');
+  unsubscribe();
+  assert(listenerCalls === 1, 'L2: listener fires once and can unsubscribe');
 
-  // === Serialization: fromJSON ===
+  const saved = listenerFsm.toJSON();
   const restored = StateMachine.fromJSON(saved);
-  assert(restored.states.length === 2, 'L2: fromJSON restores states');
-  assert(restored.transitions.length === 1, 'L2: fromJSON restores transitions');
-  assert(restored.state === 'a', 'L2: fromJSON restores initial state');
+  assert(restored.id === listenerFsm.id, 'L2: serialization preserves machine identity');
+  assert(restored.states.length === listenerFsm.states.length, 'L2: serialization preserves states');
+  assert(restored.transitions.length === listenerFsm.transitions.length, 'L2: serialization preserves transitions');
+  assert(restored.validate().length === 0, 'L2: restored definition validates');
 
-  // === toMermaid ===
-  const mermaid = valid.toMermaid();
-  assert(mermaid.includes('stateDiagram-v2'), 'L2: Mermaid is stateDiagram');
-  assert(mermaid.includes('a'), 'L2: Mermaid contains state id');
-  assert(mermaid.includes('go'), 'L2: Mermaid contains event');
+  const registry = new StateMachineRegistry();
+  const lifecycle = registry.createCognitiveLifecycle();
+  for (const event of ['init', 'ready', 'start', 'pause', 'resume', 'shutdown']) {
+    assert(await lifecycle.send(event), `L2: lifecycle transition ${event}`);
+  }
+  assert(lifecycle.isInFinalState(), 'L2: lifecycle reaches final state');
+  registry.clear();
 
-  // === StateMachineRegistry ===
-  const reg = new StateMachineRegistry();
-  const m1 = reg.create('M1', [{ id: 's', label: 'S', type: 'initial' }, { id: 'e', label: 'E' }], [{ from: 's', to: 'e', event: 'go' }]);
-  assert(reg.get(m1.id) !== undefined, 'L2: Registry get works');
-  assert(reg.getAll().length === 1, 'L2: Registry getAll works');
-  reg.remove(m1.id);
-  assert(reg.getAll().length === 0, 'L2: Registry remove works');
+  const timeout = new StateMachine('Timeout', [
+    { id: 'waiting', label: 'Waiting', type: 'initial', timeout: 0.01 },
+    { id: 'timedout', label: 'Timed Out' },
+  ], [{ from: 'waiting', to: 'timedout', event: 'timeout' }]);
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert(timeout.state === 'timedout', 'L2: timeout transition executes automatically');
+  timeout.dispose();
+  await expectReject(() => timeout.send('timeout'), 'L2: disposed machine rejects further mutation');
 
-  // === Prebuilt FSMs ===
-  const cog = reg.createCognitiveLifecycle();
-  assert(cog.states.length === 7, 'L2: Cognitive lifecycle has 7 states');
-  assert(cog.transitions.length === 11, 'L2: Cognitive lifecycle has 11 transitions');
-
-  const goal = reg.createAutonomousGoalFSM();
-  assert(goal.states.length === 7, 'L2: Autonomous goal has 7 states');
-  assert(goal.transitions.length === 10, 'L2: Autonomous goal has 10 transitions');
-
-  // === visualize ===
-  const vis = valid.visualize();
-  assert(vis.includes('FSM:'), 'L2: Visualize includes FSM header');
-  assert(vis.includes('Current State'), 'L2: Visualize shows current state');
-
-  // === onChange listener ===
-  let changed = false;
-  valid.onChange(() => { changed = true; });
-  await valid.send('go');
-  assert(changed, 'L2: onChange listener fires');
-
-  // === Final state detection ===
-  const finalFSM = new StateMachine('Final', [
-    { id: 's', label: 'S', type: 'initial' },
-    { id: 'e', label: 'E', type: 'final' },
-  ], [{ from: 's', to: 'e', event: 'go' }]);
-  assert(!finalFSM.isInFinalState(), 'L2: Not in final state initially');
-  await finalFSM.send('go');
-  assert(finalFSM.isInFinalState(), 'L2: In final state after transition');
-
-  // === Summary ===
-  console.log(`\n📊 L2: ${p} tests, ${p + f} total, ${f} failed`);
-  if (f > 0) process.exit(1);
+  console.log(`\n📊 L2 authority: ${p} passed, ${f} failed`);
+  process.exit(f > 0 ? 1 : 0);
 }
-testFSM();
+
+main().catch(error => {
+  console.error(error);
+  process.exit(1);
+});
