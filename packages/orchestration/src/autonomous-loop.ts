@@ -3,6 +3,7 @@ import { generateId } from '@cos/core';
 import { CellHost } from '@cos/runtime';
 import { MemoryManager } from '@cos/memory';
 import { PlanningEngine, EvaluationSystem, SelfImprovementSystem } from '@cos/cognition';
+import { CapabilityRouter } from '@cos/execution';
 
 export type AutonomousGoalStatus =
   | 'created' | 'planning' | 'executing' | 'observing' | 'adapting'
@@ -14,7 +15,7 @@ export interface AutonomousExecutionEvent {
   id: EntityId;
   goalId: EntityId;
   stepId?: EntityId;
-  type: 'goal_transition' | 'step_started' | 'step_accepted' | 'step_failed' | 'step_retry' | 'plan_adapted';
+  type: 'goal_transition' | 'step_started' | 'step_accepted' | 'step_failed' | 'step_retry' | 'plan_adapted' | 'capability_executed';
   timestamp: Timestamp;
   from?: string;
   to?: string;
@@ -45,7 +46,6 @@ export interface AutonomousStep {
   target?: string;
   input?: unknown;
   expectedOutput?: string;
-  /** Required steps may never be silently skipped after retry exhaustion. */
   required: boolean;
   status: AutonomousStepStatus;
   maxRetries: number;
@@ -55,7 +55,6 @@ export interface AutonomousStep {
 export interface AutonomousStepResult {
   stepId: EntityId;
   success: boolean;
-  /** Acceptance is distinct from transport/execution success. */
   accepted: boolean;
   output: unknown;
   confidence: number;
@@ -75,6 +74,7 @@ export class AutonomousLoop {
     private readonly planning: PlanningEngine,
     private readonly evaluation: EvaluationSystem,
     private readonly selfImprovement: SelfImprovementSystem,
+    private readonly capabilityRouter?: CapabilityRouter,
   ) {}
 
   async createGoal(
@@ -121,6 +121,23 @@ export class AutonomousLoop {
     );
 
     return goal;
+  }
+
+  /**
+   * Replace/augment a goal plan after creation. This is the explicit API for
+   * inserting tool/memory/evaluation steps; callers should not mutate the
+   * returned goal object directly.
+   */
+  configureStep(goalId: EntityId, stepIndex: number, updates: Partial<Omit<AutonomousStep, 'id' | 'retryCount'>>): void {
+    const goal = this.requireGoal(goalId);
+    if (goal.status === 'completed' || goal.status === 'failed') throw new Error('Cannot configure a terminal goal');
+    if (!Number.isInteger(stepIndex) || stepIndex < 0 || stepIndex >= goal.plan.length) throw new Error(`Invalid stepIndex ${stepIndex}`);
+    const step = goal.plan[stepIndex];
+    if (step.status !== 'pending') throw new Error(`Cannot configure step in status '${step.status}'`);
+    const next = { ...step, ...updates, id: step.id, retryCount: step.retryCount };
+    if (!next.description.trim()) throw new Error('Step description must not be empty');
+    if (!Number.isInteger(next.maxRetries) || next.maxRetries < 1 || next.maxRetries > 20) throw new Error('maxRetries must be an integer in [1,20]');
+    goal.plan[stepIndex] = next;
   }
 
   async executeNextStep(goalId: EntityId): Promise<AutonomousStepResult | null> {
@@ -324,12 +341,30 @@ export class AutonomousLoop {
         );
         return result.result;
       }
-      case 'tool':
-        // The previous implementation returned a success-looking string without
-        // executing a tool. False success is more dangerous than explicit lack
-        // of capability, so the runtime now fails closed until ToolRegistry is
-        // injected in the next capability-routing slice.
-        throw new Error(`Tool execution is not wired for '${step.target || 'unspecified tool'}'`);
+      case 'tool': {
+        if (!this.capabilityRouter) throw new Error(`Tool execution router is not configured for '${step.target || 'unspecified tool'}'`);
+        if (!step.target?.trim()) throw new Error('Tool step requires target capability name');
+        const rawFencing = goal.metadata.executionFencingVersion;
+        const fencingVersion = typeof rawFencing === 'number' ? rawFencing : Number(rawFencing);
+        const receipt = await this.capabilityRouter.execute(
+          step.target,
+          step.input ?? {},
+          goal.context,
+          {
+            idempotencyKey: `goal:${String(goal.id)}:step:${String(step.id)}`,
+            fencingVersion,
+          },
+        );
+        this.trace(
+          goal,
+          'capability_executed',
+          step.id,
+          'running',
+          'running',
+          `${receipt.capability} input=${receipt.inputHash} fence=${receipt.fencingVersion ?? 'none'}`,
+        );
+        return receipt.result.output;
+      }
       case 'memory':
         return this.memory.query({ tags: [step.description], limit: 5 });
       case 'evaluate':
@@ -415,6 +450,7 @@ export class AutonomousLoop {
 
     goal.summary = `Goal "${goal.description}" ${goal.status}: ${acceptedSteps}/${totalSteps} accepted, ${failedSteps} failed, ${(totalDuration / 1000).toFixed(1)}s. Confidence: ${(goal.confidence * 100).toFixed(0)}%.`;
     goal.metadata = {
+      ...goal.metadata,
       acceptedSteps,
       failedSteps,
       totalSteps,
