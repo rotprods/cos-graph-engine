@@ -56,10 +56,11 @@ export interface TransitionResult {
 /**
  * Serialized, internally transactional state machine.
  *
- * `send()` calls are queued per machine. Exit/action/entry callbacks execute
- * inside one transition boundary; if one throws, the machine restores its prior
- * internal state/history/counters. External side effects inside callbacks cannot
- * be rolled back and must therefore use idempotency/compensation separately.
+ * `send()` and explicit context-data mutations are queued per machine.
+ * Exit/action/entry callbacks execute inside one transition boundary; if one
+ * throws, the machine restores its prior internal state/history/counters.
+ * External side effects inside callbacks cannot be rolled back and must use
+ * idempotency/compensation separately.
  */
 export class StateMachine {
   private definition: StateMachineDefinition;
@@ -180,6 +181,33 @@ export class StateMachine {
   get contextData(): StateContext { return cloneContext(this.context); }
   get states(): StateConfig[] { return this.definition.states.map(cloneState); }
   get transitions(): StateTransition[] { return this.definition.transitions.map(cloneTransition); }
+
+  /**
+   * Explicit, serialized context-data mutation. This replaces the old pattern
+   * of mutating `contextData.data` through a leaked canonical reference.
+   */
+  patchData(patch: Record<string, unknown>): Promise<void> {
+    this.assertMutable();
+    const clonedPatch = structuredClone(patch);
+    const operation = this.transitionTail.then(() => {
+      this.assertMutable();
+      this.context.data = { ...this.context.data, ...clonedPatch };
+    });
+    this.transitionTail = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  /** Replace all context data under the same serialized mutation boundary. */
+  replaceData(data: Record<string, unknown>): Promise<void> {
+    this.assertMutable();
+    const clonedData = structuredClone(data);
+    const operation = this.transitionTail.then(() => {
+      this.assertMutable();
+      this.context.data = clonedData;
+    });
+    this.transitionTail = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
 
   async send(event: string, payload?: Record<string, unknown>): Promise<boolean> {
     const result = await this.transition(event, payload);
@@ -346,7 +374,6 @@ export class StateMachine {
       historyLength: this.context.history.length,
       totalTransitions: this.context.transitions,
       errorCount: this.context.errors.length,
-      queued: this.transitionTail !== Promise.resolve(),
     };
   }
 
