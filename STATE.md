@@ -1,44 +1,101 @@
 # STATE — COS Graph Engine
 
-Updated: 2026-08-24
-Mode: **CONVERGENCE_AND_HARDENING**
-Authority status: **SHADOW_ONLY**
-Final verification: **DEFERRED_TO_W13_BY_OWNER_DECISION**
+Updated: 2026-08-25  
+Mode: **CANONICAL_AUTHORITY_RECONCILIATION**  
+Authority status: **SHADOW_ONLY**  
+Current phase: **01 / 09 — RECONCILIATION #34 + #35**  
+Automatic CI/CD: **OFF**  
+Merge authorization: **DENIED UNTIL RECONCILIATION + EVIDENCE**
 
-## Current truth
-The original audit found exceptional feature breadth but uneven system guarantees. The active program raises the existing engine to a demonstrable 10/10 standard rather than adding breadth blindly.
+## North Star
 
-## Active stacked hardening chain
-- #18 — W0/W1 canonical truth + manual-only CI/CD posture
-- #20 — W2 graph correctness
-- #21 — W3 deterministic identity
-- #22 — W4 bi-temporal + provenance
-- #23 — W5 durable event kernel
-- #24 — W6 snapshot/recovery protocol
-- #25 — W7 policy/security enforcement
-- #26 — W8 durable autonomous runtime
-- #27 — W9 CAS + leases
-- #28 — W10 resilience/change-risk runtime
-- #29 — W11 scientific benchmark harness
-- #30 — W12 scope-safe temporal GraphRAG
-- #31 — W12.1 memory integrity
-- current branch — W12.2 DX/governance cold-start contract
+Bring COS Graph Engine to `10.0 Authority` in all 20 audited engineering verticals, then qualify it as the zero-cost graph compute/projection and agent-runtime substrate of AGENTIC_SYSTEMS_OS.
 
-All implementation PRs remain draft until convergence review and W13 verification.
+Scoring law:
 
-## Cost state
-Hardening workflows, CI, release and deploy are being converted to manual-only before anything lands on `main`. Do not merge a branch that restores automatic cost-generating triggers.
+`Authority = min(Build, Assurance)`.
 
-## Known remaining engineering gaps
-- complete CSR parallel-edge/reverse-CSR/invariant work from W2;
-- migrate durable aggregate identities onto W3 primitives;
-- persistent Postgres/SQLite adapters for event log/snapshots/CAS/leases;
-- wire policy + leases + real tool capability resolution into every side-effect path;
-- event-source autonomous execution and memory indexes;
-- automatic resilience/near-miss projection;
-- migrate legacy benchmark B1–B7 to scientific harness;
-- reconcile existing `@cos/hub` PR with new identity/event/temporal/security contracts;
-- final monorepo convergence and W13 evidence campaign.
+Current means from the adversarial baseline:
+
+- Build: **7.6/10**;
+- Assurance: **2.6/10**;
+- Authority: **2.6/10**.
+
+See `SCORECARD_20D.md`.
+
+## Current branch truth
+
+Active branch:
+
+`hardening/canonical-authority-reconciliation`
+
+Exact base:
+
+`hardening/w12-3-core-gap-closure` @ `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`
+
+Divergent source branches:
+
+- PR #34 / `hardening/w12-4-authority-completion` @ `af4973561b5f7d7a7415fa8f88a12a7d8d678a66`;
+- PR #35 / `hardening/w12-4-authority-closure` @ `8b7e197f35e6fc114cd90ec0907db4c2f5b625f4`.
+
+W13 PR #36 is based only on #35 and remains paused. PR #37 remains draft/rework because manual-only invocation must not remove verification breadth. Audit PR #38 and issue #39 govern the stop-the-line remediation.
+
+## Completed in Phase 01
+
+- created canonical reconciliation branch directly from #33;
+- measured #34/#35 divergence and recorded exact source refs;
+- inventoried exclusive and overlapping capabilities;
+- selected canonical direction for capabilities C01–C13;
+- created semantic deletion ledger;
+- materialized 20D Build/Assurance/Authority scorecard;
+- materialized phase task graph and authority dependency graph;
+- created isolated Todoist control plane and synchronized Drive.
+
+## Current architecture decisions
+
+- strict #35 tool execution semantics are selected, but durable side-effect idempotency/fencing is still required;
+- GraphRAG will have one atomic authority projection combining #34 projection CAS with #35 normalization and verified-context constraints;
+- #35 transactional StateMachine is the intended core; #34 expected-state/revision fencing will be integrated without preserving two competing mutation queues;
+- #34 versioned AgenticResourceRegistry is selected, subject to deep immutability hardening;
+- Hub will use #34 command/outcome replay and query semantics plus #35 snapshot/recovery/context capabilities;
+- neither current memory adapter qualifies as true bi-temporal authority storage; append-only transaction-time revisions are required;
+- #34 AuthorityTelemetry and #35 EventBus delivery-failure observation are selected;
+- W13 will be recreated only after the reconciled candidate is frozen.
+
+## Current blockers
+
+P0:
+
+- no single reconciled W12.4 candidate yet;
+- mutable-reference bypass in CAS/graph/memory surfaces;
+- memory authority lacks append-only transaction-time history;
+- side-effect idempotency/fencing is not yet durable;
+- W13 currently certifies incomplete lineage;
+- manual CI rework must preserve full verification surface.
+
+P1:
+
+- identity normalization/serializer domain;
+- KnowledgeGraph transactional projection;
+- durable goal aggregate and Hub outcome replay convergence;
+- package/export/lockfile reconciliation;
+- legacy + authority test separation.
+
+## Cost and execution posture
+
+- incremental recurring infrastructure cost remains `EUR 0/month`;
+- GitHub Actions must be manual-only;
+- CD remains off;
+- no remote run is authorized during Phase 01;
+- Codex is optional for shell-heavy loops, not required for GitHub orchestration.
 
 ## Current next action
-Finish remaining W12.x architecture/DX/interop slices, create 20D convergence matrix, then perform one cross-stack compile/adversarial review before deciding merge order. Full tests/CI/replay/restore are intentionally held for the final qualification campaign.
+
+Port the low-conflict selected primitives into this branch with source provenance:
+
+1. strict tool runtime from #35;
+2. AuthorityTelemetry from #34;
+3. immutable EventBus delivery-failure observation from #35;
+4. provider fixtures as additive evidence assets.
+
+Then open a draft reconciliation PR against #33 and proceed to canonical state/registry convergence.
