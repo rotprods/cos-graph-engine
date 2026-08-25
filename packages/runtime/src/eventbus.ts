@@ -22,6 +22,10 @@ export interface EventDeliveryFailure {
   recordedAt: string;
 }
 
+export type EventDeliveryFailureObserver = (
+  failure: Readonly<EventDeliveryFailure>,
+) => void;
+
 /**
  * Event delivery layer backed by an append-only event log.
  *
@@ -33,10 +37,14 @@ export class EventBus implements IEventBus {
   private subscriptions: Map<string, Subscription[]> = new Map();
   private history: CogEvent[] = [];
   private deliveryFailures: EventDeliveryFailure[] = [];
+  private readonly failureObservers = new Set<EventDeliveryFailureObserver>();
   private readonly maxHistory: number;
   private readonly eventLog: IEventLog;
 
   constructor(maxHistory: number = 10000, eventLog: IEventLog = new InMemoryEventLog()) {
+    if (!Number.isInteger(maxHistory) || maxHistory < 1 || maxHistory > 1_000_000) {
+      throw new Error('EventBus maxHistory must be an integer in [1,1000000]');
+    }
     this.maxHistory = maxHistory;
     this.eventLog = eventLog;
   }
@@ -67,8 +75,6 @@ export class EventBus implements IEventBus {
       spanId: generateSpanId(),
     };
 
-    // Canonical acceptance happens before delivery. Duplicate producer retries
-    // resolve to the already accepted event and are not delivered twice.
     const append = await this.eventLog.append({
       ...fullEvent,
       idempotencyKey,
@@ -92,29 +98,40 @@ export class EventBus implements IEventBus {
     handler: EventHandler,
     options: SubscribeOptions = {},
   ): Promise<SubscriptionId> {
+    const normalizedType = type.trim();
+    if (!normalizedType) throw new Error('Subscription type must not be empty');
     const id = generateId() as SubscriptionId;
-    const sub: Subscription = { id, type, handler, options };
+    const subscription: Subscription = {
+      id,
+      type: normalizedType,
+      handler,
+      options: { ...options },
+    };
 
-    if (!this.subscriptions.has(type)) this.subscriptions.set(type, []);
-    this.subscriptions.get(type)!.push(sub);
+    if (!this.subscriptions.has(normalizedType)) this.subscriptions.set(normalizedType, []);
+    this.subscriptions.get(normalizedType)!.push(subscription);
     return id;
   }
 
   async unsubscribe(id: SubscriptionId): Promise<void> {
-    for (const [type, subs] of this.subscriptions) {
-      const idx = subs.findIndex(s => s.id === id);
-      if (idx !== -1) {
-        subs.splice(idx, 1);
-        if (subs.length === 0) this.subscriptions.delete(type);
-        return;
-      }
+    for (const [type, subscriptions] of this.subscriptions) {
+      const index = subscriptions.findIndex(subscription => subscription.id === id);
+      if (index === -1) continue;
+      subscriptions.splice(index, 1);
+      if (subscriptions.length === 0) this.subscriptions.delete(type);
+      return;
     }
   }
 
+  onDeliveryFailure(observer: EventDeliveryFailureObserver): () => void {
+    this.failureObservers.add(observer);
+    return () => this.failureObservers.delete(observer);
+  }
+
   async getHistory(type?: string, limit: number = 100): Promise<CogEvent[]> {
-    let events = this.history;
-    if (type) events = events.filter(e => e.type === type);
-    return events.slice(-Math.max(0, limit));
+    const boundedLimit = Math.max(0, Math.min(this.maxHistory, limit));
+    const events = type ? this.history.filter(event => event.type === type) : this.history;
+    return events.slice(-boundedLimit).map(event => structuredClone(event));
   }
 
   /**
@@ -140,7 +157,9 @@ export class EventBus implements IEventBus {
   }
 
   getDeliveryFailures(limit = 100): EventDeliveryFailure[] {
-    return this.deliveryFailures.slice(-Math.max(0, limit));
+    return this.deliveryFailures
+      .slice(-Math.max(0, Math.min(this.maxHistory, limit)))
+      .map(cloneFailure);
   }
 
   getEventLog(): IEventLog {
@@ -156,7 +175,7 @@ export class EventBus implements IEventBus {
 
   get subscriberCount(): number {
     let count = 0;
-    for (const subs of this.subscriptions.values()) count += subs.length;
+    for (const subscriptions of this.subscriptions.values()) count += subscriptions.length;
     return count;
   }
 
@@ -168,30 +187,72 @@ export class EventBus implements IEventBus {
     const subscribers = this.subscriptions.get(fullEvent.type) || [];
     const wildcardSubscribers = this.subscriptions.get('*') || [];
     const allSubscribers = [...subscribers, ...wildcardSubscribers]
-      .sort((a, b) => (b.options.priority || 0) - (a.options.priority || 0));
+      .sort((a, b) =>
+        (b.options.priority || 0) - (a.options.priority || 0)
+        || String(a.id).localeCompare(String(b.id)),
+      );
 
     const toRemove: SubscriptionId[] = [];
 
-    for (const sub of allSubscribers) {
+    for (const subscription of allSubscribers) {
       try {
-        if (sub.options.filter && !sub.options.filter(fullEvent)) continue;
-        await sub.handler(fullEvent);
-        if (sub.options.once) toRemove.push(sub.id);
+        if (subscription.options.filter && !subscription.options.filter(fullEvent)) continue;
+        await subscription.handler(structuredClone(fullEvent));
+        if (subscription.options.once) toRemove.push(subscription.id);
       } catch (error) {
-        this.deliveryFailures.push({
+        this.recordDeliveryFailure({
           eventId: fullEvent.id,
-          subscriptionId: sub.id,
+          subscriptionId: subscription.id,
           eventType: fullEvent.type,
           error,
           recordedAt: new Date().toISOString(),
         });
-        if (this.deliveryFailures.length > this.maxHistory) {
-          this.deliveryFailures = this.deliveryFailures.slice(-this.maxHistory);
-        }
-        console.error(`[EventBus] Error in subscriber ${sub.id} for event ${fullEvent.type}:`, error);
       }
     }
 
     for (const id of toRemove) await this.unsubscribe(id);
+  }
+
+  private recordDeliveryFailure(failure: EventDeliveryFailure): void {
+    const stored = cloneFailure(failure);
+    this.deliveryFailures.push(stored);
+    if (this.deliveryFailures.length > this.maxHistory) {
+      this.deliveryFailures = this.deliveryFailures.slice(-this.maxHistory);
+    }
+
+    for (const observer of Array.from(this.failureObservers)) {
+      try {
+        observer(Object.freeze(cloneFailure(stored)));
+      } catch (observerError) {
+        // Observability/resilience observers are never allowed to alter delivery
+        // semantics. Their own failures remain diagnostic only.
+        console.error('[EventBus] Delivery-failure observer failed:', observerError);
+      }
+    }
+    console.error(
+      `[EventBus] Error in subscriber ${String(failure.subscriptionId)} for event ${failure.eventType}:`,
+      failure.error,
+    );
+  }
+}
+
+function cloneFailure(failure: EventDeliveryFailure): EventDeliveryFailure {
+  return {
+    ...failure,
+    error: failure.error instanceof Error
+      ? {
+          name: failure.error.name,
+          message: failure.error.message,
+          stack: failure.error.stack,
+        }
+      : structuredCloneSafe(failure.error),
+  };
+}
+
+function structuredCloneSafe(value: unknown): unknown {
+  try {
+    return structuredClone(value);
+  } catch {
+    return String(value);
   }
 }
