@@ -8,6 +8,10 @@ Active branch:
 
 `hardening/canonical-authority-reconciliation`
 
+Active draft PR:
+
+`#40 — hardening(reconciliation): unify W12.4 authority lineages from PRs #34 and #35`
+
 Base:
 
 `hardening/w12-3-core-gap-closure` @ `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`
@@ -34,42 +38,63 @@ Authority remains `SHADOW_ONLY`. No merge or W13 run is authorized.
 
 ## Work completed at this checkpoint
 
+### Governance and lineage
+
 - canonical reconciliation branch created from #33;
 - exact #34/#35 divergence measured;
 - exclusive/overlap inventory recorded;
 - canonical decisions C01–C13 defined;
 - deletion ledger created;
 - 20D scorecard, phase task graph and authority graph materialized;
-- GitHub, Drive and Todoist synchronized.
+- GitHub, Drive and Todoist synchronized;
+- draft PR #40 opened against #33.
+
+### Implemented reconciliation slices
+
+- strict tool runtime from #35;
+- AuthorityTelemetry from #34;
+- immutable EventBus delivery-failure observation from #35;
+- semantic GitHub provider fixtures from #34;
+- `AuthorityStateMachine` with one serialized mutation boundary, staged callback commit, state/revision fencing, deterministic snapshot/restore and timer fencing;
+- `AuthorityAgenticRegistry` with canonical identity, append-only system-time revisions, object/projection CAS, scope/sensitivity filtering and deterministic history hashes;
+- `AuthorityGraphRAGIndex` with atomic complete-projection replacement, version/hash CAS, deterministic relation identity and valid-time/known-time filtering;
+- additive contract scripts for the authority state machine and agentic registry.
+
+All of the above is `IMPLEMENTED_UNVERIFIED`. No compile/test/replay/security evidence has run on this branch.
 
 ## Next exact implementation slice
 
-Port only low-conflict selected primitives, one source-provenance commit per capability:
+### R4 closure — Context authority
 
-1. `packages/execution/src/tool-runtime.ts` from #35, followed by static contract review;
-2. `packages/observability/src/authority.ts` from #34 plus export wiring;
-3. EventBus immutable delivery-failure observation from #35, reconciled with #33 event-log behavior;
-4. `packages/hub/fixtures/github-webhook-contracts.json` from #34 as additive evidence.
+1. adapt the verified ContextPack path to consume only `AuthorityGraphRAGIndex` as the authority projection;
+2. require explicit projection version/hash and evidence integrity;
+3. label legacy L11 GraphRAG as `shadow/deprecated` rather than a competing authority writer;
+4. add additive contract fixtures without rewriting legacy tests.
 
-After the slice:
+### R5 — Hub convergence
 
-- update deletion ledger if any file replacement exceeds 50 lines;
-- open a draft reconciliation PR against `hardening/w12-3-core-gap-closure`;
-- update issue #39 and Todoist;
-- do not start GraphRAG/state/memory convergence until low-conflict exports are statically coherent.
+After R4 is statically coherent:
 
-## Subsequent sequence
+1. import command + accepted/rejected outcome semantics from #34;
+2. preserve #35 snapshot store, strict recovery and context projection strengths;
+3. replay recorded outcomes rather than re-deciding historical commands;
+4. restore required repo/agent/workflow definitions or fail closed;
+5. verify deterministic state/revision/hash at the contract level.
+
+### R6 — Memory redesign
+
+Then implement append-only epistemic/system-time memory revisions. Do not promote either previous current-row adapter as final authority storage.
+
+## Remaining Phase 01 sequence
 
 ```text
-low-conflict primitives
-→ transactional state + revision fence
-→ versioned AgenticResourceRegistry
-→ one atomic GraphRAG authority path
-→ Hub command/outcome + snapshot/recovery convergence
-→ append-only memory redesign
-→ package/API/export reconciliation
-→ recreate W13
-→ full evidence campaign
+verified ContextPack over one GraphRAG authority index
+→ Hub command/outcome + query + snapshot/recovery convergence
+→ append-only authority memory
+→ package/API/export/tsconfig reconciliation
+→ complete behavior diff + deletion ledger
+→ freeze candidate
+→ recreate W13 from PR #40 lineage
 ```
 
 ## Hard safety rules
@@ -81,8 +106,21 @@ low-conflict primitives
 - do not rewrite legacy tests in place;
 - do not call current-row temporal overwrite bi-temporal history;
 - do not claim exact-once side effects from presence-only idempotency/fencing fields;
+- do not expose more than one authority GraphRAG/state/registry writer;
 - do not raise Assurance without executed evidence;
 - do not enable automatic Actions or CD.
+
+## Cross-plane checkpoint rule
+
+At every material checkpoint:
+
+```text
+GitHub = executable/evidence truth
+Drive = Acta + AGENTIC_SYSTEMS_OS STATE
+Todoist = live task state
+```
+
+Any failed synchronization must be recorded here.
 
 ## Rollback
 
