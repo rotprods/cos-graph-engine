@@ -504,7 +504,7 @@ export class CodeSandbox {
       };
 
       const vmContext = vm.createContext(sandbox);
-      const script = new vm.Script(code, { timeout: this.config.timeout });
+      const script = new vm.Script(code);
       const result = script.runInContext(vmContext, { timeout: this.config.timeout });
 
       return {
