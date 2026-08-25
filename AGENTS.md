@@ -1,5 +1,145 @@
 # COS Graph Engine — AGENTS.md
 
+## CANONICAL CONSTITUTION — CURRENT AUTHORITY
+
+This section supersedes old operational-status claims without deleting the historical ledger below.
+
+### North Star
+
+Bring COS Graph Engine to `Authority 10.0` in all 20 audited verticals and qualify it as the zero-cost graph compute/projection and agent-runtime substrate of AGENTIC_SYSTEMS_OS.
+
+`Authority = min(Build, Assurance)`.
+
+No agent may promote a score, mark a phase complete, merge a hardening PR or claim 10/10 from code volume, documentation, test count or model confidence alone.
+
+### Current mode
+
+- phase: `01 — CANONICAL RECONCILIATION #34 + #35`;
+- branch: `hardening/canonical-authority-reconciliation`;
+- base: #33 @ `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`;
+- authority: `SHADOW_ONLY`;
+- W13: paused;
+- automatic CI/CD: off;
+- merge authorization: denied until reconciliation and evidence.
+
+### Mandatory read order
+
+`README_FIRST → GOAL → STATE → SCORECARD_20D → TASKS → GRAPH → HANDOFF → Phase 01 matrix → Deletion Ledger → AGENTS historical ledger`.
+
+### Mandatory reasoning laws
+
+#### /leydekidlin
+
+Before proposing or mutating, record:
+
+- observed facts;
+- assumptions;
+- unknowns;
+- affected scope;
+- desired outcome;
+- constraints;
+- success criteria;
+- falsifiable failure condition.
+
+#### /leydegilbert
+
+Once the problem is sufficiently defined, own discovery and execution of the best viable path using available repository evidence, tools, prior art and tests. Missing step-by-step instructions are not a blocker.
+
+#### /complexsystems
+
+Before a material change, identify:
+
+- removed failure modes;
+- introduced failure modes;
+- new couplings;
+- latent conditions;
+- defenses;
+- degraded states;
+- failure combinations;
+- near-miss signals;
+- blast radius;
+- rollback path;
+- smallest reversible action.
+
+Single-root-cause framing is prohibited for non-trivial systemic incidents unless evidence supports it.
+
+### Canonical reconciliation rules
+
+1. #34 and #35 are divergent evidence sources, not merge targets.
+2. One authority owner is allowed per capability.
+3. Legacy compatibility may remain only with explicit `shadow`, `deprecated` or migration status.
+4. A replacement deleting >50 non-generated lines requires a semantic deletion-ledger entry.
+5. Legacy tests remain intact; authority tests are additive unless an ADR authorizes a break.
+6. W13 must be recreated from the reconciled candidate.
+7. No current-row overwrite may be described as complete bi-temporal history.
+8. Presence of `idempotencyKey` or `fencingVersion` is not proof of exactly-once side effects.
+9. Reads from canonical state must not leak mutable references.
+10. Replay must apply recorded outcomes, not re-decide historical commands.
+
+### Commit / PR protocol
+
+The previous “one commit per phase” rule is superseded for the hardening program.
+
+Use:
+
+- one coherent guarantee/capability per commit;
+- exact source lineage in commit message when porting from #34/#35;
+- small reversible diffs;
+- no version bump merely to start a phase;
+- no direct main writes;
+- no merge without exact head SHA, evidence and independent review;
+- update `STATE.md`, `TASKS.md` and `HANDOFF.md` at material checkpoints.
+
+Recommended commit form:
+
+```text
+<type>(<area>): <guarantee>
+
+Source: <branch/PR/SHA>
+Invariant: <falsifiable guarantee>
+Failure modes: <removed / introduced>
+Verification: <executed or pending>
+Rollback: <exact ref>
+```
+
+### Cost and execution policy
+
+- recurring incremental infrastructure cost: `EUR 0/month`;
+- GitHub Actions: manual-only;
+- manual Actions must preserve full verification breadth;
+- CD/deploy/release: off until separate authorization;
+- local/offline verification preferred;
+- Codex optional for shell-heavy loops, not required for GitHub control-plane work.
+
+### Cross-plane persistence
+
+For every material checkpoint:
+
+```text
+GitHub = executable/evidence truth
+Drive = cross-chat Acta + STATE
+Todoist = live execution state
+```
+
+If one plane is not updated, record the exception in `HANDOFF.md`.
+
+### Current next action
+
+Port low-conflict selected primitives with source-provenance commits:
+
+1. strict tool runtime from #35;
+2. AuthorityTelemetry from #34;
+3. EventBus delivery-failure observation from #35;
+4. GitHub provider fixtures from #34.
+
+Then open a draft reconciliation PR against #33 and continue with state/registry convergence.
+
+---
+
+# HISTORICAL LEDGER — PRESERVED, NON-CANONICAL STATUS CLAIMS
+
+The content below records prior implementation history. Statements such as “Proyecto COMPLETO”, historic test totals and old active phases are provenance, not current authority.
+
 > **Proposito**: Orquestador principal entre sesiones. Contiene el protocolo de commits, el registro de fases completadas, el plan de la fase activa, y los checkpoints para reanudacion.
 
 ---
