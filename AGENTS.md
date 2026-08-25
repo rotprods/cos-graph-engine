@@ -1,5 +1,120 @@
 # COS Graph Engine — AGENTS.md
 
+> **CANONICAL CURRENT CONSTITUTION — 2026-08-25**
+>
+> This header supersedes historical phase/status language below **without deleting it**. The old ledger remains as provenance. Current operational truth lives in `README_FIRST.md`, `GOAL.md`, `STATE.md`, `SCORECARD_20D.md`, `EXECUTION_PLAN.md`, `GRAPH.md`, and `HANDOFF.md`.
+
+## Mandatory cold start
+
+Read in this exact order before proposing or mutating code:
+
+1. `README_FIRST.md`
+2. `GOAL.md`
+3. `STATE.md`
+4. `SCORECARD_20D.md`
+5. `EXECUTION_PLAN.md`
+6. `GRAPH.md`
+7. `HANDOFF.md`
+8. `docs/hardening/FULL_STACK_ADVERSARIAL_REVIEW.md`
+9. this `AGENTS.md`
+
+Then inspect PRs #34, #35, #36, #37, #38 and issue #39.
+
+## Current authority state
+
+- Status: `ACTIVE / STOP-THE-LINE RECONCILIATION`
+- Authority: `SHADOW_ONLY`
+- North Star: all D01–D20 Authority scores = 10.0 with linked evidence
+- Score law: `Authority = min(Build, Assurance)`
+- Current means: Build 7.6 / Assurance 2.6 / Authority 2.6
+- Active phase: Phase 01 — reconcile divergent W12.4 siblings #34 + #35 from #33
+- Automatic CI/CD: OFF during convergence
+- Recurring incremental infrastructure cost target: 0 EUR/month
+
+Historical `COMPLETE`, phase counts, test totals and benchmark claims below are **historical evidence only**, not current authority claims.
+
+## Non-negotiable execution laws
+
+### /leydekidlin
+Before any material change, explicitly define:
+- observed facts;
+- assumptions;
+- unknowns;
+- scope;
+- desired outcome;
+- constraints;
+- success criteria;
+- falsifiable failure condition.
+
+### /leydegilbert
+Own discovery of the best viable implementation path using repository evidence, available tools, prior art and system context. Do not wait for step-by-step instructions when the path can be discovered safely.
+
+### Complex-systems doctrine
+For material changes apply the resilience principles encoded from `how.complexsystems.fail`:
+- avoid monocausal explanations unless evidence truly isolates one cause;
+- model latent conditions and coupled failures;
+- expect degraded modes and adaptive behavior;
+- treat near misses as first-class evidence;
+- inspect change-induced failure modes;
+- record blast radius, defenses, recovery path and residual risk.
+
+## Branch / PR governance
+
+1. #34 and #35 are divergent sibling implementations; neither may be treated as canonical alone.
+2. W13 #36 does not qualify the complete candidate and remains paused.
+3. PR #37 is draft/rework: manual-only Actions is correct, loss of verification breadth is not.
+4. No new product breadth before reconciliation and P0 closure.
+5. One primary guarantee per PR whenever feasible.
+6. No merge merely because a PR is `mergeable`.
+7. Final merge requires independent approval, evidence gates, expected SHA and rollback checkpoint.
+8. Never weaken branch protection to bypass review.
+
+## Deletion / replacement law
+
+Any change deleting or replacing >50 non-generated lines in one file must record:
+- previous behavior;
+- reason for removal;
+- replacement path;
+- observable behavioral delta;
+- compatibility policy;
+- verification evidence;
+- rollback path.
+
+Tests are evidence, not implementation accessories. Preserve legacy tests and add authority tests separately unless an ADR explicitly authorizes a break and supplies migration evidence.
+
+## Authority engineering law
+
+No dimension reaches 10/10 because code looks complete.
+
+- Build may rise from implementation/review.
+- Assurance rises only from executed evidence.
+- Authority is the lower of the two.
+- New evidence may lower scores.
+
+Required end-state evidence includes clean install, legacy+strict typecheck, full regression, orphan suites, negative/property/mutation tests, security review, contention/crash tests, deterministic replay, corrupted-snapshot + empty-DB restore, scientific benchmarks, blind cold-agent resume and final 20D adversarial review.
+
+## Tool / persistence routing
+
+- GitHub = executable truth, branches, commits, PRs, reviews and evidence artifacts.
+- Drive = cross-chat operational memory, Acta/STATE/Handoff.
+- Todoist project `COS GRAPH ENGINE · 10/10 AUTHORITY PROGRAM` = live execution queue.
+- Do not mutate unrelated Todoist projects as part of COS synchronization.
+- Codex is optional for long repo-local shell loops; it is not required for GitHub orchestration.
+- No secrets in repo/Drive/prompts/issues.
+
+## Checkpoint protocol
+
+After every material checkpoint:
+1. persist code/docs/PR state in GitHub;
+2. update `STATE.md` and `HANDOFF.md`;
+3. update Drive Acta + AGENTIC_SYSTEMS_OS STATE;
+4. update Todoist tasks/scores;
+5. record any desynchronization explicitly.
+
+---
+
+# HISTORICAL LEDGER — preserved from prior AGENTS.md
+
 > **Proposito**: Orquestador principal entre sesiones. Contiene el protocolo de commits, el registro de fases completadas, el plan de la fase activa, y los checkpoints para reanudacion.
 
 ---
