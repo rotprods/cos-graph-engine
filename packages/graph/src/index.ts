@@ -1,6 +1,7 @@
 export * from './level0-visual';
 export * from './level1-execution';
 export * from './level2-state';
+export * from './authority-state-machine';
 export * from './level3-dependency';
 export * from './level4-call';
 export * from './level5-cfg';
