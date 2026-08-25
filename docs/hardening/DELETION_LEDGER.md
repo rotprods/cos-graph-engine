@@ -83,6 +83,21 @@ Line count is a trigger for review, not a verdict. A deletion is accepted only w
 - **Rollback:** restore original test files from base and move new tests to additive files.
 - **Status:** `REWORK_REQUIRED`.
 
+### DEL-2026-006 — Strict tool runtime replacement
+
+- **Source:** `packages/execution/src/tool-runtime.ts` on #33, blob `b04cf0f38b173262c1b6617a6000e9c196a9d5bf`.
+- **Replacement source:** PR #35 blob `4edeef55fa9d5c08a472c23c9c732ae32a7a39d9`.
+- **Canonical reconciliation commit:** `a4ff4e664e644fc8044db5f633a4f521e62fefbb`.
+- **Previous behavior:** filesystem/HTTP/search/code utility plus registry; SearchTool claimed knowledge/memory/all support without adapters and returned `success=true` with embedded error evidence; duplicate registry names silently replaced existing tools; empty file writes were rejected.
+- **Reason:** remove false success, validate inputs, make unavailable sources explicit, bound HTTP body/timeout, copy tool definitions and reject accidental duplicate registration.
+- **Replacement:** strict #35 tool semantics ported unchanged as the first low-conflict reconciliation slice.
+- **Observable delta:** unavailable search sources and execution failures now produce `success=false`; duplicate registration fails unless `replace=true`; empty-string file writes are valid; HTTP protocol/method/body/timeout validation is explicit; `node:vm` is documented as non-security-boundary.
+- **Compatibility:** behavior-tightening / migration-required for callers that depended on false-success or silent replacement.
+- **Verification:** static source reconciliation complete; compile, legacy tests, authority tests and security cases are pending Phase 07–08. This entry is not accepted solely from the port.
+- **Residual risk:** side-effect exactly-once semantics are not solved inside ToolRegistry; durable operation ledger, resource fencing and deployment isolation remain P0/P1 tasks.
+- **Rollback:** restore #33 blob `b04cf0f38b173262c1b6617a6000e9c196a9d5bf` or reset the file to base SHA `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`.
+- **Status:** `IMPLEMENTED_PENDING_EVIDENCE`.
+
 ## Ledger closure rule
 
 An entry becomes `ACCEPTED` only when replacement code, evidence and rollback information all point to the same exact commit SHA. Self-review alone does not close a material deletion entry.
