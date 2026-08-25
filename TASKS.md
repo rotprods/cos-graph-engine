@@ -41,9 +41,9 @@
 - [x] Implement one `AuthorityStateMachine` combining transactional mutation with expected-state/revision fencing.
 - [x] Implement one append-only revisioned `AuthorityAgenticRegistry` with canonical identity and object/projection CAS.
 - [x] Implement one atomic `AuthorityGraphRAGIndex` with projection version/hash CAS and temporal/scope filtering.
-- [x] Add authority state-machine and registry contract scripts.
-- [ ] Bind verified ContextPack compilation to the single authority GraphRAG projection.
-- [ ] Mark legacy L11 GraphRAG explicitly shadow/deprecated and document migration.
+- [x] Bind `AuthorityContextPackCompiler` to the single authority retriever with explicit timestamps, version/hash fencing, deterministic evidence and SHA-256 integrity.
+- [x] Add additive authority contract scripts for state-machine, registry and ContextPack behavior.
+- [ ] Mark legacy L11 GraphRAG and legacy ContextPack explicitly shadow/deprecated and document migration.
 - [ ] Converge Hub command/outcome replay, query, snapshot, recovery and context paths.
 - [ ] Redesign authority memory as append-only epistemic/system-time revisions.
 
@@ -106,10 +106,10 @@
 
 ## Phase 06 — Hub, memory, GraphRAG and observability
 
-- [ ] Complete one canonical authority GraphRAG + ContextPack path.
+- [x] Implement one canonical authority GraphRAG + ContextPack candidate path.
 - [ ] Implement append-only epistemic memory with deep immutability.
 - [ ] Replay Hub outcomes rather than re-deciding commands.
-- [ ] Complete scope/temporal/provenance-safe ContextPacks.
+- [x] Implement scope/temporal/provenance-safe authority ContextPacks.
 - [ ] Instrument canonical paths with AuthorityTelemetry without making it a single point of failure.
 - [ ] Build gold-query evaluation set.
 
