@@ -58,40 +58,42 @@ Authority remains `SHADOW_ONLY`. No merge or W13 run is authorized.
 - `AuthorityStateMachine` with one serialized mutation boundary, staged callback commit, state/revision fencing, deterministic snapshot/restore and timer fencing;
 - `AuthorityAgenticRegistry` with canonical identity, append-only system-time revisions, object/projection CAS, scope/sensitivity filtering and deterministic history hashes;
 - `AuthorityGraphRAGIndex` with atomic complete-projection replacement, version/hash CAS, deterministic relation identity and valid-time/known-time filtering;
-- additive contract scripts for the authority state machine and agentic registry.
+- `AuthorityContextPackCompiler` bound only to an authority retriever, with explicit timestamps, scope/permission invariants, projection version/hash fencing, deterministic evidence and SHA-256 integrity;
+- additive authority contract scripts for state-machine, registry and ContextPack behavior.
 
 All of the above is `IMPLEMENTED_UNVERIFIED`. No compile/test/replay/security evidence has run on this branch.
 
 ## Next exact implementation slice
 
-### R4 closure — Context authority
-
-1. adapt the verified ContextPack path to consume only `AuthorityGraphRAGIndex` as the authority projection;
-2. require explicit projection version/hash and evidence integrity;
-3. label legacy L11 GraphRAG as `shadow/deprecated` rather than a competing authority writer;
-4. add additive contract fixtures without rewriting legacy tests.
-
 ### R5 — Hub convergence
-
-After R4 is statically coherent:
 
 1. import command + accepted/rejected outcome semantics from #34;
 2. preserve #35 snapshot store, strict recovery and context projection strengths;
-3. replay recorded outcomes rather than re-deciding historical commands;
-4. restore required repo/agent/workflow definitions or fail closed;
-5. verify deterministic state/revision/hash at the contract level.
+3. bind Hub context generation to `AuthorityGraphRAGIndex` + `AuthorityContextPackCompiler`;
+4. replay recorded outcomes rather than re-deciding historical commands;
+5. restore required repo/agent/workflow definitions or fail closed;
+6. verify deterministic state/revision/hash at the contract level.
 
 ### R6 — Memory redesign
 
 Then implement append-only epistemic/system-time memory revisions. Do not promote either previous current-row adapter as final authority storage.
 
+### R7 — Surface closure
+
+After memory convergence:
+
+- mark legacy L11/ContextPack paths shadow/deprecated;
+- reconcile package/API/export/tsconfig contracts;
+- complete behavior diff and deletion ledger;
+- prepare lockfile regeneration inputs;
+- freeze candidate and recreate W13.
+
 ## Remaining Phase 01 sequence
 
 ```text
-verified ContextPack over one GraphRAG authority index
-→ Hub command/outcome + query + snapshot/recovery convergence
+Hub command/outcome + query + snapshot/recovery/context convergence
 → append-only authority memory
-→ package/API/export/tsconfig reconciliation
+→ legacy migration + package/API/export/tsconfig reconciliation
 → complete behavior diff + deletion ledger
 → freeze candidate
 → recreate W13 from PR #40 lineage
@@ -106,7 +108,7 @@ verified ContextPack over one GraphRAG authority index
 - do not rewrite legacy tests in place;
 - do not call current-row temporal overwrite bi-temporal history;
 - do not claim exact-once side effects from presence-only idempotency/fencing fields;
-- do not expose more than one authority GraphRAG/state/registry writer;
+- do not expose more than one authority GraphRAG/state/registry/context writer;
 - do not raise Assurance without executed evidence;
 - do not enable automatic Actions or CD.
 
