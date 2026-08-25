@@ -50,6 +50,7 @@ export interface AuthorityStateSnapshot {
   schemaVersion: 1;
   machineId: EntityId;
   name: string;
+  initialState: StateId;
   definitionRevision: string;
   definitionHash: string;
   state: StateId;
@@ -224,6 +225,7 @@ export class AuthorityStateMachine {
       schemaVersion: 1 as const,
       machineId: this.id,
       name: this.name,
+      initialState: this.definition.initial,
       definitionRevision: this.definitionRevision,
       definitionHash: this.definitionHashValue,
       state: this.state,
@@ -250,9 +252,9 @@ export class AuthorityStateMachine {
     if (definitionHash(this.definition, this.definitionRevision) !== this.definitionHashValue) {
       errors.push('Authority state-machine definition hash drifted');
     }
-    if (this.snapshot().stateHash !== this.snapshot().stateHash) {
-      errors.push('Authority state-machine snapshot is non-deterministic');
-    }
+    const first = this.snapshot().stateHash;
+    const second = this.snapshot().stateHash;
+    if (first !== second) errors.push('Authority state-machine snapshot is non-deterministic');
     return errors.sort();
   }
 
@@ -312,8 +314,7 @@ export class AuthorityStateMachine {
     if (this.disposed) return;
     this.disposed = true;
     this.timerGeneration += 1;
-    if (this.timeout) clearTimeout(this.timeout);
-    this.timeout = null;
+    this.clearTimeout();
     this.listeners.clear();
   }
 
@@ -327,7 +328,13 @@ export class AuthorityStateMachine {
     } = {},
   ): AuthorityStateMachine {
     if (snapshot.schemaVersion !== 1) throw new Error(`Unsupported authority state snapshot schema: ${snapshot.schemaVersion}`);
-    const machine = new AuthorityStateMachine(name, states, transitions, snapshot.context.currentState, {
+    if (name.trim() !== snapshot.name) {
+      throw new Error(`STATE_SNAPSHOT_NAME_MISMATCH expected=${snapshot.name} actual=${name.trim()}`);
+    }
+    if (snapshot.state !== snapshot.context.currentState) {
+      throw new Error(`STATE_SNAPSHOT_STATE_MISMATCH state=${snapshot.state} context=${snapshot.context.currentState}`);
+    }
+    const machine = new AuthorityStateMachine(snapshot.name, states, transitions, snapshot.initialState, {
       ...options,
       machineId: snapshot.machineId,
       initialRevision: snapshot.revision,
@@ -455,8 +462,11 @@ export class AuthorityStateMachine {
       assertCanonicalJson(nextData, 'next state data');
       const nextContext = cloneContext(this.context);
       nextContext.data = nextData;
+      this.timerGeneration += 1;
+      this.clearTimeout();
       this.context = nextContext;
       this.revision += 1;
+      this.scheduleTimeout();
       return this.snapshot();
     } catch (error) {
       this.recordFailure('data', `STATE_DATA_${mode.toUpperCase()}_FAILED: ${errorMessage(error)}`, occurredAt);
@@ -610,6 +620,9 @@ function validateStagedTransition(
   if (staged.currentState !== transition.to) throw new Error('Callback mutated protected currentState');
   if (staged.transitions !== previous.transitions + 1) throw new Error('Callback mutated protected transition counter');
   if (staged.history.length !== previous.history.length + 1) throw new Error('Callback mutated protected history length');
+  if (stableHash128(staged.history.slice(0, -1)) !== stableHash128(previous.history)) {
+    throw new Error('Callback mutated protected historical transition entries');
+  }
   const last = staged.history[staged.history.length - 1];
   if (!last
     || last.from !== previous.currentState
@@ -682,7 +695,7 @@ function assertCanonicalJson(value: unknown, path: string, seen = new Set<object
   seen.add(value as object);
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertCanonicalJson(item, `${path}[${index}]`, seen));
-    seen.delete(value);
+    seen.delete(value as object);
     return;
   }
   const prototype = Object.getPrototypeOf(value);
