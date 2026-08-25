@@ -20,6 +20,11 @@ export interface AuthorityAgenticWriteOptions {
   expectedProjectionVersion?: number;
 }
 
+export interface AuthorityAgenticReadOptions {
+  knownAt?: string;
+  maxSensitivity?: AgenticSensitivity;
+}
+
 export interface AuthorityAgenticResourceInput {
   identity: CanonicalIdentityInput;
   type: AgenticResourceType;
@@ -31,7 +36,7 @@ export interface AuthorityAgenticResourceInput {
   validFrom?: string;
   validUntil?: string | null;
   observedAt?: string;
-  /** Required source/system time. Never inferred from the wall clock. */
+  /** Required source/system time. Never inferred from wall clock. */
   recordedAt: string;
   metadata?: Record<string, unknown>;
 }
@@ -134,21 +139,36 @@ export interface AuthorityAgenticSnapshot {
   projectionHash: string;
 }
 
+interface NormalizedResourceInput {
+  identity: CanonicalIdentityInput;
+  type: AgenticResourceType;
+  title: string;
+  projectId?: string;
+  status: string;
+  sensitivity: AgenticSensitivity;
+  provenanceRef: string;
+  validFrom?: string;
+  validUntil?: string | null;
+  observedAt?: string;
+  recordedAt: string;
+  metadata: Record<string, unknown>;
+}
+
 /**
- * Append-only, revisioned authority registry for AGENTIC_SYSTEMS_OS topology.
+ * Append-only revisioned authority projection for AGENTIC_SYSTEMS_OS topology.
  *
- * The legacy `AgenticResourceRegistry` remains a shadow compatibility surface.
- * This class owns authority semantics:
+ * `AgenticResourceRegistry` remains the legacy/shadow compatibility API. This
+ * class is the only authority candidate and enforces:
  *
- * - canonical resource identity and immutable type/project scope;
- * - explicit source timestamps; no implicit `new Date()` in authority writes;
- * - expected resource/relation revision plus optional projection CAS;
+ * - canonical identity plus immutable resource type/project scope;
+ * - explicit source timestamps, never implicit wall-clock writes;
+ * - expected object revision and optional whole-projection CAS;
  * - append-only transaction-time revisions (`systemFrom/systemUntil`);
- * - deep-copy, JSON-like metadata isolation;
- * - relation sensitivity cannot be lower than either endpoint;
- * - deterministic parallel relation identity via `identityKey`;
- * - project/sensitivity/domain-time/system-time filtering before traversal;
- * - deterministic projection hashes and invariant validation.
+ * - deep-copy JSON-like metadata;
+ * - no relation sensitivity below either endpoint;
+ * - deterministic parallel relation identity through `identityKey`;
+ * - project/sensitivity/valid-time/known-time filtering before traversal;
+ * - deterministic full snapshots independent of current wall-clock time.
  */
 export class AuthorityAgenticRegistry {
   private projectionVersionValue = 0;
@@ -202,7 +222,7 @@ export class AuthorityAgenticRegistry {
       systemUntil: null,
       metadata: cloneJson(normalized.metadata),
     };
-    const resource: AuthorityAgenticResource = { ...base, contentHash: resourceHash(base) };
+    const resource = sealResource(base);
     this.currentResources.set(resource.id, resource);
     this.resourceHistories.set(resource.id, [resource]);
     this.uriToId.set(resource.canonicalUri, resource.id);
@@ -225,15 +245,18 @@ export class AuthorityAgenticRegistry {
     const recordedAt = canonicalTime(update.recordedAt, 'resource recordedAt');
     assertNextSystemTime(current.systemFrom, recordedAt, `resource ${current.id}`);
 
+    const currentBase = withoutResourceHash(current);
     const nextBase: Omit<AuthorityAgenticResource, 'contentHash'> = {
-      ...current,
+      ...currentBase,
       title: update.title === undefined ? current.title : nonEmpty(update.title, 'resource title'),
       status: update.status === undefined ? current.status : nonEmpty(update.status, 'resource status'),
       sensitivity: update.sensitivity ?? current.sensitivity,
       provenanceRef: update.provenanceRef === undefined
         ? current.provenanceRef
         : nonEmpty(update.provenanceRef, 'resource provenanceRef'),
-      validFrom: update.validFrom === undefined ? current.validFrom : canonicalOptionalTime(update.validFrom, 'resource validFrom'),
+      validFrom: update.validFrom === undefined
+        ? current.validFrom
+        : canonicalOptionalTime(update.validFrom, 'resource validFrom'),
       validUntil: Object.prototype.hasOwnProperty.call(update, 'validUntil')
         ? canonicalNullableTime(update.validUntil, 'resource validUntil')
         : current.validUntil,
@@ -246,7 +269,9 @@ export class AuthorityAgenticRegistry {
       metadata: update.metadata === undefined ? cloneJson(current.metadata) : canonicalMetadata(update.metadata),
     };
     validateTemporal(nextBase.validFrom, nextBase.validUntil, nextBase.observedAt, nextBase.systemFrom);
-    const next: AuthorityAgenticResource = { ...nextBase, contentHash: resourceHash(nextBase) };
+    this.assertIncidentRelationSensitivity(current.id, nextBase.sensitivity);
+
+    const next = sealResource(nextBase);
     this.closeResourceRevision(current, recordedAt);
     this.resourceHistories.get(current.id)!.push(next);
     this.currentResources.set(current.id, next);
@@ -254,18 +279,23 @@ export class AuthorityAgenticRegistry {
     return cloneResource(next);
   }
 
-  getResource(idOrUri: string, knownAt?: string): AuthorityAgenticResource | null {
+  getResource(idOrUri: string, options: AuthorityAgenticReadOptions = {}): AuthorityAgenticResource | null {
     const id = this.currentResources.has(idOrUri) ? idOrUri : this.uriToId.get(idOrUri);
     if (!id) return null;
-    const revision = knownAt
-      ? revisionAt(this.resourceHistories.get(id) || [], canonicalInstant(knownAt, 'knownAt'))
+    const revision = options.knownAt
+      ? revisionAt(this.resourceHistories.get(id) || [], canonicalInstant(options.knownAt, 'knownAt'))
       : this.currentResources.get(id);
-    return revision ? cloneResource(revision) : null;
+    if (!revision || !isReadable(revision.sensitivity, options.maxSensitivity ?? 'internal')) return null;
+    return cloneResource(revision);
   }
 
-  getResourceHistory(idOrUri: string): AuthorityAgenticResource[] {
+  getResourceHistory(idOrUri: string, maxSensitivity: AgenticSensitivity = 'internal'): AuthorityAgenticResource[] {
     const id = this.currentResources.has(idOrUri) ? idOrUri : this.uriToId.get(idOrUri);
-    return id ? (this.resourceHistories.get(id) || []).map(cloneResource) : [];
+    return id
+      ? (this.resourceHistories.get(id) || [])
+          .filter(resource => isReadable(resource.sensitivity, maxSensitivity))
+          .map(cloneResource)
+      : [];
   }
 
   addRelation(
@@ -290,8 +320,7 @@ export class AuthorityAgenticRegistry {
     const validFrom = canonicalOptionalTime(input.validFrom, 'relation validFrom');
     const validUntil = canonicalNullableTime(input.validUntil, 'relation validUntil');
     validateTemporal(validFrom, validUntil, undefined, recordedAt);
-    const identityKey = (input.identityKey ?? 'default').trim();
-    if (!identityKey) throw new Error('relation identityKey must not be empty');
+    const identityKey = nonEmpty(input.identityKey ?? 'default', 'relation identityKey');
     const metadata = canonicalMetadata(input.metadata || {});
     const id = `arel_${stableHash128({
       type: input.type,
@@ -306,7 +335,7 @@ export class AuthorityAgenticRegistry {
     const existing = this.currentRelations.get(id);
     if (existing) {
       const first = this.relationHistories.get(id)?.[0];
-      if (!first || relationCreateHash(first) !== relationInputHash({
+      const incomingHash = relationInputHash({
         id,
         identityKey,
         type: input.type,
@@ -320,7 +349,8 @@ export class AuthorityAgenticRegistry {
         validUntil,
         systemFrom: recordedAt,
         metadata,
-      })) {
+      });
+      if (!first || relationCreateHash(first) !== incomingHash) {
         throw new Error(`AGENTIC_RELATION_CREATE_CONFLICT id=${id}`);
       }
       return cloneRelation(existing);
@@ -343,7 +373,7 @@ export class AuthorityAgenticRegistry {
       systemUntil: null,
       metadata,
     };
-    const relation: AuthorityAgenticRelation = { ...base, contentHash: relationHash(base) };
+    const relation = sealRelation(base);
     this.currentRelations.set(id, relation);
     this.relationHistories.set(id, [relation]);
     indexAdd(this.outgoing, relation.from, id);
@@ -364,8 +394,9 @@ export class AuthorityAgenticRegistry {
     assertExpectedRevision('relation', id, expectedRevision, current.revision);
     const recordedAt = canonicalTime(update.recordedAt, 'relation recordedAt');
     assertNextSystemTime(current.systemFrom, recordedAt, `relation ${id}`);
-    const source = this.currentResources.get(current.from)!;
-    const target = this.currentResources.get(current.to)!;
+    const source = this.currentResources.get(current.from);
+    const target = this.currentResources.get(current.to);
+    if (!source || !target) throw new Error(`DANGLING_AUTHORITY_RELATION id=${id}`);
     const minimumSensitivity = maxSensitivity(source.sensitivity, target.sensitivity);
     const sensitivity = update.sensitivity ?? current.sensitivity;
     if (SENSITIVITY_ORDER[sensitivity] < SENSITIVITY_ORDER[minimumSensitivity]) {
@@ -378,8 +409,9 @@ export class AuthorityAgenticRegistry {
       : current.validUntil;
     validateTemporal(current.validFrom, validUntil, undefined, recordedAt);
 
+    const currentBase = withoutRelationHash(current);
     const nextBase: Omit<AuthorityAgenticRelation, 'contentHash'> = {
-      ...current,
+      ...currentBase,
       confidence,
       sensitivity,
       validUntil,
@@ -388,7 +420,7 @@ export class AuthorityAgenticRegistry {
       systemUntil: null,
       metadata: update.metadata === undefined ? cloneJson(current.metadata) : canonicalMetadata(update.metadata),
     };
-    const next: AuthorityAgenticRelation = { ...nextBase, contentHash: relationHash(nextBase) };
+    const next = sealRelation(nextBase);
     this.closeRelationRevision(current, recordedAt);
     this.relationHistories.get(id)!.push(next);
     this.currentRelations.set(id, next);
@@ -396,21 +428,24 @@ export class AuthorityAgenticRegistry {
     return cloneRelation(next);
   }
 
-  getRelation(id: string, knownAt?: string): AuthorityAgenticRelation | null {
-    const revision = knownAt
-      ? revisionAt(this.relationHistories.get(id) || [], canonicalInstant(knownAt, 'knownAt'))
+  getRelation(id: string, options: AuthorityAgenticReadOptions = {}): AuthorityAgenticRelation | null {
+    const revision = options.knownAt
+      ? revisionAt(this.relationHistories.get(id) || [], canonicalInstant(options.knownAt, 'knownAt'))
       : this.currentRelations.get(id);
-    return revision ? cloneRelation(revision) : null;
+    if (!revision || !isReadable(revision.sensitivity, options.maxSensitivity ?? 'internal')) return null;
+    return cloneRelation(revision);
   }
 
-  getRelationHistory(id: string): AuthorityAgenticRelation[] {
-    return (this.relationHistories.get(id) || []).map(cloneRelation);
+  getRelationHistory(id: string, maxSensitivity: AgenticSensitivity = 'internal'): AuthorityAgenticRelation[] {
+    return (this.relationHistories.get(id) || [])
+      .filter(relation => isReadable(relation.sensitivity, maxSensitivity))
+      .map(cloneRelation);
   }
 
   listResources(scope: AuthorityAgenticScope = {}): AuthorityAgenticResource[] {
     const asOf = scope.asOf ? canonicalInstant(scope.asOf, 'asOf') : Date.now();
     const knownAt = scope.knownAt ? canonicalInstant(scope.knownAt, 'knownAt') : null;
-    const maxSensitivity = SENSITIVITY_ORDER[scope.maxSensitivity ?? 'internal'];
+    const maxSensitivity = scope.maxSensitivity ?? 'internal';
     const ids = scope.projectId
       ? this.projectResourceIds(scope.projectId, scope.includeGlobal ?? false)
       : Array.from(this.currentResources.keys());
@@ -419,7 +454,7 @@ export class AuthorityAgenticRegistry {
         ? this.currentResources.get(id)
         : revisionAt(this.resourceHistories.get(id) || [], knownAt))
       .filter((resource): resource is AuthorityAgenticResource => Boolean(resource))
-      .filter(resource => SENSITIVITY_ORDER[resource.sensitivity] <= maxSensitivity)
+      .filter(resource => isReadable(resource.sensitivity, maxSensitivity))
       .filter(resource => domainVisible(resource, asOf))
       .map(cloneResource)
       .sort((a, b) => a.id.localeCompare(b.id));
@@ -428,15 +463,17 @@ export class AuthorityAgenticRegistry {
   listRelations(scope: AuthorityAgenticScope = {}): AuthorityAgenticRelation[] {
     const asOf = scope.asOf ? canonicalInstant(scope.asOf, 'asOf') : Date.now();
     const knownAt = scope.knownAt ? canonicalInstant(scope.knownAt, 'knownAt') : null;
-    const maxSensitivity = SENSITIVITY_ORDER[scope.maxSensitivity ?? 'internal'];
+    const maxSensitivity = scope.maxSensitivity ?? 'internal';
+    const visibleResources = new Set(this.listResources(scope).map(resource => resource.id));
     return Array.from(this.currentRelations.keys())
       .map(id => knownAt === null
         ? this.currentRelations.get(id)
         : revisionAt(this.relationHistories.get(id) || [], knownAt))
       .filter((relation): relation is AuthorityAgenticRelation => Boolean(relation))
       .filter(relation => relationScopeMatches(relation, scope))
-      .filter(relation => SENSITIVITY_ORDER[relation.sensitivity] <= maxSensitivity)
+      .filter(relation => isReadable(relation.sensitivity, maxSensitivity))
       .filter(relation => domainVisible(relation, asOf))
+      .filter(relation => visibleResources.has(relation.from) && visibleResources.has(relation.to))
       .map(cloneRelation)
       .sort((a, b) => a.id.localeCompare(b.id));
   }
@@ -447,9 +484,11 @@ export class AuthorityAgenticRegistry {
     scope: AuthorityAgenticScope = {},
     relationTypes?: AgenticRelationType[],
   ): AuthorityAgenticNeighborhood {
-    if (!Number.isSafeInteger(depth) || depth < 0 || depth > 5) throw new Error('Authority neighborhood depth must be in [0,5]');
-    const start = this.getResource(startIdOrUri, scope.knownAt);
-    if (!start) throw new Error(`Authority agentic resource ${startIdOrUri} not found`);
+    if (!Number.isSafeInteger(depth) || depth < 0 || depth > 5) {
+      throw new Error('Authority neighborhood depth must be a safe integer in [0,5]');
+    }
+    const start = this.resolveResourceForScope(startIdOrUri, scope);
+    if (!start) return { resources: [], relations: [] };
     const visibleResources = new Map(this.listResources(scope).map(resource => [resource.id, resource]));
     if (!visibleResources.has(start.id)) return { resources: [], relations: [] };
     const visibleRelations = new Map(this.listRelations(scope).map(relation => [relation.id, relation]));
@@ -487,17 +526,26 @@ export class AuthorityAgenticRegistry {
     };
   }
 
+  /**
+   * Full hash is wall-clock independent. Scoped hashes require explicit domain
+   * and knowledge timestamps so the same query always hashes the same view.
+   */
   projectionHash(scope: AuthorityAgenticScope = {}): string {
+    if (Object.keys(scope).length === 0) return this.snapshot().projectionHash;
+    if (!scope.asOf || !scope.knownAt) {
+      throw new Error('Scoped projectionHash requires explicit asOf and knownAt timestamps');
+    }
     return stableHash128({
       projectionVersion: this.projectionVersionValue,
+      scope: canonicalScope(scope),
       resources: this.listResources(scope),
       relations: this.listRelations(scope),
     });
   }
 
   snapshot(): AuthorityAgenticSnapshot {
-    const resources = this.listResources({ maxSensitivity: 'restricted' });
-    const relations = this.listRelations({ maxSensitivity: 'restricted' });
+    const resources = this.fullCurrentResources();
+    const relations = this.fullCurrentRelations();
     const base = {
       schemaVersion: 1 as const,
       projectionVersion: this.projectionVersionValue,
@@ -510,24 +558,25 @@ export class AuthorityAgenticRegistry {
   validate(): string[] {
     const errors: string[] = [];
     for (const [id, history] of this.resourceHistories) {
-      validateHistory(history, `resource ${id}`, errors);
+      validateHistory(history, `resource ${id}`, resource => resourceHash(withoutResourceHash(resource)), errors);
       const current = this.currentResources.get(id);
       if (!current || current.systemUntil !== null) errors.push(`Current resource ${id} is missing or closed`);
-      if (current && current.contentHash !== resourceHash(withoutResourceHash(current))) {
-        errors.push(`Resource content hash mismatch: ${id}`);
-      }
       if (current && this.uriToId.get(current.canonicalUri) !== id) errors.push(`Resource URI index mismatch: ${id}`);
+      if (current && !this.byType.get(current.type)?.has(id)) errors.push(`Resource type index mismatch: ${id}`);
+      if (current?.projectId && !this.byProject.get(current.projectId)?.has(id)) errors.push(`Resource project index mismatch: ${id}`);
+      if (current && !current.projectId && !this.globalResources.has(id)) errors.push(`Global resource index mismatch: ${id}`);
     }
     for (const [id, history] of this.relationHistories) {
-      validateHistory(history, `relation ${id}`, errors);
+      validateHistory(history, `relation ${id}`, relation => relationHash(withoutRelationHash(relation)), errors);
       const current = this.currentRelations.get(id);
       if (!current || current.systemUntil !== null) errors.push(`Current relation ${id} is missing or closed`);
       if (!current) continue;
-      if (!this.currentResources.has(current.from)) errors.push(`Dangling relation source ${id}: ${current.from}`);
-      if (!this.currentResources.has(current.to)) errors.push(`Dangling relation target ${id}: ${current.to}`);
-      if (current.contentHash !== relationHash(withoutRelationHash(current))) errors.push(`Relation content hash mismatch: ${id}`);
       const source = this.currentResources.get(current.from);
       const target = this.currentResources.get(current.to);
+      if (!source) errors.push(`Dangling relation source ${id}: ${current.from}`);
+      if (!target) errors.push(`Dangling relation target ${id}: ${current.to}`);
+      if (!this.outgoing.get(current.from)?.has(id)) errors.push(`Outgoing relation index mismatch: ${id}`);
+      if (!this.incoming.get(current.to)?.has(id)) errors.push(`Incoming relation index mismatch: ${id}`);
       if (source && target) {
         const minimum = maxSensitivity(source.sensitivity, target.sensitivity);
         if (SENSITIVITY_ORDER[current.sensitivity] < SENSITIVITY_ORDER[minimum]) {
@@ -536,6 +585,20 @@ export class AuthorityAgenticRegistry {
       }
     }
     return errors.sort();
+  }
+
+  private resolveResourceForScope(idOrUri: string, scope: AuthorityAgenticScope): AuthorityAgenticResource | null {
+    const id = this.currentResources.has(idOrUri) ? idOrUri : this.uriToId.get(idOrUri);
+    if (!id) return null;
+    const knownAt = scope.knownAt ? canonicalInstant(scope.knownAt, 'knownAt') : null;
+    const resource = knownAt === null
+      ? this.currentResources.get(id)
+      : revisionAt(this.resourceHistories.get(id) || [], knownAt);
+    if (!resource) return null;
+    const asOf = scope.asOf ? canonicalInstant(scope.asOf, 'asOf') : Date.now();
+    if (!resourceScopeMatches(resource, scope) || !domainVisible(resource, asOf)) return null;
+    if (!isReadable(resource.sensitivity, scope.maxSensitivity ?? 'internal')) return null;
+    return cloneResource(resource);
   }
 
   private requireCurrentResource(idOrUri: string): AuthorityAgenticResource {
@@ -552,46 +615,61 @@ export class AuthorityAgenticRegistry {
     return Array.from(ids);
   }
 
+  private fullCurrentResources(): AuthorityAgenticResource[] {
+    return Array.from(this.currentResources.values(), cloneResource).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  private fullCurrentRelations(): AuthorityAgenticRelation[] {
+    return Array.from(this.currentRelations.values(), cloneRelation).sort((a, b) => a.id.localeCompare(b.id));
+  }
+
   private closeResourceRevision(current: AuthorityAgenticResource, systemUntil: string): void {
     const history = this.resourceHistories.get(current.id)!;
     const closedBase: Omit<AuthorityAgenticResource, 'contentHash'> = {
-      ...current,
+      ...withoutResourceHash(current),
       systemUntil,
       metadata: cloneJson(current.metadata),
     };
-    history[history.length - 1] = { ...closedBase, contentHash: resourceHash(closedBase) };
+    history[history.length - 1] = sealResource(closedBase);
   }
 
   private closeRelationRevision(current: AuthorityAgenticRelation, systemUntil: string): void {
     const history = this.relationHistories.get(current.id)!;
     const closedBase: Omit<AuthorityAgenticRelation, 'contentHash'> = {
-      ...current,
+      ...withoutRelationHash(current),
       systemUntil,
       metadata: cloneJson(current.metadata),
     };
-    history[history.length - 1] = { ...closedBase, contentHash: relationHash(closedBase) };
+    history[history.length - 1] = sealRelation(closedBase);
+  }
+
+  private assertIncidentRelationSensitivity(resourceId: string, nextSensitivity: AgenticSensitivity): void {
+    const relationIds = new Set([
+      ...(this.outgoing.get(resourceId) || []),
+      ...(this.incoming.get(resourceId) || []),
+    ]);
+    for (const id of relationIds) {
+      const relation = this.currentRelations.get(id);
+      if (!relation) continue;
+      const otherId = relation.from === resourceId ? relation.to : relation.from;
+      const other = this.currentResources.get(otherId);
+      if (!other) throw new Error(`DANGLING_AUTHORITY_RELATION id=${id}`);
+      const required = maxSensitivity(nextSensitivity, other.sensitivity);
+      if (SENSITIVITY_ORDER[relation.sensitivity] < SENSITIVITY_ORDER[required]) {
+        throw new Error(`RELATION_RECLASSIFICATION_REQUIRED relation=${id} required=${required}`);
+      }
+    }
   }
 
   private assertProjectionVersion(expected?: number): void {
     if (expected === undefined) return;
-    if (!Number.isSafeInteger(expected) || expected < 0) throw new Error('expectedProjectionVersion must be a non-negative safe integer');
+    if (!Number.isSafeInteger(expected) || expected < 0) {
+      throw new Error('expectedProjectionVersion must be a non-negative safe integer');
+    }
     if (expected !== this.projectionVersionValue) {
       throw new Error(`STALE_AGENTIC_PROJECTION expected=${expected} current=${this.projectionVersionValue}`);
     }
   }
-}
-
-interface NormalizedResourceInput extends Omit<AuthorityAgenticResourceInput, 'title' | 'projectId' | 'status' | 'sensitivity' | 'provenanceRef' | 'validFrom' | 'validUntil' | 'observedAt' | 'recordedAt' | 'metadata'> {
-  title: string;
-  projectId?: string;
-  status: string;
-  sensitivity: AgenticSensitivity;
-  provenanceRef: string;
-  validFrom?: string;
-  validUntil?: string | null;
-  observedAt?: string;
-  recordedAt: string;
-  metadata: Record<string, unknown>;
 }
 
 function normalizeResourceInput(input: AuthorityAgenticResourceInput): NormalizedResourceInput {
@@ -616,7 +694,7 @@ function normalizeResourceInput(input: AuthorityAgenticResourceInput): Normalize
 function deriveRelationProjectId(explicit: string | undefined, source?: string, target?: string): string | undefined {
   const normalizedExplicit = normalizeOptionalString(explicit);
   if (source && target && source !== target) {
-    throw new Error(`CROSS_PROJECT_RELATION_REQUIRES_SEPARATE_GOVERNED_BRIDGE source=${source} target=${target}`);
+    throw new Error(`CROSS_PROJECT_RELATION_REQUIRES_GOVERNED_BRIDGE source=${source} target=${target}`);
   }
   const derived = source || target;
   if (normalizedExplicit && derived && normalizedExplicit !== derived) {
@@ -633,17 +711,18 @@ function revisionAt<T extends { systemFrom: string; systemUntil: string | null }
   });
 }
 
-function validateHistory<T extends { revision: number; systemFrom: string; systemUntil: string | null }>(
+function validateHistory<T extends { revision: number; systemFrom: string; systemUntil: string | null; contentHash: string }>(
   history: T[],
   label: string,
+  expectedHash: (revision: T) => string,
   errors: string[],
 ): void {
   if (history.length === 0) { errors.push(`${label} has no revisions`); return; }
   for (let index = 0; index < history.length; index += 1) {
     const revision = history[index];
     if (revision.revision !== index + 1) errors.push(`${label} revision sequence mismatch at ${index}`);
-    const from = Date.parse(revision.systemFrom);
-    if (!Number.isFinite(from)) errors.push(`${label} has invalid systemFrom at revision ${revision.revision}`);
+    if (!Number.isFinite(Date.parse(revision.systemFrom))) errors.push(`${label} has invalid systemFrom at revision ${revision.revision}`);
+    if (revision.contentHash !== expectedHash(revision)) errors.push(`${label} content hash mismatch at revision ${revision.revision}`);
     if (index < history.length - 1) {
       const next = history[index + 1];
       if (revision.systemUntil !== next.systemFrom) errors.push(`${label} system-time interval gap/overlap at revision ${revision.revision}`);
@@ -704,7 +783,12 @@ function relationInputHash(input: {
   systemFrom: string;
   metadata: Record<string, unknown>;
 }): string {
-  return stableHash128({ ...input, projectId: input.projectId || null, validFrom: input.validFrom || null, validUntil: input.validUntil ?? null });
+  return stableHash128({
+    ...input,
+    projectId: input.projectId || null,
+    validFrom: input.validFrom || null,
+    validUntil: input.validUntil ?? null,
+  });
 }
 
 function relationCreateHash(relation: AuthorityAgenticRelation): string {
@@ -725,29 +809,47 @@ function relationCreateHash(relation: AuthorityAgenticRelation): string {
   });
 }
 
+function sealResource(base: Omit<AuthorityAgenticResource, 'contentHash'>): AuthorityAgenticResource {
+  return { ...base, metadata: cloneJson(base.metadata), contentHash: resourceHash(base) };
+}
+function sealRelation(base: Omit<AuthorityAgenticRelation, 'contentHash'>): AuthorityAgenticRelation {
+  return { ...base, metadata: cloneJson(base.metadata), contentHash: relationHash(base) };
+}
 function resourceHash(resource: Omit<AuthorityAgenticResource, 'contentHash'>): string { return stableHash128(resource); }
 function relationHash(relation: Omit<AuthorityAgenticRelation, 'contentHash'>): string { return stableHash128(relation); }
 function withoutResourceHash(resource: AuthorityAgenticResource): Omit<AuthorityAgenticResource, 'contentHash'> {
   const { contentHash: _contentHash, ...rest } = resource;
-  return rest;
+  return { ...rest, metadata: cloneJson(rest.metadata) };
 }
 function withoutRelationHash(relation: AuthorityAgenticRelation): Omit<AuthorityAgenticRelation, 'contentHash'> {
   const { contentHash: _contentHash, ...rest } = relation;
-  return rest;
+  return { ...rest, metadata: cloneJson(rest.metadata) };
 }
 
+function canonicalScope(scope: AuthorityAgenticScope): Record<string, unknown> {
+  return {
+    projectId: normalizeOptionalString(scope.projectId) || null,
+    includeGlobal: Boolean(scope.includeGlobal),
+    maxSensitivity: scope.maxSensitivity ?? 'internal',
+    asOf: canonicalTime(scope.asOf!, 'scope asOf'),
+    knownAt: canonicalTime(scope.knownAt!, 'scope knownAt'),
+  };
+}
+function resourceScopeMatches(resource: AuthorityAgenticResource, scope: AuthorityAgenticScope): boolean {
+  if (!scope.projectId) return true;
+  if (resource.projectId === scope.projectId) return true;
+  return Boolean(scope.includeGlobal && resource.projectId === undefined);
+}
 function relationScopeMatches(relation: AuthorityAgenticRelation, scope: AuthorityAgenticScope): boolean {
   if (!scope.projectId) return true;
   if (relation.projectId === scope.projectId) return true;
   return Boolean(scope.includeGlobal && relation.projectId === undefined);
 }
-
 function domainVisible(value: { validFrom?: string; validUntil?: string | null }, asOf: number): boolean {
   if (value.validFrom && Date.parse(value.validFrom) > asOf) return false;
   if (value.validUntil && Date.parse(value.validUntil) <= asOf) return false;
   return true;
 }
-
 function validateTemporal(validFrom?: string, validUntil?: string | null, observedAt?: string, recordedAt?: string): void {
   if (validFrom && validUntil && Date.parse(validUntil) <= Date.parse(validFrom)) {
     throw new Error('validUntil must be strictly after validFrom');
@@ -768,7 +870,6 @@ function cloneResource(resource: AuthorityAgenticResource): AuthorityAgenticReso
 function cloneRelation(relation: AuthorityAgenticRelation): AuthorityAgenticRelation {
   return { ...relation, metadata: cloneJson(relation.metadata) };
 }
-
 function indexAdd<K>(index: Map<K, Set<string>>, key: K, id: string): void {
   let bucket = index.get(key);
   if (!bucket) { bucket = new Set<string>(); index.set(key, bucket); }
@@ -794,6 +895,9 @@ function assertExpectedRevision(kind: string, id: string, expected: number, curr
 }
 function maxSensitivity(left: AgenticSensitivity, right: AgenticSensitivity): AgenticSensitivity {
   return SENSITIVITY_ORDER[left] >= SENSITIVITY_ORDER[right] ? left : right;
+}
+function isReadable(value: AgenticSensitivity, maximum: AgenticSensitivity): boolean {
+  return SENSITIVITY_ORDER[value] <= SENSITIVITY_ORDER[maximum];
 }
 
 function assertCanonicalJson(value: unknown, path: string, seen = new Set<object>()): void {
