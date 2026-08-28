@@ -2,20 +2,13 @@
 
 ## Recovery point
 
-Phase 01 and Phase 02 are statically complete. COS remains `SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`.
+Phases 01–03 are statically complete. COS remains `SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`.
 
-### Phase 01
+### Frozen checkpoints
 
-- checkpoint: `checkpoint/phase-01-reconciled-76dfdc7`
-- exact SHA: `76dfdc737c231b2637f122125f7acf98b735ff1f`
-- PR #40
-
-### Phase 02
-
-- checkpoint: `checkpoint/phase-02-contracts-06487e7`
-- exact SHA: `06487e7acbce82c5a54dbb8dd171dceae2bb67ac`
-- PR #43
-- closure: `docs/hardening/PHASE_02_CLOSURE.md`
+- Phase 01: `checkpoint/phase-01-reconciled-76dfdc7` → `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
+- Phase 02: `checkpoint/phase-02-contracts-06487e7` → `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
+- Phase 03: `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44
 
 Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #37 remains draft/rework.
 
@@ -31,105 +24,100 @@ No merge, automatic Action, deployment or production data mutation has occurred.
 6. `GRAPH.md`
 7. `docs/hardening/PHASE_01_CLOSURE.md`
 8. `docs/hardening/PHASE_02_CLOSURE.md`
-9. `docs/hardening/ADR_INDEX.md`
-10. `docs/hardening/COMPATIBILITY_MATRIX.md`
-11. `docs/hardening/ROLLBACK_MAP.md`
-12. `docs/hardening/TEST_EVIDENCE_MANIFEST.json`
-13. `docs/hardening/DELETION_GOVERNANCE.json`
-14. `AGENTS.md`
+9. `docs/hardening/PHASE_03_CLOSURE.md`
+10. `docs/hardening/ADR_INDEX.md`
+11. `docs/hardening/COMPATIBILITY_MATRIX.md`
+12. `docs/hardening/ROLLBACK_MAP.md`
+13. `docs/hardening/ROLLBACK_MAP_PHASE03.md`
+14. `docs/hardening/TEST_EVIDENCE_MANIFEST.json`
+15. `docs/hardening/DELETION_GOVERNANCE.json`
+16. `AGENTS.md`
 
-## Normative Phase 02 laws now in force
+## Phase 03 completed-static guarantees
 
-- one authority write owner per domain;
-- append-only valid/system-time authority history;
-- replay recorded outcomes, never re-decide historical commands;
-- no exactly-once external side-effect claim before durable operation-ledger/fencing protocol;
-- legacy test evidence immutable by default; authority tests additive;
-- material >50-line deletion requires governance entry;
-- manual CI changes cost/invocation, not verification breadth;
-- public deprecation is staged;
-- migration adapters must be read-only or forward directly into the single authority owner.
+- CAS/idempotency values no longer leak mutable nested references;
+- PropertyGraph storage/reads/queries/traversals are detached and indices follow mutations;
+- traversal has explicit depth/direction/path invariants;
+- strict `canonicalSerialize/canonicalHash128` exists for authority data while legacy hash remains compatibility-only;
+- SHA-256 integrity hashes strict canonical payloads;
+- canonical identity uses NFC/provider-aware normalization and detached registry reads;
+- BidirectionalCSRGraph is the single authority CSR candidate with deterministic multiedge identity, forward/reverse CSR and deterministic projection hashes;
+- additive authority contracts exist for all above guarantees.
 
-Executable Phase 02 gates exist but remain unexecuted:
+Everything remains unexecuted. Assurance did not move.
 
-```text
-npm run check:legacy-evidence
-npm run check:deletion-governance
-npm run check:phase02-governance
-```
+## Current phase — Phase 04 Temporal / Event / Persistence
 
-## Current next phase — Phase 03 Core Correctness
+Create exactly one descendant branch:
 
-Create one branch only:
+`hardening/phase-04-temporal-event-persistence`
 
-`hardening/phase-03-core-correctness`
-
-from the Phase 02 closure head after STATE/TASKS/HANDOFF synchronization.
+from the synchronized Phase 03 closure head.
 
 ### Exact implementation order
 
-1. CAS deep safety
-   - inspect `packages/runtime/src/concurrency.ts`;
-   - prevent nested mutation through reads/snapshots;
-   - reject unsupported authority CAS values;
-   - add additive adversarial contract.
-2. PropertyGraph read/mutation isolation
-   - detached nodes/edges/query/traversal;
-   - atomic secondary-index maintenance.
-3. Traversal semantics
-   - depth validation;
-   - directed-edge behavior;
-   - node/edge path consistency.
-4. Identity serialization domain
-   - reject unsupported JS objects/cycles/non-finite values;
-   - deterministic plain-data semantics.
-5. Unicode/provider identity normalization
-   - explicit normalization profiles;
-   - alias parity.
-6. Authority CSR
-   - multiedges;
-   - forward+reverse CSR;
-   - deterministic hash/invariants;
-   - no hot-loop queue.shift().
+1. EventLog semantic parity
+   - inspect `packages/runtime/src/event-log.ts` and `postgres-event-log.ts`;
+   - define one logical-event equality/canonicalization function;
+   - make in-memory and Postgres idempotency behavior identical;
+   - detach stored/read values;
+   - add adapter-parity contract.
+2. Strict persisted payloads
+   - find `sha256Hex`/snapshot callers;
+   - remove explicit undefined/non-canonical data from signed payloads;
+   - version serialization/algorithm where needed;
+   - normalize DB timestamp/JSON round trips.
+3. KnowledgeGraph transaction/saga
+   - inspect L8 KnowledgeGraph mutation sequences;
+   - prevent partial statement/relation commits;
+   - preserve supersession/retraction provenance;
+   - add failure-injection contract.
+4. Temporal semantics
+   - add append-only system-time revisions for authority knowledge;
+   - enforce `asOf` + `knownAt` truth without future leakage.
+5. Durable adapter fixtures
+   - fake driver-neutral Postgres executor;
+   - verify adapter semantic parity without any real DB.
+6. Replay/restore
+   - corrupted snapshot/schema mismatch/empty projection/tail replay/deterministic hash contracts.
 
-## Phase 03 change gates
+## Strict-canonicalization warning
+
+`sha256Hex` now rejects explicit `undefined` and non-canonical objects. Persisted/signed payloads must be canonicalized or schema-versioned; do not weaken the serializer to make old payloads pass.
+
+## Change gates
 
 Before every material diff:
 
 ```text
 legacy test touched? → waiver + ADR required
->50 deletions in file? → DELETION_GOVERNANCE entry required
+>50 deletions/file? → DELETION_GOVERNANCE entry required
 public behavior changed? → compatibility + rollback update
-new alternate writer? → prohibited
+new alternate authority writer? → prohibited
 ```
-
-Authority tests must be additive.
 
 ## Branch law
 
 ```text
-Phase 01
-  └─ Phase 02
-       └─ Phase 03
-            └─ Phase 04
-                 └─ Phase 05
-                      └─ Phase 06
-                           └─ Phase 07
-                                └─ exact qualification SHA
-                                     └─ new W13
+Phase01 → Phase02 → Phase03 → Phase04 → Phase05 → Phase06 → Phase07
+                                                      ↓
+                                          exact qualification SHA
+                                                      ↓
+                                                   new W13
 ```
 
-No sibling authority line.
+No sibling authority branch.
 
 ## Cost / verification
 
-- recurring incremental cost: €0/month;
-- Actions manual-only;
+- recurring incremental cost €0/month;
+- GitHub Actions manual-only;
 - CD/deploy/release OFF;
 - no Assurance promotion without executed evidence.
 
 ## Rollback
 
-- Phase 02: `checkpoint/phase-02-contracts-06487e7`
-- Phase 01: `checkpoint/phase-01-reconciled-76dfdc7`
+- Phase03: `checkpoint/phase-03-core-ad6a93c`
+- Phase02: `checkpoint/phase-02-contracts-06487e7`
+- Phase01: `checkpoint/phase-01-reconciled-76dfdc7`
 - pre-reconciliation: #33 `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`

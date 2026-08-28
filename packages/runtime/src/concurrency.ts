@@ -11,26 +11,60 @@ export interface CompareAndSwapResult<T> {
   current: VersionedValue<T>;
 }
 
+/**
+ * In-process optimistic-concurrency reference store.
+ *
+ * Canonical state is never exposed by reference: constructor/write inputs are
+ * cloned before storage and all reads/results are cloned before returning. This
+ * prevents callers from mutating nested state without advancing version/hash.
+ *
+ * Phase 03.4 further restricts the deterministic-hash value domain; this class
+ * already fails closed when structuredClone cannot detach a supplied value.
+ */
 export class VersionedStore<T> {
   private state: VersionedValue<T>;
 
   constructor(initialValue: T, initialVersion = 0) {
-    if (!Number.isInteger(initialVersion) || initialVersion < 0) throw new Error('initialVersion must be a non-negative integer');
-    this.state = { value: initialValue, version: initialVersion, contentHash: stableHash128(initialValue) };
+    if (!Number.isSafeInteger(initialVersion) || initialVersion < 0) {
+      throw new Error('initialVersion must be a non-negative safe integer');
+    }
+    const value = detach(initialValue, 'VersionedStore initial value');
+    this.state = {
+      value,
+      version: initialVersion,
+      contentHash: stableHash128(value),
+    };
   }
 
-  read(): VersionedValue<T> { return { ...this.state }; }
+  read(): VersionedValue<T> {
+    return cloneVersionedValue(this.state);
+  }
 
   compareAndSwap(expectedVersion: number, nextValue: T): CompareAndSwapResult<T> {
-    if (!Number.isInteger(expectedVersion) || expectedVersion < 0) throw new Error(`Invalid expectedVersion ${expectedVersion}`);
-    if (this.state.version !== expectedVersion) throw new Error(`STALE_VERSION expected=${expectedVersion} current=${this.state.version}`);
+    assertVersion(expectedVersion, 'expectedVersion');
+    if (this.state.version !== expectedVersion) {
+      throw new Error(`STALE_VERSION expected=${expectedVersion} current=${this.state.version}`);
+    }
     const previous = this.read();
-    this.state = { value: nextValue, version: previous.version + 1, contentHash: stableHash128(nextValue) };
+    const value = detach(nextValue, 'VersionedStore next value');
+    this.state = {
+      value,
+      version: previous.version + 1,
+      contentHash: stableHash128(value),
+    };
     return { previous, current: this.read() };
   }
 
   compareHashAndSwap(expectedVersion: number, expectedHash: string, nextValue: T): CompareAndSwapResult<T> {
-    if (this.state.contentHash !== expectedHash) throw new Error(`STALE_CONTENT expected=${expectedHash} current=${this.state.contentHash}`);
+    assertVersion(expectedVersion, 'expectedVersion');
+    const hash = expectedHash.trim();
+    if (!hash) throw new Error('expectedHash must not be empty');
+    if (this.state.version !== expectedVersion) {
+      throw new Error(`STALE_VERSION expected=${expectedVersion} current=${this.state.version}`);
+    }
+    if (this.state.contentHash !== hash) {
+      throw new Error(`STALE_CONTENT expected=${hash} current=${this.state.contentHash}`);
+    }
     return this.compareAndSwap(expectedVersion, nextValue);
   }
 }
@@ -72,7 +106,14 @@ export class InMemoryLeaseManager implements ILeaseManager {
     const fencingVersion = (this.versions.get(key) || 0) + 1;
     this.versions.set(key, fencingVersion);
     const token = `lease_${stableHash128({ key, principal, fencingVersion, nonce: ++this.tokenCounter })}`;
-    const lease: Lease = { resource: key, owner: principal, token, acquiredAt: new Date(now).toISOString(), expiresAt: new Date(now + ttl).toISOString(), fencingVersion };
+    const lease: Lease = {
+      resource: key,
+      owner: principal,
+      token,
+      acquiredAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + ttl).toISOString(),
+      fencingVersion,
+    };
     this.leases.set(key, lease);
     return { ...lease };
   }
@@ -94,7 +135,10 @@ export class InMemoryLeaseManager implements ILeaseManager {
   get(resource: string, nowMs = Date.now()): Lease | null {
     const current = this.leases.get(resource);
     if (!current) return null;
-    if (Date.parse(current.expiresAt) <= nowMs) { this.leases.delete(resource); return null; }
+    if (Date.parse(current.expiresAt) <= nowMs) {
+      this.leases.delete(resource);
+      return null;
+    }
     return { ...current };
   }
 
@@ -106,7 +150,9 @@ export class InMemoryLeaseManager implements ILeaseManager {
   }
 
   private validateTtl(ttlMs: number): number {
-    if (!Number.isFinite(ttlMs) || ttlMs <= 0 || ttlMs > 86_400_000) throw new Error(`Invalid lease TTL ${ttlMs}`);
+    if (!Number.isFinite(ttlMs) || ttlMs <= 0 || ttlMs > 86_400_000) {
+      throw new Error(`Invalid lease TTL ${ttlMs}`);
+    }
     return Math.floor(ttlMs);
   }
 }
@@ -124,6 +170,10 @@ export interface IdempotencyRecord<T = unknown> {
 }
 export interface IdempotencyClaim<T = unknown> { fresh: boolean; record: IdempotencyRecord<T>; }
 
+/**
+ * Reference idempotency registry. Payload/result values are detached at the
+ * boundary so a caller cannot mutate a completed result that later retries read.
+ */
 export class InMemoryIdempotencyRegistry {
   private records = new Map<string, IdempotencyRecord>();
 
@@ -132,41 +182,96 @@ export class InMemoryIdempotencyRegistry {
     const normalizedOwner = owner.trim();
     if (!normalizedKey) throw new Error('Idempotency key must not be empty');
     if (!normalizedOwner) throw new Error('Idempotency owner must not be empty');
-    const payloadHash = stableHash128(payload);
+    const detachedPayload = detach(payload, 'Idempotency payload');
+    const payloadHash = stableHash128(detachedPayload);
     const existing = this.records.get(normalizedKey) as IdempotencyRecord<T> | undefined;
     if (existing) {
-      if (existing.payloadHash !== payloadHash) throw new Error(`IDEMPOTENCY_CONFLICT key=${normalizedKey} expectedPayload=${existing.payloadHash} actualPayload=${payloadHash}`);
-      return { fresh: false, record: { ...existing } };
+      if (existing.payloadHash !== payloadHash) {
+        throw new Error(
+          `IDEMPOTENCY_CONFLICT key=${normalizedKey} expectedPayload=${existing.payloadHash} actualPayload=${payloadHash}`,
+        );
+      }
+      return { fresh: false, record: cloneIdempotencyRecord(existing) };
     }
-    const record: IdempotencyRecord<T> = { key: normalizedKey, payloadHash, status: 'in_progress', owner: normalizedOwner, startedAt: new Date(nowMs).toISOString() };
+    const record: IdempotencyRecord<T> = {
+      key: normalizedKey,
+      payloadHash,
+      status: 'in_progress',
+      owner: normalizedOwner,
+      startedAt: new Date(nowMs).toISOString(),
+    };
     this.records.set(normalizedKey, record);
-    return { fresh: true, record: { ...record } };
+    return { fresh: true, record: cloneIdempotencyRecord(record) };
   }
 
   complete<T = unknown>(key: string, owner: string, result: T, nowMs = Date.now()): IdempotencyRecord<T> {
-    const record = this.requireOwned<T>(key, owner);
-    const completed: IdempotencyRecord<T> = { ...record, status: 'completed', completedAt: new Date(nowMs).toISOString(), result, error: undefined };
-    this.records.set(key, completed);
-    return { ...completed };
+    const normalizedKey = key.trim();
+    const record = this.requireOwned<T>(normalizedKey, owner);
+    const completed: IdempotencyRecord<T> = {
+      ...record,
+      status: 'completed',
+      completedAt: new Date(nowMs).toISOString(),
+      result: detach(result, 'Idempotency result'),
+      error: undefined,
+    };
+    this.records.set(normalizedKey, completed);
+    return cloneIdempotencyRecord(completed);
   }
 
   fail(key: string, owner: string, error: unknown, nowMs = Date.now()): IdempotencyRecord {
-    const record = this.requireOwned(key, owner);
-    const failed: IdempotencyRecord = { ...record, status: 'failed', completedAt: new Date(nowMs).toISOString(), error: error instanceof Error ? error.message : String(error) };
-    this.records.set(key, failed);
-    return { ...failed };
+    const normalizedKey = key.trim();
+    const record = this.requireOwned(normalizedKey, owner);
+    const failed: IdempotencyRecord = {
+      ...record,
+      status: 'failed',
+      completedAt: new Date(nowMs).toISOString(),
+      error: error instanceof Error ? error.message : String(error),
+    };
+    this.records.set(normalizedKey, failed);
+    return cloneIdempotencyRecord(failed);
   }
 
   get<T = unknown>(key: string): IdempotencyRecord<T> | null {
-    const record = this.records.get(key) as IdempotencyRecord<T> | undefined;
-    return record ? { ...record } : null;
+    const record = this.records.get(key.trim()) as IdempotencyRecord<T> | undefined;
+    return record ? cloneIdempotencyRecord(record) : null;
   }
 
   private requireOwned<T = unknown>(key: string, owner: string): IdempotencyRecord<T> {
+    const normalizedOwner = owner.trim();
+    if (!key) throw new Error('Idempotency key must not be empty');
+    if (!normalizedOwner) throw new Error('Idempotency owner must not be empty');
     const record = this.records.get(key) as IdempotencyRecord<T> | undefined;
     if (!record) throw new Error(`IDEMPOTENCY_NOT_CLAIMED key=${key}`);
-    if (record.owner !== owner) throw new Error(`IDEMPOTENCY_OWNER_MISMATCH key=${key}`);
-    if (record.status !== 'in_progress') throw new Error(`IDEMPOTENCY_ALREADY_TERMINAL key=${key} status=${record.status}`);
-    return record;
+    if (record.owner !== normalizedOwner) throw new Error(`IDEMPOTENCY_OWNER_MISMATCH key=${key}`);
+    if (record.status !== 'in_progress') {
+      throw new Error(`IDEMPOTENCY_ALREADY_TERMINAL key=${key} status=${record.status}`);
+    }
+    return cloneIdempotencyRecord(record);
+  }
+}
+
+function cloneVersionedValue<T>(state: VersionedValue<T>): VersionedValue<T> {
+  return {
+    value: detach(state.value, 'VersionedStore read value'),
+    version: state.version,
+    contentHash: state.contentHash,
+  };
+}
+
+function cloneIdempotencyRecord<T>(record: IdempotencyRecord<T>): IdempotencyRecord<T> {
+  return detach(record, 'Idempotency record');
+}
+
+function detach<T>(value: T, label: string): T {
+  try {
+    return structuredClone(value);
+  } catch (error) {
+    throw new Error(`${label} must be structured-cloneable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function assertVersion(value: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${label} must be a non-negative safe integer`);
   }
 }

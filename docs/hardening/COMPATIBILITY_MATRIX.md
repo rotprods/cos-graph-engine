@@ -6,6 +6,8 @@
 | Domain | Legacy/current surface | Authority candidate | Legacy status | May write authority truth? | Migration rule | Removal gate |
 |---|---|---|---|---|---|---|
 | State | `StateMachine` / L2 state APIs | `AuthorityStateMachine` | SHADOW_COMPAT | NO | new authority workflows use explicit state/revision fencing; legacy remains for old graph consumers | legacy+authority tests green, API migration inventory zero unresolved writers |
+| CAS/concurrency | shallow-copy `VersionedStore` / idempotency records | copy-safe `VersionedStore` + detached idempotency records | BEHAVIOR_TIGHTENED | reference store only | callers must treat reads/receipts as snapshots; nested mutation no longer mutates canonical state | legacy+authority concurrency tests + Phase 05 durable protocol |
+| Property graph | mutable read/query/traversal objects; reverse traversal of directed incoming edges | copy-safe `PropertyGraph` with exact hop/direction/path invariants | BEHAVIOR_TIGHTENED | derived graph only unless explicitly selected | callers must use update APIs rather than mutating returned objects; directed edges traverse source→target only; depth=0 returns origin path | legacy graph suite + additive PropertyGraph contract + caller inventory |
 | Agentic topology | `AgenticResourceRegistry` | `AuthorityAgenticRegistry` | SHADOW_COMPAT | NO | project/chat/task/decision topology authority uses revisioned registry | parity + scope/sensitivity + replay evidence |
 | GraphRAG | `GraphRAGEngine` | `AuthorityGraphRAGIndex` | SHADOW_COMPAT | NO | legacy mutable corpus may serve demos/read-only compatibility; canonical projection replaced atomically | gold-query + leakage + replay/hash evidence |
 | Context | `ContextPackCompiler` | `AuthorityContextPackCompiler` | SHADOW_COMPAT | NO | authority packs require explicit `asOf/knownAt/generatedAt` and exact projection version/hash | pack parity + tamper/staleness/non-leakage evidence |
@@ -24,37 +26,31 @@
 ## Compatibility classes
 
 ### SHADOW_COMPAT
-
 Public symbol may remain callable for existing consumers, but must not be connected as an authority writer.
 
 ### CACHE/SHADOW
-
 May hold derived/rebuildable state. Loss or divergence cannot redefine canonical truth.
 
 ### COMPLEMENTARY
-
 Not replaced; responsibility is narrowed so it cannot conflict with the authority owner.
 
 ### BEHAVIOR_TIGHTENED
-
 Same public family but invalid/unsafe historical behavior now fails closed. Migration requires callers to handle the stricter result.
 
 ## Adapter rule
 
-A migration adapter is allowed only when it has one of these shapes:
+Allowed:
 
 ```text
 legacy input → validate/normalize → authority owner
 legacy read  ← copy/transform    ← authority owner
 ```
 
-This shape is forbidden:
+Forbidden for an assigned authority domain:
 
 ```text
 legacy API → independent mutation → separate legacy store/projection
 ```
-
-for any domain already assigned an authority owner.
 
 ## Qualification requirement
 

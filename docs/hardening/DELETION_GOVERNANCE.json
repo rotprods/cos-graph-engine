@@ -2,9 +2,68 @@
   "schemaVersion": 1,
   "baselineCommit": "76dfdc737c231b2637f122125f7acf98b735ff1f",
   "deletionThresholdLines": 50,
-  "entries": [],
+  "entries": [
+    {
+      "path": "STATE.md",
+      "ledgerId": "DEL-CTRL-001",
+      "status": "PROPOSED",
+      "reason": "STATE.md is a rolling current-truth document; obsolete active-phase/status content must be replaced rather than accumulated as live truth.",
+      "replacement": "Current phase/state summary with immutable historical states preserved in Git commits, phase checkpoints and Acta.",
+      "rollback": "Read or restore the relevant historical STATE.md from its exact checkpoint commit; never merge obsolete state back into current truth blindly.",
+      "evidence": ["Git history","phase checkpoint refs","Drive COS Acta / AGENTIC_SYSTEMS_OS STATE synchronization"]
+    },
+    {
+      "path": "TASKS.md",
+      "ledgerId": "DEL-CTRL-002",
+      "status": "PROPOSED",
+      "reason": "TASKS.md is a rolling execution view; completed/superseded task descriptions are condensed as phases advance while Todoist/Git preserve execution history.",
+      "replacement": "Current 00–09 phase task graph with historical task state retained through Git/Todoist activity/checkpoints.",
+      "rollback": "Recover a previous task graph from the corresponding checkpoint commit and reconcile rather than overwriting current execution state.",
+      "evidence": ["Git history","Todoist dedicated COS project","phase closure documents"]
+    },
+    {
+      "path": "HANDOFF.md",
+      "ledgerId": "DEL-CTRL-003",
+      "status": "PROPOSED",
+      "reason": "HANDOFF.md is intentionally rewritten at material checkpoints so a cold agent receives one exact continuation instead of contradictory historical next-actions.",
+      "replacement": "Latest deterministic recovery point/read order/next action; prior handoffs remain immutable in Git and Drive.",
+      "rollback": "Recover an earlier HANDOFF.md from an exact checkpoint only when rolling the whole project state back to that checkpoint.",
+      "evidence": ["Git history","Drive handoff/Acta checkpoints","cold-start read-order contract"]
+    },
+    {
+      "path": "packages/knowledge/src/property-graph.ts",
+      "ledgerId": "DEL-P03-001",
+      "status": "PROPOSED",
+      "reason": "Close mutable-reference leakage and incorrect traversal semantics while preserving the IPropertyGraph surface.",
+      "replacement": "Same file: copy-safe storage/read/query/traversal boundaries, atomic index maintenance, directed/undirected traversal invariants and exact depth semantics.",
+      "rollback": "Restore packages/knowledge/src/property-graph.ts from Phase 02 closure head 097df3dcba6b71d838525bf8caa07ebda3925e6a.",
+      "evidence": ["scripts/test-authority-property-graph.ts","legacy tests/graph.test.ts remains unchanged","Phase 07 strict typecheck + full legacy suite"],
+      "adr": "docs/hardening/adrs/ADR-001-SINGLE-AUTHORITY-OWNER.md"
+    },
+    {
+      "path": "packages/core/src/identity.ts",
+      "ledgerId": "DEL-P03-002",
+      "status": "PROPOSED",
+      "reason": "Separate legacy deterministic hashing from strict authority canonical serialization, add Unicode/provider normalization and prevent registry reference leakage.",
+      "replacement": "Same file: canonicalSerialize/canonicalHash128 strict authority primitives, provider-aware canonical URI normalization, detached IdentityRegistry reads and normalized aliases; stableHash128 retained for compatibility.",
+      "rollback": "Restore packages/core/src/identity.ts from Phase 02 closure head 097df3dcba6b71d838525bf8caa07ebda3925e6a.",
+      "evidence": ["scripts/test-authority-identity.ts","legacy identity callers remain compatible through stableHash128","Phase 07 strict typecheck + full legacy suite"],
+      "adr": "docs/hardening/adrs/ADR-007-STRICT-CANONICAL-SERIALIZATION.md"
+    },
+    {
+      "path": "packages/graph/src/bidirectional-csr.ts",
+      "ledgerId": "DEL-P03-003",
+      "status": "PROPOSED",
+      "reason": "Consolidate the existing bidirectional CSR into the single authority CSR candidate with deterministic identity, deep-copy boundaries and stronger projection invariants.",
+      "replacement": "Same file: deterministic default edge IDs/identityKey, canonical payload validation, stable node/edge projection order, forward+reverse CSR, deterministic projectionHash and strengthened validate().",
+      "rollback": "Restore packages/graph/src/bidirectional-csr.ts from Phase 02 closure head 097df3dcba6b71d838525bf8caa07ebda3925e6a.",
+      "evidence": ["scripts/test-authority-csr.ts","legacy CSRGraph remains available separately","Phase 07 strict typecheck + CSR/benchmark suites"],
+      "adr": "docs/hardening/adrs/ADR-008-AUTHORITY-CSR-EDGE-IDENTITY.md"
+    }
+  ],
   "rules": [
     "Generated files may be exempt only through an explicit entry.",
+    "Rolling control-plane documents require explicit classification because their current-truth semantics differ from immutable evidence files.",
     "A material deletion requires a stable ledgerId, behavior reason, replacement or retirement decision, rollback and evidence plan.",
     "An entry may be PROPOSED during implementation but must be ACCEPTED with independent review before authority promotion.",
     "Deleting verification breadth is not justified by CI cost control."

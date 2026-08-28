@@ -1,11 +1,10 @@
 # STATE — COS Graph Engine
 
 Updated: 2026-08-28  
-Mode: **CORE_CORRECTNESS_HARDENING**  
+Mode: **TEMPORAL_EVENT_PERSISTENCE_HARDENING**  
 Authority status: **SHADOW_ONLY**  
-Current phase: **03 / 09 — CORE CORRECTNESS**  
-Phase 01 draft PR: **#40**  
-Phase 02 draft PR: **#43**  
+Current phase: **04 / 09 — TEMPORAL / EVENT / PERSISTENCE**  
+Active completed-static PRs: **#40 → #43 → #44**  
 Automatic CI/CD: **OFF**  
 Merge authorization: **DENIED UNTIL HARDENING + EVIDENCE**
 
@@ -21,40 +20,42 @@ Calibrated baseline remains:
 - Assurance: **2.6/10**;
 - Authority: **2.6/10**.
 
-Static implementation may improve Build after review. Assurance remains unchanged until executed evidence exists.
+Static hardening does not promote Assurance.
 
 ## Frozen checkpoints
 
 ### Phase 01 — Canonical reconciliation
+- `checkpoint/phase-01-reconciled-76dfdc7`
+- SHA `76dfdc737c231b2637f122125f7acf98b735ff1f`
+- PR #40
 
-- status: `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`;
-- code ref: `checkpoint/phase-01-reconciled-76dfdc7`;
-- exact SHA: `76dfdc737c231b2637f122125f7acf98b735ff1f`;
-- PR: #40.
+### Phase 02 — Contracts / compatibility
+- `checkpoint/phase-02-contracts-06487e7`
+- SHA `06487e7acbce82c5a54dbb8dd171dceae2bb67ac`
+- PR #43
 
-### Phase 02 — Contracts / compatibility / deletion governance
+### Phase 03 — Core correctness
+- status: `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`
+- checkpoint: `checkpoint/phase-03-core-ad6a93c`
+- SHA `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3`
+- PR #44
+- closure: `docs/hardening/PHASE_03_CLOSURE.md`
 
-- status: `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`;
-- code/contract ref: `checkpoint/phase-02-contracts-06487e7`;
-- exact SHA: `06487e7acbce82c5a54dbb8dd171dceae2bb67ac`;
-- closure artifact: `docs/hardening/PHASE_02_CLOSURE.md`;
-- PR: #43.
+## Phase 03 result
 
-Phase 02 added:
+Implemented candidate guarantees:
 
-- immutable legacy-test evidence manifest and explicit waiver registry;
-- executable legacy-test preservation gate;
-- executable >50-line deletion-governance gate;
-- ADR-001…ADR-006 and ADR index;
-- legacy→authority compatibility matrix;
-- rollback map for code/data/events/operations;
-- public API stability/deprecation policy;
-- detached read-only compatibility adapters for GraphRAG, Agentic registry and Hub;
-- additive compatibility contract proving mutations of those snapshots cannot alter authority state.
+- deep-copy CAS/idempotency boundaries;
+- copy-safe PropertyGraph with atomic index updates;
+- exact traversal depth/path/direction semantics;
+- strict authority `canonicalSerialize/canonicalHash128` while retaining legacy deterministic hash compatibility;
+- NFC/provider-aware canonical identity and alias normalization;
+- SHA-256 integrity over strict canonical serialization;
+- deterministic multiedge bidirectional CSR with forward/reverse projections, cursor BFS, deterministic projection hash and stronger invariants.
 
-No Phase 02 gate/test was executed in a clean checkout, so Assurance did not move.
+Additive authority contracts were written for concurrency, PropertyGraph, identity and CSR. They remain unexecuted.
 
-## Authority candidate ownership
+## Current authority candidate ownership
 
 ```text
 State             → AuthorityStateMachine
@@ -69,73 +70,73 @@ Memory            → AuthorityMemoryGateway + Coordinator + append-only stores
 Durable history   → IEventLog / PostgresEventLog candidate
 Observability     → AuthorityTelemetry
 Tools             → strict ToolRegistry path
+CSR hot graph     → BidirectionalCSRGraph authority candidate
 ```
 
 Legacy counterparts remain shadow/deprecated/read-only compatibility and may not write authority truth.
 
-## Phase 03 objective
+## Phase 04 objective
 
-Raise graph/state/identity primitives from “strong candidate” to internally coherent, mutation-safe foundations before temporal/security/runtime hardening.
+Make persisted history and replay semantics truthful across adapters and projections.
 
-### P03.1 — CAS deep safety
+### P04.1 — EventLog semantic parity
 
-- prevent nested mutation through `VersionedStore.read()` or snapshots;
-- canonicalize/clone/freeze authority values;
-- keep hash/version consistent with every observable value;
-- stale writes remain fail-closed.
+- InMemoryEventLog and PostgresEventLog must implement the same idempotency semantics;
+- retries with same logical event converge;
+- same idempotency key with different logical payload fails closed;
+- writes/reads are copy-safe;
+- cursor/order validation consistent.
 
-### P03.2 — PropertyGraph mutation/read safety
+### P04.2 — Canonical persisted payloads
 
-- clone/freeze returned nodes/edges/query/traversal results;
-- preserve secondary indexes atomically on type/tags/source/target updates;
-- validate endpoints and identity collisions.
+- strict SHA/canonical serialization is authoritative for new integrity evidence;
+- persisted/signed optional fields are omitted or represented canonically, never explicit `undefined`;
+- snapshot schema/version makes legacy verification algorithm visible;
+- round-trip through Postgres JSON/timestamps cannot create false hash divergence.
 
-### P03.3 — Traversal correctness
+### P04.3 — KnowledgeGraph transaction/saga boundary
 
-- depth must be a non-negative safe integer;
-- depth=0 returns only the origin path and zero edges;
-- directed edges are not traversed backwards unless mode explicitly permits it;
-- every path contains the destination node corresponding to its edges;
-- traversal result objects are detached from canonical graph state.
+- statement + relation projection cannot partially apply silently;
+- supersession/retraction preserves temporal/provenance history;
+- projection failure either rolls back or emits explicit compensating/degraded evidence.
 
-### P03.4 — Canonical serialization domain
+### P04.4 — Temporal semantics beyond memory
 
-- deterministic serializer rejects unsupported values rather than collapsing Date/Map/Set/class instances/functions/undefined/non-finite numbers ambiguously;
-- cycles fail closed;
-- plain JSON-like values have deterministic key ordering.
+- valid-time and system-time semantics propagate to knowledge/authority projections;
+- future knowledge never leaks into historical `knownAt` reads.
 
-### P03.5 — Identity normalization
+### P04.5 — Durable adapter fixtures
 
-- explicit Unicode normalization;
-- scheme/provider profile rules for authority/resource components and aliases;
-- no hidden locale-dependent case conversion;
-- deterministic IDs remain distinct from cryptographic integrity hashes.
+- driver-neutral executable fixtures for Postgres/Supabase candidates;
+- semantic parity with in-memory reference adapters;
+- no real production DB mutation during hardening.
 
-### P03.6 — Authority CSR
+### P04.6 — Replay / restore contracts
 
-- one canonical multiedge-capable representation;
-- forward + reverse CSR;
-- reverse traversal O(in-degree);
-- no `queue.shift()` hot-loop behavior;
-- deterministic edge identity/projection hash;
-- invariants detect index/edge divergence.
+- corrupted snapshot fails closed;
+- schema mismatch fails closed;
+- empty projection restores from snapshot + event tail;
+- deterministic final semantic hash;
+- post-snapshot events replay exactly once at projection level.
 
-## Phase 03 governance constraints
+## Known cross-phase risk
 
-Every change inherits Phase 02:
+Phase 03 made `sha256Hex` strict. Existing persisted payloads containing explicit `undefined` or non-canonical objects must be migrated/versioned at the payload boundary; weakening canonical serialization is prohibited.
 
-- legacy tests cannot be modified/deleted without waiver+ADR;
-- authority tests are additive;
-- >50 deleted lines/file require `DELETION_GOVERNANCE.json` entry;
-- compatibility/rollback docs update when public behavior changes;
-- only one linear descendant authority branch;
-- no automatic Actions or CD;
-- no Assurance promotion before execution.
+## Governance inherited
+
+- legacy tests immutable unless waiver+ADR;
+- >50 deleted lines/file require deletion governance;
+- public behavior changes update compatibility/rollback;
+- one authority writer per domain;
+- one linear descendant branch;
+- Actions manual-only; CD off;
+- no Assurance movement without executed evidence.
 
 ## W13 timing
 
-PR #36 remains non-authoritative and paused. A replacement W13 is created only after Phase 07 freezes the exact qualification SHA.
+W13 #36 remains paused/non-authoritative. A new W13 is created only after Phase 07 freezes the exact complete qualification SHA.
 
 ## Next exact action
 
-Create `hardening/phase-03-core-correctness` from the Phase 02 closure head and attack P03.1 → P03.6 as small guarantee-oriented commits, starting with the CAS mutable-reference bypass and its additive adversarial contract.
+Create `hardening/phase-04-temporal-event-persistence` from the synchronized Phase 03 closure head. First slice: reconcile `InMemoryEventLog` and `PostgresEventLog` into one payload-bound, copy-safe semantic contract and add one adapter-parity authority fixture.

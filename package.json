@@ -3,23 +3,7 @@
   "version": "2.1.0",
   "private": true,
   "description": "COS Graph Engine — Production-grade graph engine with CSR, WASM, pruning, observability, visualization, and deployment",
-  "workspaces": [
-    "packages/core",
-    "packages/runtime",
-    "packages/memory",
-    "packages/knowledge",
-    "packages/cognition",
-    "packages/execution",
-    "packages/orchestration",
-    "packages/observability",
-    "packages/api",
-    "packages/infrastructure",
-    "packages/deployment",
-    "packages/graph",
-    "packages/hub",
-    "packages/visualization",
-    "packages/wasm"
-  ],
+  "workspaces": ["packages/core","packages/runtime","packages/memory","packages/knowledge","packages/cognition","packages/execution","packages/orchestration","packages/observability","packages/api","packages/infrastructure","packages/deployment","packages/graph","packages/hub","packages/visualization","packages/wasm"],
   "scripts": {
     "asbuild": "cd packages/wasm && npx asc assembly/index.ts --outFile build/optimized.wasm --optimizeLevel 3 --shrinkLevel 1 --exportRuntime",
     "wasm:build": "npm run asbuild",
@@ -42,7 +26,11 @@
     "test:authority:hub": "npx tsx scripts/test-authority-hub.ts",
     "test:authority:memory": "npx tsx scripts/test-authority-memory.ts",
     "test:authority:compat": "npx tsx scripts/test-authority-compat-readonly.ts",
-    "test:authority:reconciliation": "npm run test:authority:state && npm run test:authority:registry && npm run test:authority:context && npm run test:authority:hub && npm run test:authority:memory && npm run test:authority:compat",
+    "test:authority:concurrency": "npx tsx scripts/test-authority-concurrency-copysafe.ts",
+    "test:authority:property-graph": "npx tsx scripts/test-authority-property-graph.ts",
+    "test:authority:identity": "npx tsx scripts/test-authority-identity.ts",
+    "test:authority:csr": "npx tsx scripts/test-authority-csr.ts",
+    "test:authority:reconciliation": "npm run test:authority:state && npm run test:authority:registry && npm run test:authority:context && npm run test:authority:hub && npm run test:authority:memory && npm run test:authority:compat && npm run test:authority:concurrency && npm run test:authority:property-graph && npm run test:authority:identity && npm run test:authority:csr",
     "check:legacy-evidence": "npx tsx scripts/check-test-evidence.ts",
     "check:deletion-governance": "npx tsx scripts/check-deletion-governance.ts",
     "check:phase02-governance": "npm run check:legacy-evidence && npm run check:deletion-governance",
@@ -66,22 +54,9 @@
     "publish:all": "npm run publish:graph && npm run publish:observability && npm run publish:visualization && npm run publish:wasm",
     "version:patch": "node scripts/version-bump.js"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.62.0",
-    "@types/node": "^26.1.1",
-    "assemblyscript": "^0.28.20",
-    "c8": "^12.0.0",
-    "md-to-pdf": "^5.2.5",
-    "pdfkit": "^0.19.1",
-    "typedoc": "^0.28.20"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/rotprods/cos-graph-engine.git"
-  },
-  "keywords": ["graph", "cos", "graph-engine", "csr", "wasm", "visualization", "observability"],
+  "engines": {"node": ">=18.0.0"},
+  "devDependencies": {"@playwright/test": "^1.62.0","@types/node": "^26.1.1","assemblyscript": "^0.28.20","c8": "^12.0.0","md-to-pdf": "^5.2.5","pdfkit": "^0.19.1","typedoc": "^0.28.20"},
+  "repository": {"type": "git","url": "https://github.com/rotprods/cos-graph-engine.git"},
+  "keywords": ["graph","cos","graph-engine","csr","wasm","visualization","observability"],
   "license": "MIT"
 }

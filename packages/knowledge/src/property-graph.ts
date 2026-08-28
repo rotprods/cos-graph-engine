@@ -7,9 +7,9 @@ import { generateId } from '@cos/core';
 /**
  * In-memory property graph with transaction-like mutation semantics.
  *
- * The primary maps and every secondary index are updated as one logical
- * operation. Mutations never silently change canonical IDs, never create
- * dangling edges, and never leave stale type/tag/adjacency indexes behind.
+ * Canonical objects are detached on write and read. Secondary indices are
+ * maintained as part of the same logical mutation, and traversal obeys edge
+ * direction, exact hop depth and path node/edge consistency.
  */
 export class PropertyGraph implements IPropertyGraph {
   private nodes: Map<EntityId, GraphNode> = new Map();
@@ -75,13 +75,13 @@ export class PropertyGraph implements IPropertyGraph {
     }
 
     const now = new Date().toISOString();
-    const stored: GraphNode = {
+    const stored = detachNode({
       ...node,
       id,
       createdAt: node.createdAt || now,
       updatedAt: now,
       version: node.version || { major: 1, minor: 0, patch: 0 },
-    };
+    });
 
     this.nodes.set(id, stored);
     this.indexNode(stored);
@@ -89,7 +89,8 @@ export class PropertyGraph implements IPropertyGraph {
   }
 
   async getNode(id: EntityId): Promise<GraphNode | null> {
-    return this.nodes.get(id) || null;
+    const node = this.nodes.get(id);
+    return node ? detachNode(node) : null;
   }
 
   async updateNode(id: EntityId, updates: Partial<GraphNode>): Promise<void> {
@@ -99,9 +100,9 @@ export class PropertyGraph implements IPropertyGraph {
       throw new Error(`Node identity is immutable: ${id} cannot become ${updates.id}`);
     }
 
-    const next: GraphNode = {
+    const next = detachNode({
       ...current,
-      ...updates,
+      ...detachPartial(updates, 'GraphNode update'),
       id,
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString(),
@@ -109,16 +110,13 @@ export class PropertyGraph implements IPropertyGraph {
         ...current.version,
         patch: current.version.patch + 1,
       },
-    };
+    } as GraphNode);
 
-    // Commit primary object + derived indexes as one logical mutation.
     this.unindexNode(current);
     try {
       this.nodes.set(id, next);
       this.indexNode(next);
     } catch (error) {
-      // Best-effort rollback keeps this in-memory implementation coherent even
-      // if a future index implementation throws.
       this.nodes.set(id, current);
       this.unindexNode(next);
       this.indexNode(current);
@@ -130,8 +128,6 @@ export class PropertyGraph implements IPropertyGraph {
     const node = this.nodes.get(id);
     if (!node) return;
 
-    // Snapshot before mutation so self-loops and bidirectional references are
-    // deleted exactly once.
     const outIds = this.outEdges.get(id) || new Set<EntityId>();
     const inIds = this.inEdges.get(id) || new Set<EntityId>();
     for (const edgeId of new Set<EntityId>([...outIds, ...inIds])) {
@@ -156,12 +152,12 @@ export class PropertyGraph implements IPropertyGraph {
     this.assertNodeExists(edge.target, 'target');
 
     const now = new Date().toISOString();
-    const stored: GraphEdge = {
+    const stored = detachEdge({
       ...edge,
       id,
       createdAt: edge.createdAt || now,
       updatedAt: now,
-    };
+    });
 
     this.edges.set(id, stored);
     this.indexEdge(stored);
@@ -169,7 +165,8 @@ export class PropertyGraph implements IPropertyGraph {
   }
 
   async getEdge(id: EntityId): Promise<GraphEdge | null> {
-    return this.edges.get(id) || null;
+    const edge = this.edges.get(id);
+    return edge ? detachEdge(edge) : null;
   }
 
   async updateEdge(id: EntityId, updates: Partial<GraphEdge>): Promise<void> {
@@ -179,13 +176,13 @@ export class PropertyGraph implements IPropertyGraph {
       throw new Error(`Edge identity is immutable: ${id} cannot become ${updates.id}`);
     }
 
-    const next: GraphEdge = {
+    const next = detachEdge({
       ...current,
-      ...updates,
+      ...detachPartial(updates, 'GraphEdge update'),
       id,
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString(),
-    };
+    } as GraphEdge);
 
     this.assertNodeExists(next.source, 'source');
     this.assertNodeExists(next.target, 'target');
@@ -205,7 +202,6 @@ export class PropertyGraph implements IPropertyGraph {
   async deleteEdge(id: EntityId): Promise<void> {
     const edge = this.edges.get(id);
     if (!edge) return;
-
     this.edges.delete(id);
     this.unindexEdge(edge);
   }
@@ -213,13 +209,9 @@ export class PropertyGraph implements IPropertyGraph {
   // ---- Query ------------------------------------------------------------
 
   async queryNodes(q: GraphQuery): Promise<GraphNode[]> {
-    // Start from the narrowest available secondary index instead of scanning
-    // the entire graph whenever type/tags can reduce the candidate set.
     let candidateIds: Set<EntityId> | null = null;
 
-    if (q.type) {
-      candidateIds = new Set(this.typeNodeIndex.get(q.type) || []);
-    }
+    if (q.type) candidateIds = new Set(this.typeNodeIndex.get(q.type) || []);
 
     if (q.tags && q.tags.length > 0) {
       const tagIds = new Set<EntityId>();
@@ -233,98 +225,102 @@ export class PropertyGraph implements IPropertyGraph {
 
     let results = candidateIds === null
       ? Array.from(this.nodes.values())
-      : Array.from(candidateIds, id => this.nodes.get(id)).filter((n): n is GraphNode => n !== undefined);
+      : Array.from(candidateIds, id => this.nodes.get(id)).filter((node): node is GraphNode => node !== undefined);
 
     if (q.label) {
       const needle = q.label.toLowerCase();
-      results = results.filter(n => n.label.toLowerCase().includes(needle));
+      results = results.filter(node => node.label.toLowerCase().includes(needle));
     }
+    if (q.properties) results = results.filter(node => matchesProperties(node.properties, q.properties!));
 
-    if (q.limit !== undefined) results = results.slice(0, Math.max(0, q.limit));
-    return results;
+    const { offset, limit } = normalizeWindow(q.offset, q.limit);
+    return results.slice(offset, limit === null ? undefined : offset + limit).map(detachNode);
   }
 
   async queryEdges(q: GraphQuery): Promise<GraphEdge[]> {
     let results = q.type
       ? Array.from(this.typeEdgeIndex.get(q.type) || [], id => this.edges.get(id))
-          .filter((e): e is GraphEdge => e !== undefined)
+          .filter((edge): edge is GraphEdge => edge !== undefined)
       : Array.from(this.edges.values());
 
     if (q.label) {
       const needle = q.label.toLowerCase();
-      results = results.filter(e => e.label.toLowerCase().includes(needle));
+      results = results.filter(edge => edge.label.toLowerCase().includes(needle));
     }
+    if (q.properties) results = results.filter(edge => matchesProperties(edge.properties, q.properties!));
 
-    if (q.limit !== undefined) results = results.slice(0, Math.max(0, q.limit));
-    return results;
+    const { offset, limit } = normalizeWindow(q.offset, q.limit);
+    return results.slice(offset, limit === null ? undefined : offset + limit).map(detachEdge);
   }
 
-  async traverse(
-    start: EntityId,
-    edgeTypes: string[],
-    depth: number,
-  ): Promise<GraphPath[]> {
-    if (depth < 0 || !Number.isFinite(depth)) {
-      throw new Error(`Traversal depth must be a finite non-negative number; received ${depth}`);
+  async traverse(start: EntityId, edgeTypes: string[], depth: number): Promise<GraphPath[]> {
+    if (!Number.isSafeInteger(depth) || depth < 0) {
+      throw new Error(`Traversal depth must be a non-negative safe integer; received ${depth}`);
+    }
+    const startNode = this.nodes.get(start);
+    if (!startNode) return [];
+
+    if (depth === 0) {
+      return [{
+        nodes: [detachNode(startNode)],
+        edges: [],
+        totalCost: 0,
+        totalConfidence: 1,
+      }];
     }
 
+    const allowedTypes = new Set(edgeTypes);
     const paths: GraphPath[] = [];
-    const visited = new Set<EntityId>();
 
-    const dfs = (
+    const walk = (
       currentId: EntityId,
-      nodes: GraphNode[],
-      edges: GraphEdge[],
-      currentDepth: number,
-    ) => {
-      if (currentDepth > depth || visited.has(currentId)) return;
+      pathNodes: GraphNode[],
+      pathEdges: GraphEdge[],
+      visited: Set<EntityId>,
+    ): void => {
+      if (pathEdges.length >= depth) return;
 
-      const currentNode = this.nodes.get(currentId);
-      if (!currentNode) return;
+      const traverseEdge = (edge: GraphEdge, nextId: EntityId): void => {
+        if (!allowedTypes.has(edge.type) || visited.has(nextId)) return;
+        const nextNode = this.nodes.get(nextId);
+        if (!nextNode) throw new Error(`Graph invariant violation: edge ${edge.id} points to missing node ${nextId}`);
 
-      visited.add(currentId);
-      const newNodes = [...nodes, currentNode];
+        const nextNodes = [...pathNodes, nextNode];
+        const nextEdges = [...pathEdges, edge];
+        paths.push(makePath(nextNodes, nextEdges));
 
-      const emitAndContinue = (edge: GraphEdge, nextId: EntityId): void => {
-        const newEdges = [...edges, edge];
-        paths.push({
-          nodes: newNodes,
-          edges: newEdges,
-          totalCost: newEdges.reduce((sum, e) => sum + e.weight, 0),
-          totalConfidence: newEdges.reduce((sum, e) => sum + e.confidence, 0) / newEdges.length,
-        });
-        dfs(nextId, newNodes, newEdges, currentDepth + 1);
+        const nextVisited = new Set(visited);
+        nextVisited.add(nextId);
+        walk(nextId, nextNodes, nextEdges, nextVisited);
       };
 
       for (const edgeId of this.outEdges.get(currentId) || []) {
         const edge = this.edges.get(edgeId);
-        if (!edge || !edgeTypes.includes(edge.type)) continue;
-        emitAndContinue(edge, edge.target);
+        if (!edge) throw new Error(`Graph invariant violation: missing outgoing edge ${edgeId}`);
+        traverseEdge(edge, edge.target);
       }
 
-      // Incoming traversal now carries the actual edge in the path as well;
-      // the previous implementation recursed without recording it, producing
-      // structurally incomplete bidirectional paths.
+      // Only undirected edges may be traversed from target back to source.
       for (const edgeId of this.inEdges.get(currentId) || []) {
         const edge = this.edges.get(edgeId);
-        if (!edge || !edgeTypes.includes(edge.type)) continue;
-        emitAndContinue(edge, edge.source);
+        if (!edge) throw new Error(`Graph invariant violation: missing incoming edge ${edgeId}`);
+        if (edge.directed) continue;
+        traverseEdge(edge, edge.source);
       }
-
-      visited.delete(currentId);
     };
 
-    dfs(start, [], [], 0);
-    return paths.sort((a, b) => b.totalConfidence - a.totalConfidence);
+    walk(start, [startNode], [], new Set<EntityId>([start]));
+    return paths.sort((left, right) =>
+      right.totalConfidence - left.totalConfidence
+      || left.edges.length - right.edges.length
+      || pathKey(left).localeCompare(pathKey(right)));
   }
 
   async stats(): Promise<GraphStats> {
     const byNodeType: Record<string, number> = {};
     const byEdgeType: Record<string, number> = {};
-
     for (const [type, ids] of this.typeNodeIndex) byNodeType[type] = ids.size;
     for (const [type, ids] of this.typeEdgeIndex) byEdgeType[type] = ids.size;
-
     return {
       nodeCount: this.nodes.size,
       edgeCount: this.edges.size,
@@ -332,4 +328,59 @@ export class PropertyGraph implements IPropertyGraph {
       byEdgeType,
     };
   }
+}
+
+function detachNode(node: GraphNode): GraphNode {
+  return detach(node, `GraphNode ${String(node.id)}`);
+}
+
+function detachEdge(edge: GraphEdge): GraphEdge {
+  return detach(edge, `GraphEdge ${String(edge.id)}`);
+}
+
+function detachPartial<T>(value: T, label: string): T {
+  return detach(value, label);
+}
+
+function detach<T>(value: T, label: string): T {
+  try {
+    return structuredClone(value);
+  } catch (error) {
+    throw new Error(`${label} must be structured-cloneable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function normalizeWindow(offsetValue?: number, limitValue?: number): { offset: number; limit: number | null } {
+  const offset = offsetValue ?? 0;
+  if (!Number.isSafeInteger(offset) || offset < 0) throw new Error(`Graph query offset must be a non-negative safe integer; received ${offset}`);
+  if (limitValue === undefined) return { offset, limit: null };
+  if (!Number.isSafeInteger(limitValue) || limitValue < 0) throw new Error(`Graph query limit must be a non-negative safe integer; received ${limitValue}`);
+  return { offset, limit: limitValue };
+}
+
+function matchesProperties(
+  actual: Record<string, string | number | boolean | null>,
+  expected: Record<string, string | number | boolean | null>,
+): boolean {
+  return Object.entries(expected).every(([key, value]) => actual[key] === value);
+}
+
+function makePath(nodes: GraphNode[], edges: GraphEdge[]): GraphPath {
+  if (nodes.length !== edges.length + 1) {
+    throw new Error(`Graph path invariant violation: nodes=${nodes.length} edges=${edges.length}`);
+  }
+  const totalCost = edges.reduce((sum, edge) => sum + edge.weight, 0);
+  const totalConfidence = edges.length === 0
+    ? 1
+    : edges.reduce((sum, edge) => sum + edge.confidence, 0) / edges.length;
+  return {
+    nodes: nodes.map(detachNode),
+    edges: edges.map(detachEdge),
+    totalCost,
+    totalConfidence,
+  };
+}
+
+function pathKey(path: GraphPath): string {
+  return `${path.nodes.map(node => String(node.id)).join('>')}|${path.edges.map(edge => String(edge.id)).join('>')}`;
 }
