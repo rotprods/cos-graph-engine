@@ -3,8 +3,10 @@
 ## Program status
 
 - North Star: `20/20 verticals at Authority 10.0`
-- Current phase: `01 — RECONCILIATION #34 + #35`
-- Active draft PR: `#40`
+- Current phase: `02 — CONTRACTS / COMPATIBILITY / DELETION GOVERNANCE`
+- Phase 01 code checkpoint: `checkpoint/phase-01-reconciled-76dfdc7`
+- Phase 01 exact SHA: `76dfdc737c231b2637f122125f7acf98b735ff1f`
+- Phase 01 draft PR: `#40`
 - Authority: `SHADOW_ONLY`
 - Automatic CI/CD: `OFF`
 - Todoist project: `COS GRAPH ENGINE · 10/10 AUTHORITY PROGRAM` (`6hMP59rWj7f5xH7M`)
@@ -19,7 +21,7 @@
 
 **Checkpoint:** governance truth exists in all three planes.
 
-## Phase 01 — Reconcile #34 and #35
+## Phase 01 — Reconcile #34 and #35 — COMPLETE_STATIC
 
 ### Control and decisions
 
@@ -54,23 +56,26 @@
 - [x] Create strict `tsconfig.authority.json` and `typecheck:authority` command.
 - [x] Record material replacement/deprecation entries in semantic ledger/addendum.
 - [x] Establish one authority candidate owner per reconciled capability while preserving legacy as explicit shadow compatibility.
-- [ ] Perform final static review of remaining #34/#35 overlap files and package surfaces.
-- [ ] Freeze Phase 01 exact candidate SHA.
+- [x] Classify every remaining #34/#35 source surface in `PHASE_01_SOURCE_COVERAGE.md`.
+- [x] Freeze Phase 01 exact code candidate at `checkpoint/phase-01-reconciled-76dfdc7`.
+- [x] Publish `PHASE_01_CLOSURE.md`.
 
-**Checkpoint:** one canonical linear candidate contains the selected capabilities from both siblings, one authority owner exists per reconciled capability, legacy compatibility is explicitly non-authoritative, and no W13 branch is created prematurely.
+**Checkpoint:** `STATIC_RECONCILIATION_COMPLETE / IMPLEMENTED_UNVERIFIED`. Assurance did not move.
 
-> **Process correction:** W13 is no longer a Phase 01 task. It will be recreated only after Phases 02–07 freeze the exact qualification SHA.
+## Phase 02 — Contracts, compatibility and deletion governance — ACTIVE
 
-## Phase 02 — Contracts, compatibility and deletion governance
-
-- [ ] Preserve legacy tests as a separate suite.
+- [ ] Preserve legacy tests as a separate immutable suite/manifest.
 - [x] Add initial authority tests without rewriting historical evidence.
-- [ ] Complete deletion ledger for every later >50-line replacement.
-- [ ] Create ADR index and compatibility decisions.
-- [ ] Create rollback map per capability and data model.
+- [ ] Create ADR index and canonical ADRs for authority-path selection, temporal semantics, replay semantics and compatibility breaks.
+- [ ] Create compatibility matrix: legacy symbol → authority symbol → status → migration window.
+- [ ] Create rollback map per capability, schema/data model and operational control.
+- [ ] Complete deletion ledger entries for every existing material replacement and define enforcement for future >50-line replacements.
+- [ ] Add migration adapters only where they cannot become alternate authority writers.
+- [ ] Define package-level public API stability policy and deprecation semantics.
 - [ ] Define a linear branch/PR discipline for Phases 02–07; no new sibling authority lines.
+- [ ] Freeze Phase 02 contract checkpoint.
 
-**Checkpoint:** every intentional behavior change has migration, evidence requirements and rollback.
+**Checkpoint:** every intentional behavior change has explicit compatibility status, migration path, evidence requirement and rollback.
 
 ## Phase 03 — Core correctness
 
