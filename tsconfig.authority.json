@@ -39,6 +39,7 @@
     "packages/memory/src/authority-memory-gateway.ts",
     "packages/memory/src/postgres-authority-memory.ts",
     "scripts/fixtures/fake-event-log-postgres.ts",
+    "scripts/fixtures/fake-authority-knowledge-postgres.ts",
     "scripts/check-test-evidence.ts",
     "scripts/check-deletion-governance.ts",
     "scripts/test-authority-state-machine.ts",
@@ -53,6 +54,7 @@
     "scripts/test-authority-csr.ts",
     "scripts/test-authority-event-log-parity.ts",
     "scripts/test-authority-canonical-wire.ts",
-    "scripts/test-authority-knowledge.ts"
+    "scripts/test-authority-knowledge.ts",
+    "scripts/test-authority-knowledge-postgres.ts"
   ]
 }
