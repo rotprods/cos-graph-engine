@@ -8,15 +8,8 @@
     "assurance": "no_score_change_without_execution"
   },
   "legacyDiscovery": {
-    "include": [
-      "tests/**/*.ts",
-      "packages/**/tests/**/*.ts",
-      "scripts/test-*.ts"
-    ],
-    "exclude": [
-      "scripts/test-authority-*.ts",
-      "scripts/w13-*.ts"
-    ],
+    "include": ["tests/**/*.ts", "packages/**/tests/**/*.ts", "scripts/test-*.ts"],
+    "exclude": ["scripts/test-authority-*.ts", "scripts/w13-*.ts"],
     "canonicalRunnerAtBaseline": "scripts/run-tests.ts"
   },
   "knownCoreSuites": [
@@ -47,21 +40,9 @@
     "scripts/test-persistence.ts"
   ],
   "historicallyExcludedEvidence": [
-    {
-      "path": "scripts/test-smb-integration.ts",
-      "historicalReason": "open handles / process hang",
-      "requiredDisposition": "must_run_or_have_current_explicit_blocker_in_phase_07"
-    },
-    {
-      "path": "scripts/test-levels-6-11.ts",
-      "historicalReason": "depended on cognitive correctness fixes",
-      "requiredDisposition": "must_run_or_have_current_explicit_blocker_in_phase_07"
-    },
-    {
-      "path": "scripts/test-levels-8-11.ts",
-      "historicalReason": "depended on cognitive correctness fixes",
-      "requiredDisposition": "must_run_or_have_current_explicit_blocker_in_phase_07"
-    }
+    { "path": "scripts/test-smb-integration.ts", "historicalReason": "open handles / process hang", "requiredDisposition": "must_run_or_have_current_explicit_blocker_in_phase_07" },
+    { "path": "scripts/test-levels-6-11.ts", "historicalReason": "depended on cognitive correctness fixes", "requiredDisposition": "must_run_or_have_current_explicit_blocker_in_phase_07" },
+    { "path": "scripts/test-levels-8-11.ts", "historicalReason": "depended on cognitive correctness fixes", "requiredDisposition": "must_run_or_have_current_explicit_blocker_in_phase_07" }
   ],
   "authoritySuites": [
     "scripts/test-authority-state-machine.ts",
@@ -69,7 +50,8 @@
     "scripts/test-authority-context-pack.ts",
     "scripts/test-authority-hub.ts",
     "scripts/test-authority-memory.ts",
-    "scripts/test-authority-compat-readonly.ts"
+    "scripts/test-authority-compat-readonly.ts",
+    "scripts/test-authority-concurrency-copysafe.ts"
   ],
   "authorityRunner": "npm run test:authority:reconciliation",
   "waiversFile": "docs/hardening/TEST_COMPATIBILITY_WAIVERS.json"
