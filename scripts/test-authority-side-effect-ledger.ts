@@ -1,33 +1,17 @@
 import assert from 'node:assert/strict';
 import {
-  InMemorySideEffectLedgerStore,
-  SideEffectCoordinator,
-  SideEffectLedger,
-  sideEffectOperationId,
-  type SideEffectOperationRevision,
-} from '../packages/execution/src/side-effect-ledger';
-import { PostgresSideEffectLedgerStore } from '../packages/execution/src/postgres-side-effect-ledger';
-import { FakeSideEffectLedgerPostgres } from './fixtures/fake-side-effect-ledger-postgres';
+  DurableSideEffectCoordinator,
+  DurableSideEffectLedger,
+  InMemoryDurableSideEffectStore,
+  durableEffectReceiptHash,
+  type DurableProviderOutcome,
+  type DurableSideEffectAppendResult,
+  type DurableSideEffectClaimInput,
+  type DurableSideEffectRevision,
+  type IDurableSideEffectStore,
+} from '../packages/execution/src/durable-side-effect-ledger';
 
-const T0 = '2026-08-28T12:00:00.000Z';
-const T1 = '2026-08-28T12:00:01.000Z';
-const T2 = '2026-08-28T12:00:02.000Z';
-const T3 = '2026-08-28T12:00:03.000Z';
-const T4 = '2026-08-28T12:00:04.000Z';
-const T5 = '2026-08-28T12:00:05.000Z';
-const T6 = '2026-08-28T12:00:06.000Z';
-
-const BASE = {
-  principalId: 'agent://rot/authority-worker',
-  projectId: 'COS_GRAPH_ENGINE',
-  resource: 'github://rotprods/cos-graph-engine/branch/hardening',
-  action: 'github.commit',
-  operationKey: 'delivery-001',
-  request: { branch: 'hardening', files: ['STATE.md'], optional: undefined },
-  sourceRef: 'agentic://run/RUN-P05-001',
-  recordedAt: T0,
-  metadata: { phase: '05', attemptClass: 'authority' },
-} as const;
+const BASE = Date.parse('2026-08-28T12:00:00.000Z');
 
 async function main(): Promise<void> {
   let assertions = 0;
@@ -36,300 +20,267 @@ async function main(): Promise<void> {
     assertions += 1;
   };
 
-  // Operation identity is scoped by principal+project+operation key. Reusing the
-  // same key for a different effect must collide instead of producing a second ID.
-  const operationId = sideEffectOperationId(BASE);
-  const conflictingIdentity = sideEffectOperationId({
-    principalId: BASE.principalId,
-    projectId: BASE.projectId,
-    operationKey: BASE.operationKey,
-  });
-  check(operationId === conflictingIdentity, 'resource/action do not create a second operation for reused operation key');
+  // Happy path: provider observation and local commit are distinct durable revisions.
+  {
+    const store = new InMemoryDurableSideEffectStore();
+    const ledger = new DurableSideEffectLedger(store);
+    const coordinator = new DurableSideEffectCoordinator(ledger, monotonicClock(BASE));
+    let providerCalls = 0;
+    const input = claimInput('happy-1');
+    const receipt = await coordinator.execute(input, async () => {
+      providerCalls += 1;
+      return { disposition: 'succeeded', providerReference: 'provider://job/1', result: { ok: true } };
+    });
+    check(receipt.operation.state === 'committed', 'successful effect ends in committed');
+    check(providerCalls === 1 && receipt.providerInvoked, 'provider invoked exactly once on first execution');
+    const states = (await ledger.getHistory(receipt.operation.operationId)).map(item => item.state);
+    assert.deepEqual(states, ['claimed', 'prepared', 'executing', 'effect_observed', 'committed']);
+    assertions += 1;
+    check(states.indexOf('effect_observed') < states.indexOf('committed'), 'effect observation is durably separated from commit');
 
-  const store = new InMemorySideEffectLedgerStore();
-  const ledger = new SideEffectLedger(store);
-  const claim = await ledger.claim(BASE);
-  check(claim.appended && claim.revision.state === 'claimed', 'initial operation claim is appended');
-  check(claim.revision.operationId === operationId, 'claim uses deterministic scoped operation identity');
-  check(!('optional' in (claim.revision.request as Record<string, unknown>)), 'wire request omits optional undefined');
+    const retry = await coordinator.execute({ ...input, recordedAt: iso(BASE + 100_000) }, async () => {
+      providerCalls += 1;
+      throw new Error('provider must not run on committed retry');
+    });
+    check(retry.reusedTerminalResult && !retry.providerInvoked, 'late committed retry reuses durable terminal result');
+    check(providerCalls === 1, 'late retry does not duplicate provider mutation');
 
-  const duplicateClaim = await ledger.claim({ ...BASE, recordedAt: T1 });
-  check(!duplicateClaim.appended && duplicateClaim.revision.revision === 1, 'later transport retry reuses accepted claim');
+    await assert.rejects(() => coordinator.execute({ ...input, request: { value: 2 } }, async () => ({
+      disposition: 'succeeded', providerReference: 'provider://job/conflict',
+    })), /SIDE_EFFECT_OPERATION_CONFLICT/);
+    assertions += 1;
 
-  await assert.rejects(() => ledger.claim({
-    ...BASE,
-    resource: 'github://rotprods/cos-graph-engine/branch/other',
-    recordedAt: T1,
-  }), /SIDE_EFFECT_OPERATION_CONFLICT/);
-  assertions += 1;
-  await assert.rejects(() => ledger.claim({
-    ...BASE,
-    request: { branch: 'other', files: ['STATE.md'] },
-    recordedAt: T1,
-  }), /SIDE_EFFECT_OPERATION_CONFLICT/);
-  assertions += 1;
+    const leaked = await ledger.getHistory(receipt.operation.operationId);
+    const last = leaked.at(-1);
+    if (!last) throw new Error('missing history');
+    last.metadata.tampered = true;
+    const pristine = await ledger.getCurrent(receipt.operation.operationId);
+    check(pristine?.metadata.tampered === undefined, 'ledger reads are detached from canonical history');
+  }
 
-  // A same-intent race converges at the store boundary even with different
-  // recordedAt evidence, because transition intent excludes transport timing.
-  const raceStore = new InMemorySideEffectLedgerStore();
-  const raceLedger = new SideEffectLedger(raceStore);
-  const [raceA, raceB] = await Promise.all([
-    raceLedger.claim(BASE),
-    raceLedger.claim({ ...BASE, recordedAt: T1 }),
-  ]);
-  check(Number(raceA.appended) + Number(raceB.appended) === 1, 'concurrent identical claims append exactly one revision');
-  check(raceA.revision.operationId === raceB.revision.operationId, 'concurrent claim retries converge to one operation');
+  // Transport ambiguity is uncertainty, never a fabricated provider failure.
+  {
+    const store = new InMemoryDurableSideEffectStore();
+    const ledger = new DurableSideEffectLedger(store);
+    const coordinator = new DurableSideEffectCoordinator(ledger, monotonicClock(BASE + 1_000_000));
+    let calls = 0;
+    const input = claimInput('uncertain-1', BASE + 1_000_000);
+    const first = await coordinator.execute(input, async () => {
+      calls += 1;
+      throw new Error('connection reset after request body sent');
+    });
+    check(first.operation.state === 'uncertain', 'thrown provider callback becomes uncertain');
+    check(first.operation.uncertaintyReason?.includes('connection reset') === true, 'uncertainty preserves reason');
+    await assert.rejects(() => coordinator.execute({ ...input, recordedAt: iso(BASE + 1_100_000) }, async () => {
+      calls += 1;
+      return { disposition: 'succeeded', providerReference: 'provider://should-not-run' };
+    }), /SIDE_EFFECT_RECONCILIATION_REQUIRED/);
+    assertions += 1;
+    check(calls === 1, 'uncertain retry never blindly invokes provider again');
+  }
 
-  const prepared = await ledger.transition({
-    operationId,
-    expectedRevision: 1,
-    state: 'prepared',
-    idempotencyKey: 'delivery-001:prepared',
-    recordedAt: T1,
-    fencingVersion: 7,
-  });
-  check(prepared.appended && prepared.revision.revision === 2, 'claim transitions to prepared');
-  const preparedRetry = await ledger.transition({
-    operationId,
-    expectedRevision: 1,
-    state: 'prepared',
-    idempotencyKey: 'delivery-001:prepared',
-    recordedAt: T4,
-    fencingVersion: 7,
-  });
-  check(!preparedRetry.appended && preparedRetry.revision.revisionId === prepared.revision.revisionId, 'old transition retry resolves historical accepted revision');
+  // Crash/provider success before effect_observed persistence: durable state is still executing.
+  {
+    const backing = new InMemoryDurableSideEffectStore();
+    const failStore = new FailOnStateStore(backing, 'effect_observed');
+    const ledger = new DurableSideEffectLedger(failStore);
+    const coordinator = new DurableSideEffectCoordinator(ledger, monotonicClock(BASE + 2_000_000));
+    let calls = 0;
+    const input = claimInput('crash-before-observed', BASE + 2_000_000);
+    await assert.rejects(() => coordinator.execute(input, async () => {
+      calls += 1;
+      return { disposition: 'succeeded', providerReference: 'provider://effect-already-happened', result: { remote: 'done' } };
+    }), /injected effect_observed persistence failure/);
+    assertions += 1;
+    check(calls === 1, 'provider may have run before local observation persistence failed');
+    const operation = (await backing.listProjectOperations('COS_GRAPH_ENGINE')).at(-1);
+    if (!operation) throw new Error('missing crashed operation');
+    check(operation.state === 'executing', 'failed observation persistence leaves durable state executing, not falsely committed');
+    failStore.disableFailure();
+    const recovered = await ledger.recoverInterrupted(
+      operation.operationId,
+      operation.revision,
+      iso(BASE + 2_100_000),
+      'recover:uncertain',
+      'provider returned success but observation revision was not durably committed',
+    );
+    check(recovered.revision.state === 'uncertain', 'crash-before-observation is recovered as uncertain');
+  }
 
-  await assert.rejects(() => ledger.transition({
-    operationId,
-    expectedRevision: 1,
-    state: 'failed',
-    idempotencyKey: 'delivery-001:prepared',
-    recordedAt: T2,
-    error: { code: 'CONFLICT', message: 'different intent' },
-  }), /SIDE_EFFECT_TRANSITION_CONFLICT/);
-  assertions += 1;
-  await assert.rejects(() => ledger.transition({
-    operationId,
-    expectedRevision: 1,
-    state: 'executing',
-    idempotencyKey: 'delivery-001:wrong-revision',
-    recordedAt: T2,
-    fencingVersion: 7,
-  }), /STALE_SIDE_EFFECT_REVISION/);
-  assertions += 1;
+  // Crash after effect_observed but before committed: resume local commit without provider call.
+  {
+    const store = new InMemoryDurableSideEffectStore();
+    const ledger = new DurableSideEffectLedger(store);
+    const input = claimInput('crash-after-observed', BASE + 3_000_000);
+    let current = (await ledger.claim(input)).revision;
+    current = (await ledger.transition({
+      operationId: current.operationId,
+      expectedRevision: current.revision,
+      state: 'prepared',
+      idempotencyKey: `${input.operationKey}:prepared`,
+      recordedAt: iso(BASE + 3_000_001),
+    })).revision;
+    current = (await ledger.transition({
+      operationId: current.operationId,
+      expectedRevision: current.revision,
+      state: 'executing',
+      idempotencyKey: `${input.operationKey}:executing`,
+      recordedAt: iso(BASE + 3_000_002),
+    })).revision;
+    const effectReceiptHash = durableEffectReceiptHash({
+      operationId: current.operationId,
+      providerReference: 'provider://observed/42',
+      result: { remoteId: '42' },
+      metadata: { provider: 'fixture' },
+    });
+    current = (await ledger.transition({
+      operationId: current.operationId,
+      expectedRevision: current.revision,
+      state: 'effect_observed',
+      idempotencyKey: `${input.operationKey}:effect_observed`,
+      recordedAt: iso(BASE + 3_000_003),
+      providerReference: 'provider://observed/42',
+      effectReceiptHash,
+      result: { remoteId: '42' },
+      metadata: { provider: 'fixture' },
+    })).revision;
+    check(current.state === 'effect_observed', 'fixture simulates durable observation before local commit');
+    const coordinator = new DurableSideEffectCoordinator(ledger, monotonicClock(BASE + 3_000_010));
+    let providerCalls = 0;
+    const resumed = await coordinator.execute({ ...input, recordedAt: iso(BASE + 3_000_010) }, async () => {
+      providerCalls += 1;
+      return { disposition: 'succeeded', providerReference: 'provider://duplicate' };
+    });
+    check(resumed.operation.state === 'committed' && resumed.resumedAfterObservedEffect, 'effect-observed operation resumes local commit');
+    check(!resumed.providerInvoked && providerCalls === 0, 'resume after observation never reinvokes provider');
+  }
 
-  const executing = await ledger.transition({
-    operationId,
-    expectedRevision: 2,
-    state: 'executing',
-    idempotencyKey: 'delivery-001:executing',
-    recordedAt: T2,
-    fencingVersion: 7,
-  });
-  check(executing.revision.state === 'executing', 'prepared operation enters executing before provider call');
-  await assert.rejects(() => ledger.transition({
-    operationId,
-    expectedRevision: 3,
-    state: 'succeeded',
-    idempotencyKey: 'delivery-001:invalid-success',
-    recordedAt: T3,
-    fencingVersion: 7,
-  }), /SIDE_EFFECT_SUCCESS_REQUIRES_PROVIDER_REFERENCE/);
-  assertions += 1;
+  // Explicit provider failure means provider confirmed no accepted effect.
+  {
+    const store = new InMemoryDurableSideEffectStore();
+    const ledger = new DurableSideEffectLedger(store);
+    const coordinator = new DurableSideEffectCoordinator(ledger, monotonicClock(BASE + 4_000_000));
+    const receipt = await coordinator.execute(claimInput('provider-failed', BASE + 4_000_000), async (): Promise<DurableProviderOutcome> => ({
+      disposition: 'failed',
+      providerReference: 'provider://request/failed',
+      error: { code: 'REJECTED', message: 'provider rejected request', retryable: false },
+    }));
+    check(receipt.operation.state === 'failed' && receipt.operation.error?.code === 'REJECTED', 'explicit provider rejection becomes durable failed terminal state');
+  }
 
-  const succeeded = await ledger.transition({
-    operationId,
-    expectedRevision: 3,
-    state: 'succeeded',
-    idempotencyKey: 'delivery-001:succeeded',
-    recordedAt: T3,
-    fencingVersion: 7,
-    providerReference: 'github://rotprods/cos-graph-engine/commit/abc123',
-    result: { commitSha: 'abc123', nested: { accepted: true } },
-  });
-  check(succeeded.revision.state === 'succeeded' && succeeded.revision.revision === 4, 'provider success becomes terminal durable revision');
+  // Compensation is explicit history, never hidden rollback.
+  {
+    const store = new InMemoryDurableSideEffectStore();
+    const ledger = new DurableSideEffectLedger(store);
+    const coordinator = new DurableSideEffectCoordinator(ledger, monotonicClock(BASE + 5_000_000));
+    const committed = (await coordinator.execute(claimInput('compensate-1', BASE + 5_000_000), async () => ({
+      disposition: 'succeeded', providerReference: 'provider://created/99', result: { id: 99 },
+    }))).operation;
+    let current = (await ledger.transition({
+      operationId: committed.operationId,
+      expectedRevision: committed.revision,
+      state: 'compensation_required',
+      idempotencyKey: 'comp:required',
+      recordedAt: iso(BASE + 5_000_100),
+      compensationReference: 'compensation://delete/99',
+      metadata: { reason: 'downstream transaction rejected' },
+    })).revision;
+    current = (await ledger.transition({
+      operationId: current.operationId,
+      expectedRevision: current.revision,
+      state: 'compensating',
+      idempotencyKey: 'comp:running',
+      recordedAt: iso(BASE + 5_000_101),
+      compensationReference: 'compensation://delete/99',
+    })).revision;
+    current = (await ledger.transition({
+      operationId: current.operationId,
+      expectedRevision: current.revision,
+      state: 'compensated',
+      idempotencyKey: 'comp:done',
+      recordedAt: iso(BASE + 5_000_102),
+      compensationReference: 'compensation://delete/99',
+    })).revision;
+    check(current.state === 'compensated', 'compensation has explicit durable terminal outcome');
+    const states = (await ledger.getHistory(current.operationId)).map(item => item.state);
+    check(states.includes('committed') && states.includes('compensation_required') && states.includes('compensated'), 'compensation does not erase original committed effect');
+  }
 
-  const leaked = await ledger.getCurrent(operationId);
-  assert.ok(leaked);
-  (leaked.result as { nested: { accepted: boolean } }).nested.accepted = false;
-  leaked.metadata.phase = 'tampered';
-  const pristine = await ledger.getCurrent(operationId);
-  check((pristine?.result as { nested: { accepted: boolean } }).nested.accepted, 'result reads are detached from ledger truth');
-  check(pristine?.metadata.phase === '05', 'metadata reads are detached from ledger truth');
+  // Fencing is monotonic evidence in P05.1; P05.2 must prove resource-bound validation.
+  {
+    const store = new InMemoryDurableSideEffectStore();
+    const ledger = new DurableSideEffectLedger(store);
+    let current = (await ledger.claim(claimInput('fence-evidence', BASE + 6_000_000))).revision;
+    current = (await ledger.transition({
+      operationId: current.operationId,
+      expectedRevision: current.revision,
+      state: 'prepared',
+      idempotencyKey: 'fence:prepared',
+      recordedAt: iso(BASE + 6_000_001),
+      fencingVersion: 5,
+    })).revision;
+    await assert.rejects(() => ledger.transition({
+      operationId: current.operationId,
+      expectedRevision: current.revision,
+      state: 'executing',
+      idempotencyKey: 'fence:regress',
+      recordedAt: iso(BASE + 6_000_002),
+      fencingVersion: 4,
+    }), /SIDE_EFFECT_FENCING_REGRESSION/);
+    assertions += 1;
+  }
 
-  // Compensation retains provider evidence/result while appending independent
-  // compensation state and reference.
-  const compensating = await ledger.transition({
-    operationId,
-    expectedRevision: 4,
-    state: 'compensating',
-    idempotencyKey: 'delivery-001:compensating',
-    recordedAt: T4,
-    fencingVersion: 8,
-    compensationReference: 'github://rotprods/cos-graph-engine/revert/revert-abc123',
-  });
-  check(compensating.revision.providerReference?.endsWith('abc123'), 'compensation preserves original provider reference');
-  check((compensating.revision.result as { commitSha: string }).commitSha === 'abc123', 'compensation preserves original accepted result evidence');
-  const compensated = await ledger.transition({
-    operationId,
-    expectedRevision: 5,
-    state: 'compensated',
-    idempotencyKey: 'delivery-001:compensated',
-    recordedAt: T5,
-    fencingVersion: 8,
-  });
-  check(compensated.revision.state === 'compensated' && compensated.revision.compensationReference !== null, 'compensation reaches terminal state with retained reference');
-
-  // Coordinator invokes provider once, then serves the terminal ledger result.
-  const coordinatorStore = new InMemorySideEffectLedgerStore();
-  const coordinatorLedger = new SideEffectLedger(coordinatorStore);
-  const times = [T1, T2, T3, T4, T5, T6];
-  const coordinator = new SideEffectCoordinator(coordinatorLedger, () => times.shift() ?? T6);
-  let providerCalls = 0;
-  const executionInput = {
-    ...BASE,
-    operationKey: 'delivery-coordinator-success',
-    recordedAt: T0,
-    fencingVersion: 11,
-  };
-  const firstExecution = await coordinator.execute(executionInput, async operation => {
-    providerCalls += 1;
-    check(operation.state === 'executing' && operation.fencingVersion === 11, 'provider receives durable executing revision and fence');
-    return {
-      disposition: 'succeeded',
-      providerReference: 'github://rotprods/cos-graph-engine/commit/coordinator',
-      result: { accepted: true },
-    };
-  });
-  const secondExecution = await coordinator.execute({ ...executionInput, recordedAt: T6 }, async () => {
-    providerCalls += 1;
-    return { disposition: 'failed', error: { code: 'SHOULD_NOT_RUN', message: 'duplicate provider invocation' } };
-  });
-  check(providerCalls === 1, 'terminal retry does not invoke provider twice');
-  check(firstExecution.operation.state === 'succeeded' && secondExecution.reusedTerminalResult, 'terminal result is durably reused');
-
-  // A thrown provider call may have mutated the provider before transport loss;
-  // therefore the ledger records uncertainty and refuses automatic re-execution.
-  const uncertainStore = new InMemorySideEffectLedgerStore();
-  const uncertainLedger = new SideEffectLedger(uncertainStore);
-  const uncertainTimes = [T1, T2, T3, T4];
-  const uncertainCoordinator = new SideEffectCoordinator(uncertainLedger, () => uncertainTimes.shift() ?? T4);
-  const uncertainInput = {
-    ...BASE,
-    operationKey: 'delivery-uncertain',
-    recordedAt: T0,
-    fencingVersion: 15,
-  };
-  const uncertainReceipt = await uncertainCoordinator.execute(uncertainInput, async () => {
-    throw new Error('connection lost after provider may have accepted request');
-  });
-  check(uncertainReceipt.operation.state === 'uncertain', 'thrown provider callback records uncertain rather than false failure');
-  await assert.rejects(() => uncertainCoordinator.execute({ ...uncertainInput, recordedAt: T4 }, async () => ({
-    disposition: 'succeeded', providerReference: 'should-not-run',
-  })), /SIDE_EFFECT_RECONCILIATION_REQUIRED/);
-  assertions += 1;
-
-  // Simulated process interruption after executing is explicitly recovered to
-  // uncertain before any provider retry.
-  const interruptedStore = new InMemorySideEffectLedgerStore();
-  const interruptedLedger = new SideEffectLedger(interruptedStore);
-  const interruptedClaim = await interruptedLedger.claim({ ...BASE, operationKey: 'delivery-interrupted' });
-  const interruptedPrepared = await interruptedLedger.transition({
-    operationId: interruptedClaim.revision.operationId,
-    expectedRevision: 1,
-    state: 'prepared',
-    idempotencyKey: 'delivery-interrupted:prepared',
-    recordedAt: T1,
-    fencingVersion: 21,
-  });
-  const interruptedExecuting = await interruptedLedger.transition({
-    operationId: interruptedClaim.revision.operationId,
-    expectedRevision: interruptedPrepared.revision.revision,
-    state: 'executing',
-    idempotencyKey: 'delivery-interrupted:executing',
-    recordedAt: T2,
-    fencingVersion: 21,
-  });
-  const recovered = await interruptedLedger.recoverInterrupted(
-    interruptedClaim.revision.operationId,
-    interruptedExecuting.revision.revision,
-    T3,
-    'delivery-interrupted:recovered',
-  );
-  check(recovered.revision.state === 'uncertain' && recovered.revision.fencingVersion === 21, 'interrupted execution becomes uncertain with fence evidence preserved');
-
-  // Postgres candidate implements the same append-only semantics.
-  const db = new FakeSideEffectLedgerPostgres();
-  const postgresStore = new PostgresSideEffectLedgerStore(db);
-  await postgresStore.ensureSchema();
-  const postgresLedger = new SideEffectLedger(postgresStore);
-  const postgresTimes = [T1, T2, T3, T4, T5];
-  const postgresCoordinator = new SideEffectCoordinator(postgresLedger, () => postgresTimes.shift() ?? T5);
-  const postgresInput = {
-    ...BASE,
-    operationKey: 'delivery-postgres',
-    recordedAt: T0,
-    fencingVersion: 31,
-  };
-  let postgresProviderCalls = 0;
-  const postgresResult = await postgresCoordinator.execute(postgresInput, async () => {
-    postgresProviderCalls += 1;
-    return {
-      disposition: 'succeeded',
-      providerReference: 'github://rotprods/cos-graph-engine/commit/postgres',
-      result: { commitSha: 'postgres', nested: { durable: true } },
-    };
-  });
-  const postgresRetry = await postgresCoordinator.execute({ ...postgresInput, recordedAt: T5 }, async () => {
-    postgresProviderCalls += 1;
-    return { disposition: 'failed', error: { code: 'DUPLICATE', message: 'must not execute' } };
-  });
-  check(postgresProviderCalls === 1 && postgresRetry.reusedTerminalResult, 'Postgres terminal retry does not re-invoke provider');
-  check(postgresResult.operation.state === 'succeeded', 'Postgres path reaches succeeded revision');
-
-  const rows = db.snapshotRows();
-  check(rows.length === 4, 'Postgres operation is four immutable revisions: claim/prepare/execute/success');
-  check(rows.every((row, index) => Number(row.revision) === index + 1), 'Postgres revisions are contiguous');
-  check(rows.every(row => row.operation_id === postgresResult.operation.operationId), 'all rows belong to one deterministic operation');
-  check(
-    !db.statements.some(sql => /^(update|delete|truncate)\b/i.test(sql)),
-    'Postgres authority ledger never mutates or deletes historical rows',
-  );
-  check(
-    db.statements.some(sql => sql.includes('pg_advisory_xact_lock')),
-    'Postgres writer serializes operations with transaction advisory lock',
-  );
-
-  const postgresLeaked = await postgresStore.getCurrent(postgresResult.operation.operationId);
-  assert.ok(postgresLeaked);
-  (postgresLeaked.result as { nested: { durable: boolean } }).nested.durable = false;
-  const postgresPristine = await postgresStore.getCurrent(postgresResult.operation.operationId);
-  check((postgresPristine?.result as { nested: { durable: boolean } }).nested.durable, 'Postgres row mapping returns detached result evidence');
-
-  db.corruptRevision(rows[3].revision_id, row => { row.content_hash = 'corrupt'; });
-  await assert.rejects(
-    () => postgresStore.getCurrent(postgresResult.operation.operationId),
-    /SIDE_EFFECT_REVISION_HASH_MISMATCH/,
-  );
-  assertions += 1;
-
-  const history = await ledger.getHistory(operationId);
-  assertHistory(history);
-  assertions += 1;
-
-  console.log(`Authority side-effect ledger contract: ${assertions} assertions passed`);
+  console.log(`Durable side-effect authority contract: ${assertions} assertions passed`);
 }
 
-function assertHistory(history: SideEffectOperationRevision[]): void {
-  assert.deepEqual(
-    history.map(revision => revision.state),
-    ['claimed', 'prepared', 'executing', 'succeeded', 'compensating', 'compensated'],
-  );
-  for (let index = 1; index < history.length; index += 1) {
-    assert.equal(history[index].previousRevisionId, history[index - 1].revisionId);
-    assert.ok(Date.parse(history[index].systemFrom) > Date.parse(history[index - 1].systemFrom));
-    assert.ok((history[index].fencingVersion ?? 0) >= (history[index - 1].fencingVersion ?? 0));
+class FailOnStateStore implements IDurableSideEffectStore {
+  private enabled = true;
+
+  constructor(
+    private readonly delegate: IDurableSideEffectStore,
+    private readonly state: DurableSideEffectRevision['state'],
+  ) {}
+
+  disableFailure(): void { this.enabled = false; }
+
+  async appendRevision(
+    revision: DurableSideEffectRevision,
+    expectedCurrentRevision: number,
+  ): Promise<DurableSideEffectAppendResult> {
+    if (this.enabled && revision.state === this.state) {
+      throw new Error(`injected ${this.state} persistence failure`);
+    }
+    return this.delegate.appendRevision(revision, expectedCurrentRevision);
   }
+
+  getCurrent(operationId: string) { return this.delegate.getCurrent(operationId); }
+  getHistory(operationId: string) { return this.delegate.getHistory(operationId); }
+  getByTransitionKey(transitionKey: string) { return this.delegate.getByTransitionKey(transitionKey); }
+  listProjectOperations(projectId: string) { return this.delegate.listProjectOperations(projectId); }
+}
+
+function claimInput(operationKey: string, at = BASE): DurableSideEffectClaimInput {
+  return {
+    principalId: 'agent://phase05/test',
+    projectId: 'COS_GRAPH_ENGINE',
+    resource: `github://rotprods/cos-graph-engine/resource/${operationKey}`,
+    capability: 'github.repository.write',
+    action: 'update_file',
+    operationKey,
+    request: { path: 'STATE.md', contentHash: `hash-${operationKey}` },
+    sourceRef: 'test://authority-side-effect-ledger',
+    recordedAt: iso(at),
+    metadata: { phase: '05', test: true },
+  };
+}
+
+function monotonicClock(start: number): () => string {
+  let current = start;
+  return () => iso(++current);
+}
+
+function iso(value: number): string {
+  return new Date(value).toISOString();
 }
 
 main().catch(error => {
