@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "waivers": [],
+  "rules": [
+    "A waiver must identify an existing ADR.",
+    "The original legacy test remains recoverable at the Phase 01 baseline commit.",
+    "A waiver must state the intentional behavior delta, replacement evidence and rollback.",
+    "Self-authored waiver does not increase Assurance; independent review is required before authority promotion."
+  ]
+}
