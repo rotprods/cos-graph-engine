@@ -89,6 +89,16 @@
       "rollback": "Restore packages/hub/src/authority-hub.ts from Phase 03 closure head 64dbdd85323d563ceb10af9b5b0182338dbcceb4 and restore the matching pre-wire EventLog as one coupled rollback.",
       "evidence": ["scripts/test-authority-hub.ts","scripts/test-authority-hub-recovery-wire.ts","scripts/test-authority-event-log-parity.ts","Phase 07 strict typecheck + replay/restore campaign"],
       "adr": "docs/hardening/adrs/ADR-007-STRICT-CANONICAL-SERIALIZATION.md"
+    },
+    {
+      "path": "packages/hub/src/authority-store.ts",
+      "ledgerId": "DEL-P04-004",
+      "status": "PROPOSED",
+      "reason": "Hub snapshot integrity previously hashed a runtime object while Postgres persisted a JSON.stringify/JSONB representation, leaving optional undefined fields and serialization interpretation outside the signed contract.",
+      "replacement": "Same snapshot manager/store surface with serializationVersion=1, canonical JSON wire hashing, JSONB persistence of the exact signed representation, explicit runtime hydration, schema/version checks and deterministic restore/tail replay.",
+      "rollback": "Restore packages/hub/src/authority-store.ts from Phase 03 closure head 64dbdd85323d563ceb10af9b5b0182338dbcceb4 together with the matching pre-wire Hub/EventLog as one coupled rollback.",
+      "evidence": ["scripts/test-authority-hub-recovery-wire.ts","scripts/fixtures/fake-authority-hub-snapshot-postgres.ts","Phase 07 corrupted snapshot + empty-projection restore evidence"],
+      "adr": "docs/hardening/adrs/ADR-007-STRICT-CANONICAL-SERIALIZATION.md"
     }
   ],
   "rules": [
