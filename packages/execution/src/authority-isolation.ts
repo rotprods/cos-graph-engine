@@ -1,4 +1,4 @@
-import { canonicalHash128, canonicalizeJsonValue } from '@cos/core';
+import { canonicalHash128 } from '@cos/core';
 import { isIP } from 'node:net';
 
 export type AuthorityHttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -52,20 +52,27 @@ export interface AuthorityPinnedHttpTarget {
   decisionHash: string;
 }
 
+type NormalizedHttpPolicy = {
+  allowedHosts: string[];
+  allowHttp: boolean;
+  allowedPorts: number[];
+  allowedMethods: AuthorityHttpMethod[];
+  maxResolvedAddresses: number;
+  decisionTtlMs: number;
+  maxRedirects: number;
+};
+
 /**
  * Produces a DNS-pinned egress decision. It never performs the network request.
  *
  * Authority transports must consume the returned resolved-address set directly
  * (including TLS SNI/Host handling) and must not resolve the hostname again.
  * Redirects must call `authorizeRedirect`, which resolves and evaluates the new
- * target from scratch. A normal `fetch(url)` after this check would reintroduce
- * DNS rebinding and is therefore not an authority implementation.
+ * target from scratch. Calling ordinary `fetch(url)` after this check would
+ * reintroduce DNS rebinding and is not an authority implementation.
  */
 export class AuthorityHttpEgressGuard {
-  private readonly policy: Required<Omit<AuthorityHttpEgressPolicy, 'allowedPorts' | 'allowedMethods'>> & {
-    allowedPorts: number[];
-    allowedMethods: AuthorityHttpMethod[];
-  };
+  private readonly policy: NormalizedHttpPolicy;
   private readonly policyHashValue: string;
 
   constructor(
@@ -101,9 +108,7 @@ export class AuthorityHttpEgressGuard {
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
       throw new Error(`EGRESS_PROTOCOL_DENIED protocol=${parsed.protocol}`);
     }
-    if (parsed.protocol === 'http:' && !this.policy.allowHttp) {
-      throw new Error('EGRESS_HTTP_DENIED');
-    }
+    if (parsed.protocol === 'http:' && !this.policy.allowHttp) throw new Error('EGRESS_HTTP_DENIED');
     parsed.hash = '';
 
     const hostname = normalizeHostname(parsed.hostname);
@@ -115,12 +120,11 @@ export class AuthorityHttpEgressGuard {
     const port = parsed.port
       ? positivePort(Number(parsed.port))
       : parsed.protocol === 'https:' ? 443 : 80;
-    if (!this.policy.allowedPorts.includes(port)) {
-      throw new Error(`EGRESS_PORT_DENIED port=${port}`);
-    }
+    if (!this.policy.allowedPorts.includes(port)) throw new Error(`EGRESS_PORT_DENIED port=${port}`);
 
-    const rawAddresses = isIP(hostname)
-      ? [{ address: hostname, family: isIP(hostname) as 4 | 6 }]
+    const literalFamily = isIP(hostname);
+    const rawAddresses: AuthorityResolvedAddress[] = literalFamily === 4 || literalFamily === 6
+      ? [{ address: hostname, family: literalFamily }]
       : await this.resolver.resolve(hostname);
     if (!Array.isArray(rawAddresses) || rawAddresses.length === 0) {
       throw new Error(`EGRESS_DNS_EMPTY host=${hostname}`);
@@ -143,7 +147,7 @@ export class AuthorityHttpEgressGuard {
     if (resolvedAddresses.length === 0) throw new Error(`EGRESS_DNS_EMPTY host=${hostname}`);
 
     const expiresAt = new Date(Date.parse(at) + this.policy.decisionTtlMs).toISOString();
-    const decisionWithoutHash = {
+    const payload = {
       schemaVersion: 1 as const,
       canonicalUrl: parsed.toString(),
       protocol: parsed.protocol as 'http:' | 'https:',
@@ -156,11 +160,7 @@ export class AuthorityHttpEgressGuard {
       redirectCount,
       policyHash: this.policyHashValue,
     };
-    const decision: AuthorityPinnedHttpTarget = {
-      ...decisionWithoutHash,
-      decisionHash: canonicalHash128(decisionWithoutHash),
-    };
-    return cloneHttpTarget(decision);
+    return cloneHttpTarget({ ...payload, decisionHash: canonicalHash128(payload) });
   }
 
   async authorizeRedirect(
@@ -189,15 +189,23 @@ export class AuthorityHttpEgressGuard {
     if (target.policyHash !== this.policyHashValue) throw new Error('EGRESS_POLICY_HASH_MISMATCH');
     const { decisionHash, ...payload } = target;
     if (canonicalHash128(payload) !== decisionHash) throw new Error('EGRESS_DECISION_HASH_MISMATCH');
-    if (Date.parse(checkedAt) < Date.parse(target.authorizedAt)) {
-      throw new Error('EGRESS_DECISION_NOT_YET_VALID');
+    if (!this.policy.allowedMethods.includes(target.method)) throw new Error('EGRESS_METHOD_DENIED');
+    if (!this.policy.allowedPorts.includes(target.port)) throw new Error('EGRESS_PORT_DENIED');
+    if (!this.policy.allowedHosts.some(pattern => hostMatches(target.hostname, pattern))) {
+      throw new Error('EGRESS_HOST_DENIED');
     }
-    if (Date.parse(checkedAt) >= Date.parse(target.expiresAt)) {
-      throw new Error('EGRESS_DECISION_EXPIRED');
+    if (target.protocol === 'http:' && !this.policy.allowHttp) throw new Error('EGRESS_HTTP_DENIED');
+    if (target.redirectCount > this.policy.maxRedirects) throw new Error('EGRESS_REDIRECT_LIMIT_EXCEEDED');
+    if (target.resolvedAddresses.length < 1
+      || target.resolvedAddresses.length > this.policy.maxResolvedAddresses) {
+      throw new Error('EGRESS_PINNED_ADDRESS_COUNT_INVALID');
     }
+    if (Date.parse(checkedAt) < Date.parse(target.authorizedAt)) throw new Error('EGRESS_DECISION_NOT_YET_VALID');
+    if (Date.parse(checkedAt) >= Date.parse(target.expiresAt)) throw new Error('EGRESS_DECISION_EXPIRED');
     for (const address of target.resolvedAddresses) {
-      if (classifyIp(address.address) !== 'public') {
-        throw new Error(`EGRESS_PINNED_ADDRESS_INVALID address=${address.address}`);
+      const normalized = normalizeResolvedAddress(address);
+      if (classifyIp(normalized.address) !== 'public') {
+        throw new Error(`EGRESS_PINNED_ADDRESS_INVALID address=${normalized.address}`);
       }
     }
   }
@@ -265,6 +273,14 @@ export interface AuthorityPinnedFileTarget {
   decisionHash: string;
 }
 
+type NormalizedRootPolicy = {
+  rootId: string;
+  canonicalRootUri: string;
+  brokerId: string;
+  operations: AuthorityFileOperation[];
+  allowSymlinks: boolean;
+};
+
 /**
  * Filesystem boundary that only authorizes broker-opened opaque handles.
  *
@@ -273,7 +289,7 @@ export interface AuthorityPinnedFileTarget {
  * Authority code must use `handleToken` and may not reopen `canonicalTargetUri`.
  */
 export class AuthorityFileSandbox {
-  private readonly roots = new Map<string, Required<AuthorityFileRootPolicy>>();
+  private readonly roots = new Map<string, NormalizedRootPolicy>();
   private readonly policyHashValue: string;
 
   constructor(
@@ -288,7 +304,7 @@ export class AuthorityFileSandbox {
       if (this.roots.has(rootId)) throw new Error(`FILESYSTEM_ROOT_DUPLICATE root=${rootId}`);
       const brokerId = nonEmpty(raw.brokerId, 'filesystem brokerId');
       const canonicalRootUri = canonicalFileUri(raw.canonicalRootUri, 'filesystem root URI');
-      const operations = Array.from(new Set(raw.operations)).sort();
+      const operations = Array.from(new Set(raw.operations)).sort() as AuthorityFileOperation[];
       if (operations.length === 0) throw new Error(`FILESYSTEM_OPERATIONS_REQUIRED root=${rootId}`);
       this.roots.set(rootId, {
         rootId,
@@ -335,19 +351,15 @@ export class AuthorityFileSandbox {
 
     const canonicalRootUri = canonicalFileUri(resolution.canonicalRootUri, 'broker root URI');
     const canonicalTargetUri = canonicalFileUri(resolution.canonicalTargetUri, 'broker target URI');
-    if (canonicalRootUri !== policy.canonicalRootUri) {
-      throw new Error('FILESYSTEM_BROKER_ROOT_URI_MISMATCH');
-    }
+    if (canonicalRootUri !== policy.canonicalRootUri) throw new Error('FILESYSTEM_BROKER_ROOT_URI_MISMATCH');
     if (!fileUriContained(canonicalRootUri, canonicalTargetUri)) {
       throw new Error(`FILESYSTEM_ROOT_ESCAPE target=${canonicalTargetUri}`);
     }
-    if (resolution.symlinkTraversed && !policy.allowSymlinks) {
-      throw new Error('FILESYSTEM_SYMLINK_DENIED');
-    }
+    if (resolution.symlinkTraversed && !policy.allowSymlinks) throw new Error('FILESYSTEM_SYMLINK_DENIED');
     const handleToken = nonEmpty(resolution.handleToken, 'filesystem handleToken');
     const handleHash = canonicalHash128({ brokerId: policy.brokerId, handleToken });
 
-    const decisionWithoutHash = {
+    const payload = {
       schemaVersion: 1 as const,
       rootId,
       brokerId: policy.brokerId,
@@ -363,11 +375,7 @@ export class AuthorityFileSandbox {
       authorizedAt: at,
       policyHash: this.policyHashValue,
     };
-    const decision: AuthorityPinnedFileTarget = {
-      ...decisionWithoutHash,
-      decisionHash: canonicalHash128(decisionWithoutHash),
-    };
-    return structuredClone(decision);
+    return structuredClone({ ...payload, decisionHash: canonicalHash128(payload) });
   }
 
   assertPinned(target: AuthorityPinnedFileTarget): void {
@@ -377,9 +385,10 @@ export class AuthorityFileSandbox {
     if (!policy) throw new Error(`FILESYSTEM_ROOT_DENIED root=${target.rootId}`);
     if (target.brokerId !== policy.brokerId) throw new Error('FILESYSTEM_BROKER_ID_MISMATCH');
     if (!policy.operations.includes(target.operation)) throw new Error('FILESYSTEM_OPERATION_DENIED');
-    if (!fileUriContained(policy.canonicalRootUri, target.canonicalTargetUri)) {
-      throw new Error('FILESYSTEM_ROOT_ESCAPE');
+    if (canonicalFileUri(target.canonicalRootUri, 'pinned root URI') !== policy.canonicalRootUri) {
+      throw new Error('FILESYSTEM_ROOT_URI_MISMATCH');
     }
+    if (!fileUriContained(policy.canonicalRootUri, target.canonicalTargetUri)) throw new Error('FILESYSTEM_ROOT_ESCAPE');
     if (target.symlinkTraversed && !policy.allowSymlinks) throw new Error('FILESYSTEM_SYMLINK_DENIED');
     if (canonicalHash128({ brokerId: target.brokerId, handleToken: target.handleToken }) !== target.handleHash) {
       throw new Error('FILESYSTEM_HANDLE_HASH_MISMATCH');
@@ -389,10 +398,8 @@ export class AuthorityFileSandbox {
   }
 }
 
-function normalizeHttpPolicy(raw: AuthorityHttpEgressPolicy): Required<Omit<AuthorityHttpEgressPolicy, 'allowedPorts' | 'allowedMethods'>> & {
-  allowedPorts: number[];
-  allowedMethods: AuthorityHttpMethod[];
-} {
+function normalizeHttpPolicy(raw: AuthorityHttpEgressPolicy): NormalizedHttpPolicy {
+  if (!raw || !Array.isArray(raw.allowedHosts)) throw new Error('EGRESS_ALLOWED_HOST_REQUIRED');
   const allowedHosts = Array.from(new Set(raw.allowedHosts.map(normalizeHostPattern))).sort();
   if (allowedHosts.length === 0) throw new Error('EGRESS_ALLOWED_HOST_REQUIRED');
   const allowHttp = raw.allowHttp ?? false;
@@ -426,7 +433,8 @@ function hostMatches(host: string, pattern: string): boolean {
 }
 
 function normalizeHostname(value: string): string {
-  const hostname = nonEmpty(value, 'hostname').toLowerCase();
+  let hostname = nonEmpty(value, 'hostname').toLowerCase();
+  if (hostname.startsWith('[') && hostname.endsWith(']')) hostname = hostname.slice(1, -1);
   return hostname.endsWith('.') ? hostname.slice(0, -1) : hostname;
 }
 
@@ -441,12 +449,14 @@ function assertNonLocalHostname(hostname: string): void {
 }
 
 function normalizeResolvedAddress(raw: AuthorityResolvedAddress): AuthorityResolvedAddress {
-  const address = nonEmpty(raw.address, 'resolved address').toLowerCase();
+  const address = normalizeHostname(raw.address);
   const actualFamily = isIP(address);
   if (actualFamily !== 4 && actualFamily !== 6) throw new Error(`EGRESS_ADDRESS_INVALID address=${address}`);
   if (actualFamily !== raw.family) throw new Error(`EGRESS_ADDRESS_FAMILY_MISMATCH address=${address}`);
   return { address, family: actualFamily };
 }
+
+type Ipv6Tuple = [number, number, number, number, number, number, number, number];
 
 function classifyIp(address: string): string {
   const family = isIP(address);
@@ -457,16 +467,16 @@ function classifyIp(address: string): string {
     const embeddedClass = classifyIpv4(parsed.embeddedIpv4);
     if (embeddedClass !== 'public') return `ipv4-mapped-${embeddedClass}`;
   }
-  const h = parsed.hextets;
-  if (h.every(part => part === 0)) return 'unspecified';
-  if (h.slice(0, 7).every(part => part === 0) && h[7] === 1) return 'loopback';
-  if ((h[0] & 0xfe00) === 0xfc00) return 'unique-local';
-  if ((h[0] & 0xffc0) === 0xfe80) return 'link-local';
-  if ((h[0] & 0xff00) === 0xff00) return 'multicast';
-  if (h[0] === 0x2001 && h[1] === 0x0db8) return 'documentation';
-  if (h[0] === 0x2001 && h[1] === 0x0000) return 'teredo';
-  if (h[0] === 0x2002) return '6to4';
-  if (h[0] === 0x0064 && h[1] === 0xff9b) return 'nat64';
+  const [h0, h1, h2, h3, h4, h5, h6, h7] = parsed.hextets;
+  if ([h0, h1, h2, h3, h4, h5, h6, h7].every(part => part === 0)) return 'unspecified';
+  if ([h0, h1, h2, h3, h4, h5, h6].every(part => part === 0) && h7 === 1) return 'loopback';
+  if ((h0 & 0xfe00) === 0xfc00) return 'unique-local';
+  if ((h0 & 0xffc0) === 0xfe80) return 'link-local';
+  if ((h0 & 0xff00) === 0xff00) return 'multicast';
+  if (h0 === 0x2001 && h1 === 0x0db8) return 'documentation';
+  if (h0 === 0x2001 && h1 === 0x0000) return 'teredo';
+  if (h0 === 0x2002) return '6to4';
+  if (h0 === 0x0064 && h1 === 0xff9b) return 'nat64';
   return 'public';
 }
 
@@ -491,7 +501,7 @@ function classifyIpv4(address: string): string {
   return 'public';
 }
 
-function parseIpv6(address: string): { hextets: number[]; embeddedIpv4?: string } {
+function parseIpv6(address: string): { hextets: Ipv6Tuple; embeddedIpv4?: string } {
   let value = address.toLowerCase();
   let embeddedIpv4: string | undefined;
   if (value.includes('.')) {
@@ -499,25 +509,28 @@ function parseIpv6(address: string): { hextets: number[]; embeddedIpv4?: string 
     if (lastColon < 0) throw new Error(`EGRESS_ADDRESS_INVALID address=${address}`);
     embeddedIpv4 = value.slice(lastColon + 1);
     if (classifyIpv4(embeddedIpv4) === 'invalid') throw new Error(`EGRESS_ADDRESS_INVALID address=${address}`);
-    const octets = embeddedIpv4.split('.').map(Number);
-    const high = ((octets[0] << 8) | octets[1]).toString(16);
-    const low = ((octets[2] << 8) | octets[3]).toString(16);
+    const [o0, o1, o2, o3] = embeddedIpv4.split('.').map(Number) as [number, number, number, number];
+    const high = ((o0 << 8) | o1).toString(16);
+    const low = ((o2 << 8) | o3).toString(16);
     value = `${value.slice(0, lastColon)}:${high}:${low}`;
   }
   const halves = value.split('::');
   if (halves.length > 2) throw new Error(`EGRESS_ADDRESS_INVALID address=${address}`);
-  const left = halves[0] ? halves[0].split(':').filter(Boolean) : [];
-  const right = halves.length === 2 && halves[1] ? halves[1].split(':').filter(Boolean) : [];
+  const leftText = halves[0] ?? '';
+  const rightText = halves[1] ?? '';
+  const left = leftText ? leftText.split(':').filter(Boolean) : [];
+  const right = halves.length === 2 && rightText ? rightText.split(':').filter(Boolean) : [];
   const missing = 8 - left.length - right.length;
   if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) {
     throw new Error(`EGRESS_ADDRESS_INVALID address=${address}`);
   }
-  const parts = [...left, ...Array(missing).fill('0'), ...right];
+  const parts = [...left, ...Array<string>(missing).fill('0'), ...right];
   if (parts.length !== 8) throw new Error(`EGRESS_ADDRESS_INVALID address=${address}`);
-  const hextets = parts.map(part => {
+  const parsed = parts.map(part => {
     if (!/^[0-9a-f]{1,4}$/.test(part)) throw new Error(`EGRESS_ADDRESS_INVALID address=${address}`);
     return Number.parseInt(part, 16);
   });
+  const hextets = parsed as Ipv6Tuple;
   return embeddedIpv4 ? { hextets, embeddedIpv4 } : { hextets };
 }
 
@@ -525,7 +538,7 @@ function normalizeRelativePath(value: string): string {
   const path = nonEmpty(value, 'relative path').normalize('NFC');
   if (path.includes('\0')) throw new Error('FILESYSTEM_NUL_DENIED');
   if (path.includes('\\')) throw new Error('FILESYSTEM_BACKSLASH_DENIED');
-  if (path.startsWith('/') || /^[a-zA-Z]:/.test(path) || path.startsWith('file:')) {
+  if (path.startsWith('/') || /^[a-zA-Z]:/.test(path) || path.toLowerCase().startsWith('file:')) {
     throw new Error('FILESYSTEM_ABSOLUTE_PATH_DENIED');
   }
   const segments = path.split('/');
@@ -543,7 +556,11 @@ function repeatedlyDecode(value: string): string {
   let current = value;
   for (let i = 0; i < 3; i += 1) {
     let decoded: string;
-    try { decoded = decodeURIComponent(current); } catch { throw new Error('FILESYSTEM_PATH_ENCODING_INVALID'); }
+    try {
+      decoded = decodeURIComponent(current);
+    } catch {
+      throw new Error('FILESYSTEM_PATH_ENCODING_INVALID');
+    }
     if (decoded === current) return decoded;
     current = decoded;
   }
@@ -552,22 +569,43 @@ function repeatedlyDecode(value: string): string {
 
 function canonicalFileUri(value: string, label: string): string {
   let parsed: URL;
-  try { parsed = new URL(value); } catch { throw new Error(`${label} is invalid`); }
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${label} is invalid`);
+  }
   if (parsed.protocol !== 'file:') throw new Error(`${label} must use file:`);
   if (parsed.username || parsed.password || parsed.host) throw new Error(`${label} must be local and credential-free`);
   parsed.hash = '';
   parsed.search = '';
-  const pathname = parsed.pathname.replace(/\/{2,}/g, '/').replace(/\/$/, '') || '/';
-  parsed.pathname = pathname;
+  parsed.pathname = canonicalFilePath(parsed.pathname);
   return parsed.toString();
 }
 
+function canonicalFilePath(encodedPath: string): string {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(encodedPath);
+  } catch {
+    throw new Error('FILESYSTEM_URI_ENCODING_INVALID');
+  }
+  if (decoded.includes('\0')) throw new Error('FILESYSTEM_NUL_DENIED');
+  const segments = decoded.replace(/\/{2,}/g, '/').split('/');
+  const canonical: string[] = [];
+  for (const segment of segments) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') throw new Error('FILESYSTEM_CANONICAL_TRAVERSAL_DENIED');
+    canonical.push(segment);
+  }
+  return `/${canonical.map(encodeURIComponent).join('/')}`.replace(/\/$/, '') || '/';
+}
+
 function fileUriContained(rootUri: string, targetUri: string): boolean {
-  const root = new URL(rootUri);
-  const target = new URL(targetUri);
-  if (root.protocol !== 'file:' || target.protocol !== 'file:') return false;
-  const rootPath = decodeURIComponent(root.pathname).replace(/\/$/, '') || '/';
-  const targetPath = decodeURIComponent(target.pathname).replace(/\/$/, '') || '/';
+  const root = new URL(canonicalFileUri(rootUri, 'containment root URI'));
+  const target = new URL(canonicalFileUri(targetUri, 'containment target URI'));
+  const rootPath = canonicalFilePath(root.pathname);
+  const targetPath = canonicalFilePath(target.pathname);
+  if (rootPath === '/') return targetPath.startsWith('/');
   return targetPath === rootPath || targetPath.startsWith(`${rootPath}/`);
 }
 
@@ -576,7 +614,9 @@ function cloneHttpTarget(target: AuthorityPinnedHttpTarget): AuthorityPinnedHttp
 }
 
 function positivePort(value: number): number {
-  if (!Number.isSafeInteger(value) || value < 1 || value > 65_535) throw new Error(`EGRESS_PORT_INVALID port=${value}`);
+  if (!Number.isSafeInteger(value) || value < 1 || value > 65_535) {
+    throw new Error(`EGRESS_PORT_INVALID port=${value}`);
+  }
   return value;
 }
 
@@ -603,6 +643,3 @@ function optionalString(value: string | undefined): string | undefined {
   const normalized = value?.normalize('NFC').trim();
   return normalized || undefined;
 }
-
-// Force the compiler to validate that every public decision is canonicalizable.
-void canonicalizeJsonValue;
