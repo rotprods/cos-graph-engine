@@ -11,6 +11,7 @@
   },
   "include": [
     "packages/core/src/identity.ts",
+    "packages/core/src/canonical-json.ts",
     "packages/core/src/integrity.ts",
     "packages/core/src/temporal.ts",
     "packages/runtime/src/event-log.ts",
@@ -18,6 +19,8 @@
     "packages/runtime/src/eventbus.ts",
     "packages/runtime/src/concurrency.ts",
     "packages/knowledge/src/property-graph.ts",
+    "packages/knowledge/src/authority-knowledge.ts",
+    "packages/knowledge/src/postgres-authority-knowledge.ts",
     "packages/execution/src/tool-runtime.ts",
     "packages/observability/src/authority.ts",
     "packages/graph/src/authority-state-machine.ts",
@@ -48,6 +51,8 @@
     "scripts/test-authority-property-graph.ts",
     "scripts/test-authority-identity.ts",
     "scripts/test-authority-csr.ts",
-    "scripts/test-authority-event-log-parity.ts"
+    "scripts/test-authority-event-log-parity.ts",
+    "scripts/test-authority-canonical-wire.ts",
+    "scripts/test-authority-knowledge.ts"
   ]
 }
