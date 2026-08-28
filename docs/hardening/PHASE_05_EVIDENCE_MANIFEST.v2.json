@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 2,
+  "phase": "05_SECURITY_CONCURRENCY_AGENT_RUNTIME",
+  "authorityStatus": "SHADOW_ONLY",
+  "proofStatus": "WRITTEN_UNEXECUTED",
+  "parentCheckpoint": "checkpoint/phase-04-temporal-20260828",
+  "branch": "hardening/phase-05-security-concurrency-runtime",
+  "draftPullRequest": 46,
+  "authoritySurface": "packages/execution/src/authority-phase05-current.ts",
+  "strictTypecheck": "npx tsc -p tsconfig.phase05.full.json --noEmit",
+  "candidateModules": [
+    "packages/execution/src/authority-side-effect.ts",
+    "packages/execution/src/authority-side-effect-runtime.ts",
+    "packages/execution/src/authority-side-effect-store-postgres.ts",
+    "packages/execution/src/authority-lease.ts",
+    "packages/execution/src/authority-lease-store-postgres.ts",
+    "packages/execution/src/authority-execution-runtime.ts",
+    "packages/execution/src/authority-execution-evidence.ts",
+    "packages/execution/src/authority-execution-signal-store.ts",
+    "packages/execution/src/authority-policy.ts",
+    "packages/execution/src/authority-policy-bound-runtime.ts",
+    "packages/execution/src/authority-agent-run.ts"
+  ],
+  "authorityContracts": [
+    {
+      "path": "scripts/test-authority-side-effect-runtime.ts",
+      "command": "npx tsx scripts/test-authority-side-effect-runtime.ts",
+      "guarantees": [
+        "payload-bound operation claim idempotency",
+        "interrupted execution becomes reconciliation_required",
+        "provider-applied outcome commits without re-execution",
+        "provider-not-applied outcome prepares a new fenced attempt",
+        "partial application requires a compensation plan",
+        "stale fencing token cannot commit",
+        "terminal accepted result survives runtime restart"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-side-effect-postgres.ts",
+      "command": "npx tsx scripts/test-authority-side-effect-postgres.ts",
+      "guarantees": [
+        "append-only Postgres operation and revision history",
+        "non-aborting ON CONFLICT classification",
+        "runtime restart reconstruction",
+        "historical row immutability",
+        "content-hash corruption rejection"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-lease.ts",
+      "command": "npx tsx scripts/test-authority-lease.ts",
+      "guarantees": [
+        "bounded explicit-time lease expiry",
+        "renewal preserves current fencing token",
+        "expiry and release reacquisition increment fencing token",
+        "stale lease and resource revision rejection",
+        "copy-safe append-only lease history"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-lease-postgres.ts",
+      "command": "npx tsx scripts/test-authority-lease-postgres.ts",
+      "guarantees": [
+        "append-only Postgres lease history",
+        "resource advisory-lock serialization",
+        "restart reconstruction",
+        "non-aborting conflict classification",
+        "content-hash corruption rejection"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-execution-runtime.ts",
+      "command": "npx tsx scripts/test-authority-execution-runtime.ts",
+      "guarantees": [
+        "prepare, begin and commit validate lease at explicit operation time",
+        "expired or superseded worker cannot commit",
+        "lease identity, owner and token checked before prepare",
+        "live operation and resource histories remain append-only"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-execution-evidence.ts",
+      "command": "npx tsx scripts/test-authority-execution-evidence.ts",
+      "guarantees": [
+        "accepted operation signals are deterministic and content-hashed",
+        "stale fencing rejection becomes near-miss evidence",
+        "near-miss evidence does not invent root cause",
+        "observer failure cannot alter protected operation outcome",
+        "signal reads are detached"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-policy.ts",
+      "command": "npx tsx scripts/test-authority-policy.ts",
+      "guarantees": [
+        "default deny for unknown actions",
+        "hard project-scope and sensitivity-clearance gates",
+        "explicit deny dominates allow",
+        "require_approval dominates broad allow",
+        "approval grant is exact-operation scoped and expires fail closed",
+        "deterministic decision identity and hash"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-policy-bound-runtime.ts",
+      "command": "npx tsx scripts/test-authority-policy-bound-runtime.ts",
+      "guarantees": [
+        "policy intercepts claim, prepare, execute and commit independently",
+        "later policy decisions bind canonical operation attributes",
+        "denied mutations append no operation revision",
+        "principal mismatch and cross-project access fail closed",
+        "accepted revisions retain policy decision evidence"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-agent-run.ts",
+      "command": "npx tsx scripts/test-authority-agent-run.ts",
+      "guarantees": [
+        "durable create and conflict-safe operation identity",
+        "acyclic plan and dependency enforcement",
+        "side-effecting accepted step requires committed operation evidence",
+        "step retries retain failed and accepted attempts",
+        "required criteria use exact evaluator ID and version",
+        "completion cannot be inferred from positive text",
+        "completed run survives service restart with detached history"
+      ]
+    }
+  ],
+  "explicitlyNonAuthorityDrafts": [
+    {
+      "path": "packages/execution/src/postgres-authority-side-effect.ts",
+      "reason": "prototype may classify a uniqueness error inside an already-aborted PostgreSQL transaction",
+      "replacement": "packages/execution/src/authority-side-effect-store-postgres.ts"
+    },
+    {
+      "path": "packages/execution/src/authority-side-effect-coordinator.ts#AuthoritySideEffectCoordinator",
+      "reason": "first orchestration draft records interruption and provider reconciliation at one timestamp",
+      "replacement": "packages/execution/src/authority-side-effect-runtime.ts"
+    },
+    {
+      "path": "packages/execution/src/authority-execution-evidence.ts#InMemoryAuthorityExecutionSignalSink",
+      "reason": "first sink implementation uses an unsafe Array.from mapping callback shape",
+      "replacement": "packages/execution/src/authority-execution-signal-store.ts"
+    },
+    {
+      "path": "packages/execution/src/authority.ts",
+      "reason": "early incomplete authority barrel",
+      "replacement": "packages/execution/src/authority-phase05-current.ts"
+    },
+    {
+      "path": "packages/execution/src/authority-phase05.ts",
+      "reason": "earlier Phase 05 barrel predates policy, evidence, Postgres lease and agent-run candidates",
+      "replacement": "packages/execution/src/authority-phase05-current.ts"
+    },
+    {
+      "path": "tsconfig.phase05.json",
+      "reason": "earlier strict graph predates the current Phase 05 surface",
+      "replacement": "tsconfig.phase05.full.json"
+    },
+    {
+      "path": "scripts/test-authority-side-effect.ts",
+      "reason": "early draft contract does not represent the selected crash-reconciliation runtime",
+      "replacement": "scripts/test-authority-side-effect-runtime.ts"
+    },
+    {
+      "path": "scripts/fixtures/fake-authority-side-effect-postgres.ts",
+      "reason": "fixture targets the superseded Postgres prototype",
+      "replacement": "scripts/fixtures/fake-authority-side-effect-store-postgres.ts"
+    }
+  ],
+  "remainingPhase05Gaps": [
+    "bind the real CapabilityRouter and ToolRegistry side-effect path to PolicyBoundAuthorityExecutionRuntime",
+    "add deployment-layer HTTP egress and filesystem sandbox contracts",
+    "add provider-native idempotency and reconciliation adapters",
+    "add durable Postgres agent-run store",
+    "connect policy, lease and agent-run events to the canonical signal and AuthorityTelemetry path",
+    "resolve or delete superseded draft files under Phase 02 deletion governance",
+    "promote the narrow surface through the Phase 07 API and compatibility gate"
+  ],
+  "assuranceRules": [
+    "Presence in this manifest does not mean the contract passed.",
+    "No D01-D20 Assurance score changes until clean-checkout execution evidence exists.",
+    "A provider effect is not exactly-once unless provider or resource reconciliation evidence closes every crash window.",
+    "A fencing token must be validated at the resource commit boundary using an explicit evaluation time.",
+    "A run cannot complete while a critical step or required acceptance criterion is unresolved.",
+    "No production database, Supabase project, deployment or automatic GitHub Action is used by these static contracts."
+  ]
+}
