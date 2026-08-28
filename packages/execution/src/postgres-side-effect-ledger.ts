@@ -126,7 +126,7 @@ export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
         WHERE transition_key=$1
       `, [revision.transitionKey]);
       if (duplicate.rowCount) {
-        const existing = rowToRevision(duplicate.rows[0]);
+        const existing = rowToRevision(duplicate.rows[0]!);
         if (existing.transitionIntentHash !== revision.transitionIntentHash) {
           throw new Error(`SIDE_EFFECT_TRANSITION_CONFLICT key=${revision.transitionKey}`);
         }
@@ -140,7 +140,7 @@ export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
         LIMIT 1
         FOR UPDATE
       `, [revision.operationId]);
-      const current = currentResult.rowCount ? rowToRevision(currentResult.rows[0]) : null;
+      const current = currentResult.rowCount ? rowToRevision(currentResult.rows[0]!) : null;
       const currentRevision = current?.revision ?? 0;
       if (currentRevision !== expectedCurrentRevision) {
         throw new Error(
@@ -154,7 +154,7 @@ export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
       if (inserted.rowCount !== 1) {
         throw new Error(`SIDE_EFFECT_INSERT_INVARIANT operation=${revision.operationId}`);
       }
-      return { revision: rowToRevision(inserted.rows[0]), appended: true };
+      return { revision: rowToRevision(inserted.rows[0]!), appended: true };
     });
   }
 
@@ -165,7 +165,7 @@ export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
       ORDER BY revision DESC
       LIMIT 1
     `, [nonEmpty(operationId, 'operationId')]);
-    return result.rowCount ? rowToRevision(result.rows[0]) : null;
+    return result.rowCount ? rowToRevision(result.rows[0]!) : null;
   }
 
   async getHistory(operationId: string): Promise<SideEffectOperationRevision[]> {
@@ -182,7 +182,7 @@ export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
       SELECT * FROM cos_execution.side_effect_operation_revisions
       WHERE transition_key=$1
     `, [nonEmpty(transitionKey, 'transitionKey')]);
-    return result.rowCount ? rowToRevision(result.rows[0]) : null;
+    return result.rowCount ? rowToRevision(result.rows[0]!) : null;
   }
 
   async listProjectOperations(projectId: string): Promise<SideEffectOperationRevision[]> {
@@ -297,17 +297,18 @@ function canonicalError(value: unknown): SideEffectError {
     throw new Error('side-effect row error must be an object');
   }
   const candidate = canonical as Record<string, CanonicalJsonValue>;
+  const details = candidate.details;
   if (typeof candidate.code !== 'string'
     || typeof candidate.message !== 'string'
     || typeof candidate.retryable !== 'boolean'
-    || !Object.prototype.hasOwnProperty.call(candidate, 'details')) {
+    || details === undefined) {
     throw new Error('side-effect row error has invalid shape');
   }
   return {
     code: candidate.code,
     message: candidate.message,
     retryable: candidate.retryable,
-    details: candidate.details,
+    details,
   };
 }
 
