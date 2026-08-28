@@ -3,166 +3,166 @@
 ## Program status
 
 - North Star: `20/20 verticals at Authority 10.0`
-- Current phase: `02 — CONTRACTS / COMPATIBILITY / DELETION GOVERNANCE`
-- Phase 01 code checkpoint: `checkpoint/phase-01-reconciled-76dfdc7`
-- Phase 01 exact SHA: `76dfdc737c231b2637f122125f7acf98b735ff1f`
-- Phase 01 draft PR: `#40`
+- Current phase: `03 — CORE CORRECTNESS`
+- Phase 01 checkpoint: `checkpoint/phase-01-reconciled-76dfdc7`
+- Phase 02 checkpoint: `checkpoint/phase-02-contracts-06487e7`
+- Phase 01 PR: `#40`
+- Phase 02 PR: `#43`
 - Authority: `SHADOW_ONLY`
 - Automatic CI/CD: `OFF`
 - Todoist project: `COS GRAPH ENGINE · 10/10 AUTHORITY PROGRAM` (`6hMP59rWj7f5xH7M`)
 
-## Phase 00 — North Star & control plane
+## Phase 00 — North Star & control plane — COMPLETE
 
 - [x] Define evidence-backed 10/10 North Star.
 - [x] Complete 20D audit and full-stack adversarial review.
-- [x] Create isolated Todoist project under Ecosistema rotprods Perfeccion.
+- [x] Create isolated Todoist project.
 - [x] Establish Build / Assurance / Authority scoring.
 - [x] Persist GitHub ↔ Drive ↔ Todoist synchronization contract.
 
-**Checkpoint:** governance truth exists in all three planes.
-
 ## Phase 01 — Reconcile #34 and #35 — COMPLETE_STATIC
 
-### Control and decisions
+- [x] Canonical branch from #33 and source-lineage inventory.
+- [x] C01–C13 ownership decisions and deletion ledger.
+- [x] Strict tool runtime, AuthorityTelemetry, EventBus failure observation, provider fixtures.
+- [x] AuthorityStateMachine.
+- [x] AuthorityAgenticRegistry.
+- [x] AuthorityGraphRAGIndex.
+- [x] AuthorityContextPackCompiler.
+- [x] AuthorityHub runtime/query/context/recovery.
+- [x] Append-only AuthorityMemory candidate.
+- [x] Additive authority contract scripts.
+- [x] Authority surface manifest/API diff/lockfile truth/source coverage.
+- [x] Freeze `checkpoint/phase-01-reconciled-76dfdc7`.
 
-- [x] Create `hardening/canonical-authority-reconciliation` from #33.
-- [x] Record source refs, divergence and capability inventories.
-- [x] Define canonical capability decisions C01–C13.
-- [x] Create semantic deletion ledger and Phase 01 addendum.
-- [x] Open draft reconciliation PR #40.
+**Checkpoint:** `STATIC_RECONCILIATION_COMPLETE / IMPLEMENTED_UNVERIFIED`.
 
-### Low-conflict primitive ports
+## Phase 02 — Contracts, compatibility and deletion governance — COMPLETE_STATIC
 
-- [x] Port strict tool runtime with provenance.
-- [x] Port AuthorityTelemetry with export wiring.
-- [x] Port immutable EventBus delivery-failure observation.
-- [x] Port semantic GitHub webhook fixtures.
+- [x] Preserve legacy tests through machine-readable immutable evidence manifest.
+- [x] Initialize explicit waiver registry for intentional legacy test changes.
+- [x] Add executable legacy-test preservation gate.
+- [x] Add authority tests without rewriting historical evidence.
+- [x] Create ADR-001…ADR-006 + ADR index.
+- [x] Create legacy→authority compatibility matrix.
+- [x] Create rollback map covering code/data/event/operational recovery.
+- [x] Create machine-readable deletion governance + >50-line executable gate.
+- [x] Add read-only migration projections that cannot become alternate authority writers.
+- [x] Add additive compatibility mutation-isolation contract.
+- [x] Define public API stability/deprecation policy.
+- [x] Define linear descendant branch law through Phase 07.
+- [x] Freeze `checkpoint/phase-02-contracts-06487e7`.
+- [x] Publish `PHASE_02_CLOSURE.md`.
 
-### Canonical authority kernels
+**Checkpoint:** every intended behavior change now has a compatibility/rollback/evidence framework. Gates remain unexecuted; Assurance unchanged.
 
-- [x] Implement one `AuthorityStateMachine` combining transactional mutation with expected-state/revision fencing.
-- [x] Implement one append-only revisioned `AuthorityAgenticRegistry` with canonical identity and object/projection CAS.
-- [x] Implement one atomic `AuthorityGraphRAGIndex` with projection version/hash CAS and temporal/scope filtering.
-- [x] Bind `AuthorityContextPackCompiler` to the single authority retriever with explicit timestamps, version/hash fencing, deterministic evidence and SHA-256 integrity.
-- [x] Converge Hub command/outcome replay, query, snapshot, recovery and context into additive authority surfaces.
-- [x] Redesign memory as append-only epistemic/system-time revisions with retry-safe coordinator, non-leaking Gateway and Postgres adapter.
-- [x] Add additive authority contract scripts for state-machine, registry, ContextPack, Hub and memory behavior.
+## Phase 03 — Core correctness — ACTIVE
 
-### Surface and governance closure
+### P03.1 CAS deep safety
+- [ ] Make VersionedStore/CAS reads and snapshots deeply detached or immutable.
+- [ ] Ensure nested caller mutation cannot change canonical state without version/hash change.
+- [ ] Reject unsupported non-canonical values on authority CAS path.
+- [ ] Add stale-write + nested-mutation adversarial authority contract.
 
-- [x] Publish machine-readable authority/shadow ownership manifest.
-- [x] Produce package/API behavior diff for legacy → authority migration.
-- [x] Document lockfile truth and prohibit hand-crafted lock repair.
-- [x] Create strict `tsconfig.authority.json` and `typecheck:authority` command.
-- [x] Record material replacement/deprecation entries in semantic ledger/addendum.
-- [x] Establish one authority candidate owner per reconciled capability while preserving legacy as explicit shadow compatibility.
-- [x] Classify every remaining #34/#35 source surface in `PHASE_01_SOURCE_COVERAGE.md`.
-- [x] Freeze Phase 01 exact code candidate at `checkpoint/phase-01-reconciled-76dfdc7`.
-- [x] Publish `PHASE_01_CLOSURE.md`.
+### P03.2 PropertyGraph correctness
+- [ ] Make getNode/getEdge/query/traversal outputs detached from canonical graph state.
+- [ ] Preserve type/tag/source/target secondary indices atomically on updates.
+- [ ] Validate edge endpoints and duplicate identity invariants.
+- [ ] Add mutation-bypass/index-corruption authority contracts.
 
-**Checkpoint:** `STATIC_RECONCILIATION_COMPLETE / IMPLEMENTED_UNVERIFIED`. Assurance did not move.
+### P03.3 Traversal invariants
+- [ ] Reject fractional/negative/unsafe depth.
+- [ ] Define exact depth=0 semantics.
+- [ ] Enforce directed-edge traversal direction unless explicitly overridden.
+- [ ] Ensure paths contain both edge endpoints and consistent edge/node counts.
+- [ ] Add traversal negative/property-style contracts.
 
-## Phase 02 — Contracts, compatibility and deletion governance — ACTIVE
+### P03.4 Canonical serialization
+- [ ] Restrict deterministic serializer to explicit supported JSON-like values.
+- [ ] Reject Date/Map/Set/class instances/functions/symbols/undefined/non-finite numbers.
+- [ ] Reject cycles.
+- [ ] Preserve deterministic key ordering and number/string semantics.
 
-- [ ] Preserve legacy tests as a separate immutable suite/manifest.
-- [x] Add initial authority tests without rewriting historical evidence.
-- [ ] Create ADR index and canonical ADRs for authority-path selection, temporal semantics, replay semantics and compatibility breaks.
-- [ ] Create compatibility matrix: legacy symbol → authority symbol → status → migration window.
-- [ ] Create rollback map per capability, schema/data model and operational control.
-- [ ] Complete deletion ledger entries for every existing material replacement and define enforcement for future >50-line replacements.
-- [ ] Add migration adapters only where they cannot become alternate authority writers.
-- [ ] Define package-level public API stability policy and deprecation semantics.
-- [ ] Define a linear branch/PR discipline for Phases 02–07; no new sibling authority lines.
-- [ ] Freeze Phase 02 contract checkpoint.
+### P03.5 Canonical identity normalization
+- [ ] Add Unicode normalization.
+- [ ] Define provider/scheme normalization profiles.
+- [ ] Normalize aliases with the same provider rules.
+- [ ] Keep deterministic ID hashing separate from SHA-256 integrity.
+- [ ] Add confusable/case/Unicode normalization contracts.
 
-**Checkpoint:** every intentional behavior change has explicit compatibility status, migration path, evidence requirement and rollback.
+### P03.6 Authority CSR
+- [ ] Select one canonical multiedge-capable CSR surface.
+- [ ] Maintain forward + reverse CSR.
+- [ ] Make reverse traversal O(in-degree).
+- [ ] Remove queue.shift() from hot traversal loops.
+- [ ] Add deterministic edge identity/projection hash/invariant validation.
+- [ ] Add parallel-edge/reverse-index/replay contracts.
 
-## Phase 03 — Core correctness
-
-- [ ] Make CAS values deeply immutable/copy-safe.
-- [ ] Make PropertyGraph reads, queries and traversals clone-safe.
-- [ ] Correct traversal direction/depth/path invariants.
-- [ ] Restrict stable serialization to supported canonical JSON-like values.
-- [ ] Add Unicode/provider normalization to canonical identity.
-- [ ] Consolidate authority CSR: multiedges, reverse CSR, deterministic hash and invariants.
-
-**Checkpoint:** graph/identity/state mutation cannot bypass canonical APIs or leave derived indexes stale.
+**Phase 03 checkpoint:** graph/identity/state mutation cannot bypass canonical APIs or leave derived indices/hash/version stale.
 
 ## Phase 04 — Temporal, event and persistence
 
-- [x] Implement append-only system-time revisions for authority memory candidate.
+- [x] Append-only system-time authority memory candidate.
 - [ ] Extend append-only temporal semantics to knowledge/other authority domains.
-- [ ] Separate domain validity closure from transaction-time supersession everywhere.
+- [ ] Separate valid-time closure from transaction-time supersession everywhere.
 - [ ] Unify in-memory/Postgres event idempotency semantics.
 - [ ] Make KnowledgeGraph transactional or saga-compensable.
-- [x] Implement authority Hub snapshot integrity and snapshot+tail replay candidate.
-- [ ] Execute corrupted-snapshot and empty-database restore evidence.
-- [ ] Add executable Postgres/Supabase semantic fixtures.
-
-**Checkpoint:** historical validAt/knownAt queries, replay and restore produce evidence-equivalent state.
+- [x] Authority Hub snapshot integrity + snapshot/tail replay candidate.
+- [ ] Corrupted snapshot + empty DB restore evidence.
+- [ ] Executable Postgres/Supabase semantic fixtures.
 
 ## Phase 05 — Security, concurrency and agent runtime
 
-- [ ] Implement durable side-effect ledger.
-- [ ] Validate fencing at the resource commit boundary.
-- [ ] Add lease renewal, expiry, reacquisition and crash recovery.
-- [ ] Make goal/plan/result aggregates immutable and durable.
-- [ ] Complete principal/scope/sensitivity policy model.
-- [ ] Add deployment-level HTTP/FS isolation defenses.
-- [ ] Connect operational near-miss evidence.
-
-**Checkpoint:** stale/duplicate/unauthorized workers cannot create uncontrolled side effects.
+- [ ] Durable side-effect ledger.
+- [ ] Resource commit-boundary fencing.
+- [ ] Lease renewal/expiry/reacquisition/crash recovery.
+- [ ] Immutable durable goal/plan/result aggregates.
+- [ ] Principal/scope/sensitivity policy model.
+- [ ] Deployment HTTP/FS isolation.
+- [ ] Operational near-miss evidence.
 
 ## Phase 06 — Hub, memory, GraphRAG and observability
 
-- [x] Implement one canonical authority GraphRAG + ContextPack candidate path.
-- [x] Implement append-only epistemic memory candidate with deep-copy authority reads.
-- [x] Implement Hub outcome replay rather than historical command re-decision.
-- [x] Implement scope/temporal/provenance-safe authority ContextPacks.
-- [x] Implement authority Hub queries, context bridge and sealed snapshot/recovery candidate.
-- [ ] Instrument all canonical paths with AuthorityTelemetry without making it a single point of failure.
-- [ ] Build gold-query evaluation set.
+- [x] Canonical GraphRAG + ContextPack candidate.
+- [x] Append-only epistemic memory candidate.
+- [x] Outcome-based Hub replay candidate.
+- [x] Scope/temporal/provenance ContextPacks.
+- [x] Hub query/context/snapshot/recovery candidate.
+- [ ] Instrument all canonical paths with AuthorityTelemetry.
+- [ ] Gold-query evaluation set.
 - [ ] Execute cross-project/sensitivity leakage evidence.
-
-**Checkpoint:** a fresh authorized agent receives bounded, deterministic, evidence-backed context with no cross-project leakage.
 
 ## Phase 07 — Test truth and manual CI
 
-- [ ] Rework PR #37 into a manual full verification matrix.
-- [ ] Regenerate lockfile from a clean install.
-- [ ] Explicitly pin qualification `typescript` and `tsx` versions in the committed dependency graph.
-- [ ] Pass legacy and strict authority typechecks.
+- [ ] Rework PR #37 into manual full verification matrix.
+- [ ] Regenerate lockfile from clean install.
+- [ ] Pin qualification TypeScript/tsx versions.
+- [ ] Pass legacy + strict authority typechecks.
 - [ ] Run all orphan/excluded suites.
 - [ ] Add remaining contract/property/mutation/negative tests.
-- [ ] Preserve coverage, benchmark and Docker qualification artifacts.
-- [ ] Prove required failures make the manual gate red.
-- [ ] Freeze exact candidate SHA.
-- [ ] Recreate W13 from that exact SHA.
-
-**Checkpoint:** no test is orphaned, no required failure is suppressed, verification breadth is retained at zero automatic spend, and W13 has a stable complete lineage.
+- [ ] Preserve coverage/benchmark/Docker artifacts.
+- [ ] Prove required failures make manual gate red.
+- [ ] Freeze exact qualification SHA.
+- [ ] Recreate W13 from exact SHA.
 
 ## Phase 08 — Evidence campaign
 
-- [ ] Security diff scan and threat model.
-- [ ] CAS/lease/fencing/idempotency contention campaign.
-- [ ] Event/graph/context deterministic replay.
-- [ ] Corrupted snapshot and empty-DB restore drill.
-- [ ] Failure-injection/degraded-mode campaign.
-- [ ] Scientific benchmark campaign.
+- [ ] Security diff/threat model.
+- [ ] CAS/lease/fencing/idempotency contention.
+- [ ] Deterministic replay.
+- [ ] Corrupted snapshot/empty-DB restore.
+- [ ] Failure injection/degraded modes.
+- [ ] Scientific benchmarks.
 - [ ] Blind cold-agent resume.
-- [ ] Evidence manifest per commit and vertical.
-
-**Checkpoint:** all mandatory evidence gates are green and reproducible.
+- [ ] Evidence manifest per commit/vertical.
 
 ## Phase 09 — Authority qualification and merge
 
-- [ ] Perform final adversarial 20D re-audit.
-- [ ] Obtain independent write-enabled review.
+- [ ] Final adversarial 20D re-audit.
+- [ ] Independent write-enabled review.
 - [ ] Promote scores only from linked evidence.
-- [ ] Consolidate into a canonical reviewable PR.
-- [ ] Merge with expected SHA and rollback checkpoint.
-- [ ] Decide deployment separately; keep CD off until explicitly authorized.
-- [ ] Promote `SHADOW_ONLY` → `AUTHORITY_READY` only when D01–D20 = 10.0.
-- [ ] Persist final Acta, STATE, HANDOFF and Todoist closure.
-
-**Checkpoint / North Star:** COS is deterministic, secure, durable, replayable, recoverable, concurrency-safe and cold-startable with 20/20 Authority scores at 10.0.
+- [ ] Canonical reviewable PR.
+- [ ] Merge with expected SHA + rollback checkpoint.
+- [ ] Separate deployment decision; CD remains off until authorized.
+- [ ] `SHADOW_ONLY` → `AUTHORITY_READY` only when D01–D20 = 10.0.
+- [ ] Persist final Acta/STATE/HANDOFF/Todoist closure.

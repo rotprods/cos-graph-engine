@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "baselineCommit": "76dfdc737c231b2637f122125f7acf98b735ff1f",
+  "deletionThresholdLines": 50,
+  "entries": [],
+  "rules": [
+    "Generated files may be exempt only through an explicit entry.",
+    "A material deletion requires a stable ledgerId, behavior reason, replacement or retirement decision, rollback and evidence plan.",
+    "An entry may be PROPOSED during implementation but must be ACCEPTED with independent review before authority promotion.",
+    "Deleting verification breadth is not justified by CI cost control."
+  ]
+}
