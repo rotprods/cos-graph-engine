@@ -1,0 +1,69 @@
+[
+  {
+    "name": "closed pull request is not a deployment",
+    "expectedEvent": null,
+    "envelope": {
+      "event": "pull_request",
+      "deliveryId": "fixture-pr-closed-unmerged",
+      "repository": {
+        "full_name": "rotprods/provider-fixture",
+        "html_url": "https://github.com/rotprods/provider-fixture"
+      },
+      "action": "closed",
+      "pull_request": {
+        "merged": false,
+        "merge_commit_sha": null
+      },
+      "sender": { "login": "fixture-user" }
+    }
+  },
+  {
+    "name": "merged pull request means repository change, not deployment",
+    "expectedEvent": "change",
+    "envelope": {
+      "event": "pull_request",
+      "deliveryId": "fixture-pr-merged",
+      "repository": {
+        "full_name": "rotprods/provider-fixture",
+        "html_url": "https://github.com/rotprods/provider-fixture"
+      },
+      "action": "closed",
+      "pull_request": {
+        "merged": true,
+        "merge_commit_sha": "0123456789abcdef"
+      },
+      "sender": { "login": "fixture-user" }
+    }
+  },
+  {
+    "name": "successful deployment is explicit",
+    "expectedEvent": "deployment_succeeded",
+    "envelope": {
+      "event": "deployment_status",
+      "deliveryId": "fixture-deployment-success",
+      "repository": {
+        "full_name": "rotprods/provider-fixture",
+        "html_url": "https://github.com/rotprods/provider-fixture"
+      },
+      "deployment_status": { "state": "success" },
+      "sender": { "login": "fixture-user" }
+    }
+  },
+  {
+    "name": "failed workflow blocks repository",
+    "expectedEvent": "build_failed",
+    "envelope": {
+      "event": "workflow_run",
+      "deliveryId": "fixture-workflow-failure",
+      "repository": {
+        "full_name": "rotprods/provider-fixture",
+        "html_url": "https://github.com/rotprods/provider-fixture"
+      },
+      "workflow_run": {
+        "status": "completed",
+        "conclusion": "failure"
+      },
+      "sender": { "login": "fixture-user" }
+    }
+  }
+]

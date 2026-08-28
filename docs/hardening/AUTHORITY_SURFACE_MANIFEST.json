@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "phase": "01_CANONICAL_RECONCILIATION",
+  "verification": "IMPLEMENTED_UNVERIFIED",
+  "authorityStatus": "SHADOW_ONLY",
+  "rules": {
+    "singleAuthorityCandidatePerCapability": true,
+    "legacyCompatibilityMayRemain": true,
+    "legacyCompatibilityMayWriteAuthorityTruth": false,
+    "assuranceRequiresExecutedEvidence": true
+  },
+  "capabilities": {
+    "stateMachine": {
+      "authorityCandidate": "@cos/graph:AuthorityStateMachine",
+      "shadow": ["@cos/graph:StateMachine"],
+      "migration": "authority callers must use explicit definition revision and expected state/revision fencing"
+    },
+    "agenticRegistry": {
+      "authorityCandidate": "@cos/hub:AuthorityAgenticRegistry",
+      "shadow": ["@cos/hub:AgenticResourceRegistry"],
+      "migration": "authority callers require explicit recordedAt, revision CAS and validAt/knownAt semantics"
+    },
+    "graphRagProjection": {
+      "authorityCandidate": "@cos/graph:AuthorityGraphRAGIndex",
+      "shadow": ["@cos/graph:GraphRAGEngine"],
+      "migration": "authority writes use complete atomic versioned projections; legacy incremental mutation is shadow only"
+    },
+    "contextPack": {
+      "authorityCandidate": "@cos/graph:AuthorityContextPackCompiler",
+      "shadow": ["@cos/graph:ContextPackCompiler"],
+      "migration": "authority packs require explicit asOf/knownAt/generatedAt plus projection version/hash and SHA-256 integrity"
+    },
+    "hubRepositoryRuntime": {
+      "authorityCandidate": "@cos/hub:AuthorityHub",
+      "shadow": ["@cos/hub:CosHub"],
+      "migration": "authority history separates command and recorded outcome; replay applies outcomes rather than re-deciding commands"
+    },
+    "hubQueries": {
+      "authorityCandidate": "@cos/hub:AuthorityHubQueryService",
+      "shadow": [],
+      "migration": "authority queries require explicit asOf and knownAt"
+    },
+    "hubContextProjection": {
+      "authorityCandidate": "@cos/hub:AuthorityHubContextProjector",
+      "shadow": ["historical W12.4 context projectors"],
+      "migration": "project topology is filtered in AgenticRegistry, GraphRAG and ContextPack layers"
+    },
+    "hubSnapshotRecovery": {
+      "authorityCandidate": "@cos/hub:AuthorityHubSnapshotManager",
+      "components": [
+        "@cos/hub:InMemoryAuthorityHubSnapshotStore",
+        "@cos/hub:PostgresAuthorityHubSnapshotStore"
+      ],
+      "shadow": ["historical W12.4 snapshot/recovery implementations"],
+      "migration": "repository runtime recovery only; external agentic/memory domains retain separate recovery contracts"
+    },
+    "memory": {
+      "authorityCandidate": "@cos/memory:AuthorityMemoryGateway",
+      "components": [
+        "@cos/memory:AuthorityMemoryCoordinator",
+        "@cos/memory:InMemoryAuthorityMemoryStore",
+        "@cos/memory:PostgresAuthorityMemoryStore"
+      ],
+      "shadow": [
+        "@cos/memory:AuthorityMemoryService",
+        "@cos/memory:MemoryManager",
+        "@cos/memory:PostgresMemoryStore"
+      ],
+      "migration": "authority reads require asOf+knownAt and append-only revision history; systemUntil is derived, never back-written"
+    },
+    "toolExecution": {
+      "authorityCandidate": "strict ToolRegistry/CapabilityRouter path",
+      "status": "CANDIDATE_REQUIRES_DURABLE_SIDE_EFFECT_LEDGER",
+      "shadow": ["legacy permissive tool execution"],
+      "migration": "side-effecting authority execution is blocked from final promotion until durable idempotency/fencing/compensation is implemented"
+    },
+    "durableEvents": {
+      "authorityCandidate": "@cos/runtime:IEventLog with PostgresEventLog for durable deployment",
+      "components": ["@cos/runtime:InMemoryEventLog", "@cos/runtime:PostgresEventLog"],
+      "nonAuthority": ["@cos/runtime:EventBus"],
+      "migration": "EventBus is delivery/observation, never the accepted-history source of truth"
+    },
+    "observability": {
+      "authorityCandidate": "@cos/observability:AuthorityTelemetry",
+      "components": ["immutable EventBus delivery-failure observation"],
+      "rule": "observer failure cannot change protected operation outcome"
+    }
+  },
+  "qualification": {
+    "w13MustDescendFrom": "hardening/canonical-authority-reconciliation",
+    "automaticActions": false,
+    "cd": false,
+    "promotionRequiresAll20AuthorityScores": 10.0
+  }
+}

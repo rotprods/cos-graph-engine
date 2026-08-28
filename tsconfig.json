@@ -31,6 +31,7 @@
       "@cos/infrastructure": ["./packages/infrastructure/src"],
       "@cos/deployment": ["./packages/deployment/src"],
       "@cos/graph": ["./packages/graph/src"],
+      "@cos/hub": ["./packages/hub/src"],
       "@cos/visualization": ["./packages/visualization/src"],
       "@cos/wasm": ["./packages/wasm/src"]
     }
@@ -48,6 +49,7 @@
     { "path": "./packages/infrastructure" },
     { "path": "./packages/deployment" },
     { "path": "./packages/graph" },
+    { "path": "./packages/hub" },
     { "path": "./packages/visualization" },
     { "path": "./packages/wasm" }
   ]
