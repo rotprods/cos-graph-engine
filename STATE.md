@@ -1,10 +1,10 @@
 # STATE — COS Graph Engine
 
 Updated: 2026-08-28  
-Mode: **TEMPORAL_EVENT_PERSISTENCE_HARDENING**  
+Mode: **PHASE_04_STATIC_CLOSURE / PHASE_05_PREFLIGHT**  
 Authority status: **SHADOW_ONLY**  
-Current phase: **04 / 09 — TEMPORAL / EVENT / PERSISTENCE**  
-Active completed-static PRs: **#40 → #43 → #44**  
+Current phase: **04 COMPLETE_STATIC → 05 NEXT**  
+Draft PR chain: **#40 → #43 → #44 → #45**  
 Automatic CI/CD: **OFF**  
 Merge authorization: **DENIED UNTIL HARDENING + EVIDENCE**
 
@@ -20,123 +20,106 @@ Calibrated baseline remains:
 - Assurance: **2.6/10**;
 - Authority: **2.6/10**.
 
-Static hardening does not promote Assurance.
+No score moved during Phases 01–04 because all contracts remain unexecuted.
 
 ## Frozen checkpoints
 
-### Phase 01 — Canonical reconciliation
-- `checkpoint/phase-01-reconciled-76dfdc7`
-- SHA `76dfdc737c231b2637f122125f7acf98b735ff1f`
-- PR #40
+- Phase 01 — `checkpoint/phase-01-reconciled-76dfdc7` → `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
+- Phase 02 — `checkpoint/phase-02-contracts-06487e7` → `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
+- Phase 03 — `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44
+- Phase 04 — checkpoint branch created after synchronized closure; see `docs/hardening/PHASE_04_CLOSURE.md` and PR #45
 
-### Phase 02 — Contracts / compatibility
-- `checkpoint/phase-02-contracts-06487e7`
-- SHA `06487e7acbce82c5a54dbb8dd171dceae2bb67ac`
-- PR #43
+## Phase 04 result
 
-### Phase 03 — Core correctness
-- status: `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`
-- checkpoint: `checkpoint/phase-03-core-ad6a93c`
-- SHA `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3`
-- PR #44
-- closure: `docs/hardening/PHASE_03_CLOSURE.md`
+Status: `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`.
 
-## Phase 03 result
+### Event truth
 
-Implemented candidate guarantees:
+- one payload-bound logical-event contract for InMemory/Postgres EventLog;
+- retry identity excludes attempt-local event/trace/span IDs and recordedAt;
+- same key + different semantic event fails closed;
+- detached event storage/read surfaces;
+- shared cursor/limit/order validation;
+- transaction-aware fake Postgres parity fixture.
 
-- deep-copy CAS/idempotency boundaries;
-- copy-safe PropertyGraph with atomic index updates;
-- exact traversal depth/path/direction semantics;
-- strict authority `canonicalSerialize/canonicalHash128` while retaining legacy deterministic hash compatibility;
-- NFC/provider-aware canonical identity and alias normalization;
-- SHA-256 integrity over strict canonical serialization;
-- deterministic multiedge bidirectional CSR with forward/reverse projections, cursor BFS, deterministic projection hash and stronger invariants.
+### Persistence wire
 
-Additive authority contracts were written for concurrency, PropertyGraph, identity and CSR. They remain unexecuted.
+- canonical JSON wire version 1;
+- optional object `undefined` omitted only at persistence boundary;
+- unsupported JS values/cycles/accessors/sparse arrays/non-finite numbers fail closed;
+- NFC normalization and normalized-key collision rejection;
+- SHA-256 over exact canonical wire values.
+
+### Knowledge truth
+
+- `AuthorityKnowledgeGateway` is the candidate authority owner;
+- immutable append-only system revisions with independent valid-time;
+- historical `knownAt` does not see future correction/closure;
+- provenance, epistemic type, confidence, project scope and sensitivity are first-class;
+- PropertyGraph is rebuildable projection only;
+- projection failure becomes explicit degraded saga state and is repairable idempotently;
+- Postgres adapter uses advisory transaction locking, revision CAS and INSERT-only history.
+
+### Recovery truth
+
+- Hub registration/command/outcome/projection hashes are JSON-roundtrip stable;
+- snapshot envelopes carry schema + serialization version;
+- SHA-256 covers the exact JSONB wire payload;
+- empty projection + snapshot + event tail reconstructs semantic state;
+- corruption, schema/serialization mismatch, metadata tampering and event-log-behind-snapshot fail closed;
+- fake Postgres snapshot fixture models real JSON serialization behavior.
 
 ## Current authority candidate ownership
 
 ```text
-State             → AuthorityStateMachine
-Agentic topology  → AuthorityAgenticRegistry
-GraphRAG          → AuthorityGraphRAGIndex
-ContextPack       → AuthorityContextPackCompiler
-Hub runtime       → AuthorityHub
-Hub query         → AuthorityHubQueryService
-Hub context       → AuthorityHubContextProjector
-Hub recovery      → AuthorityHubSnapshotManager
-Memory            → AuthorityMemoryGateway + Coordinator + append-only stores
-Durable history   → IEventLog / PostgresEventLog candidate
-Observability     → AuthorityTelemetry
-Tools             → strict ToolRegistry path
-CSR hot graph     → BidirectionalCSRGraph authority candidate
+State               → AuthorityStateMachine
+Agentic topology    → AuthorityAgenticRegistry
+GraphRAG            → AuthorityGraphRAGIndex
+ContextPack         → AuthorityContextPackCompiler
+Hub runtime         → AuthorityHub
+Hub query           → AuthorityHubQueryService
+Hub context         → AuthorityHubContextProjector
+Hub recovery        → AuthorityHubSnapshotManager
+Memory              → AuthorityMemoryGateway + append-only stores
+Knowledge           → AuthorityKnowledgeGateway + append-only stores
+Durable events      → IEventLog / PostgresEventLog candidate
+Canonical wire      → CANONICAL_JSON_WIRE_VERSION 1
+Observability       → AuthorityTelemetry
+Tools               → strict ToolRegistry path
+CSR hot graph       → BidirectionalCSRGraph candidate
 ```
 
 Legacy counterparts remain shadow/deprecated/read-only compatibility and may not write authority truth.
 
-## Phase 04 objective
+## Phase 05 objective
 
-Make persisted history and replay semantics truthful across adapters and projections.
+Make external side effects, concurrent workers and autonomous agent execution survive retries, stale ownership and process failure without false exactly-once claims.
 
-### P04.1 — EventLog semantic parity
+Exact order:
 
-- InMemoryEventLog and PostgresEventLog must implement the same idempotency semantics;
-- retries with same logical event converge;
-- same idempotency key with different logical payload fails closed;
-- writes/reads are copy-safe;
-- cursor/order validation consistent.
+1. durable side-effect operation ledger;
+2. resource-bound monotonic fencing at commit boundary;
+3. lease acquire/renew/expire/reacquire/crash recovery;
+4. durable immutable goal/plan/result aggregate;
+5. principal/project/sensitivity policy enforcement across execution paths;
+6. deployment-layer HTTP/FS isolation contracts;
+7. near-miss evidence for denied/stale/duplicate/uncertain operations.
 
-### P04.2 — Canonical persisted payloads
+## Phase 05 hard constraints
 
-- strict SHA/canonical serialization is authoritative for new integrity evidence;
-- persisted/signed optional fields are omitted or represented canonically, never explicit `undefined`;
-- snapshot schema/version makes legacy verification algorithm visible;
-- round-trip through Postgres JSON/timestamps cannot create false hash divergence.
-
-### P04.3 — KnowledgeGraph transaction/saga boundary
-
-- statement + relation projection cannot partially apply silently;
-- supersession/retraction preserves temporal/provenance history;
-- projection failure either rolls back or emits explicit compensating/degraded evidence.
-
-### P04.4 — Temporal semantics beyond memory
-
-- valid-time and system-time semantics propagate to knowledge/authority projections;
-- future knowledge never leaks into historical `knownAt` reads.
-
-### P04.5 — Durable adapter fixtures
-
-- driver-neutral executable fixtures for Postgres/Supabase candidates;
-- semantic parity with in-memory reference adapters;
-- no real production DB mutation during hardening.
-
-### P04.6 — Replay / restore contracts
-
-- corrupted snapshot fails closed;
-- schema mismatch fails closed;
-- empty projection restores from snapshot + event tail;
-- deterministic final semantic hash;
-- post-snapshot events replay exactly once at projection level.
-
-## Known cross-phase risk
-
-Phase 03 made `sha256Hex` strict. Existing persisted payloads containing explicit `undefined` or non-canonical objects must be migrated/versioned at the payload boundary; weakening canonical serialization is prohibited.
-
-## Governance inherited
-
-- legacy tests immutable unless waiver+ADR;
-- >50 deleted lines/file require deletion governance;
-- public behavior changes update compatibility/rollback;
-- one authority writer per domain;
-- one linear descendant branch;
-- Actions manual-only; CD off;
+- presence of an idempotency key is not proof of durable idempotency;
+- presence of a fencing token is not proof it was validated at resource commit;
+- do not call a side effect exactly-once unless the provider and operation protocol prove it;
+- unknown outcome after crash must be represented as `uncertain` and reconciled;
+- callback/state-machine rollback cannot undo an external provider mutation;
+- no alternate execution writer may bypass the operation ledger;
+- no automatic Actions or CD;
 - no Assurance movement without executed evidence.
 
 ## W13 timing
 
-W13 #36 remains paused/non-authoritative. A new W13 is created only after Phase 07 freezes the exact complete qualification SHA.
+PR #36 remains paused/non-authoritative. A new W13 is created only after Phase 07 freezes the exact complete qualification SHA.
 
 ## Next exact action
 
-Create `hardening/phase-04-temporal-event-persistence` from the synchronized Phase 03 closure head. First slice: reconcile `InMemoryEventLog` and `PostgresEventLog` into one payload-bound, copy-safe semantic contract and add one adapter-parity authority fixture.
+Freeze the synchronized Phase 04 ref, create the single descendant branch `hardening/phase-05-security-concurrency-runtime`, open a draft PR against Phase 04, and implement the durable side-effect ledger as the first guarantee.
