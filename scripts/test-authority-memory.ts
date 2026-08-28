@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  AuthorityMemoryCoordinator,
+  AuthorityMemoryGateway,
   InMemoryAuthorityMemoryStore,
 } from '../packages/memory/src';
 
@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   };
 
   const store = new InMemoryAuthorityMemoryStore();
-  const memory = new AuthorityMemoryCoordinator(store);
+  const memory = new AuthorityMemoryGateway(store);
   const provenance = [{ source: 'github://rotprods/cos-graph-engine/pull/40' }];
 
   const created = await memory.create({
@@ -111,6 +111,7 @@ async function main(): Promise<void> {
   });
   const beforeFact = knownBeforeCorrection.find(item => item.memoryId === created.revision.memoryId);
   check(beforeFact?.content.statement === 'state remained valid' && beforeFact.revision === 1, 'knownAt before correction sees original revision');
+  check(beforeFact?.systemUntil === null, 'knownAt before correction does not leak the timestamp of a future revision');
 
   const knownAfterCorrection = await memory.query<{ statement: string }>({
     projectId: 'COS_GRAPH_ENGINE',
@@ -120,6 +121,7 @@ async function main(): Promise<void> {
   });
   const afterFact = knownAfterCorrection.find(item => item.memoryId === created.revision.memoryId);
   check(afterFact?.content.statement === 'corrected state' && afterFact.revision === 2, 'knownAt after correction sees revised knowledge');
+  check(afterFact?.systemUntil === null, 'query does not reveal a later revision that is not known yet');
 
   const domainCorrection = await memory.revise({
     memoryId: created.revision.memoryId,
@@ -133,8 +135,6 @@ async function main(): Promise<void> {
   });
   check(domainCorrection.revision.revision === 3, 'late domain closure is a new system-time revision');
 
-  // Transport retry of revision 2 arrives after revision 3 exists. Authority
-  // semantics must resolve the already-accepted operation rather than calling it stale.
   const lateRetry = await memory.revise<{ statement: string }>(correctionInput);
   check(!lateRetry.appended && lateRetry.revision.revision === 2, 'late retry resolves historical accepted revision after newer writes');
   check(lateRetry.revision.revisionId === revised.revision.revisionId, 'late retry returns the exact accepted revision identity');
@@ -156,13 +156,18 @@ async function main(): Promise<void> {
   check(!afterLateDiscovery.some(item => item.memoryId === created.revision.memoryId), 'after late discovery, domain query reflects corrected validity');
 
   const history = await memory.history<{ statement: string }>(created.revision.memoryId);
-  check(history.length === 3, 'all three revisions remain available');
-  check(history[0].systemUntil === T2 && history[1].systemUntil === T4 && history[2].systemUntil === null, 'systemUntil is derived from next immutable revision');
+  check(history.length === 3, 'all three revisions remain available to forensic history');
+  check(history[0].systemUntil === T2 && history[1].systemUntil === T4 && history[2].systemUntil === null, 'forensic history derives complete system intervals from immutable rows');
   history[2].metadata.owner = 'mutated-by-caller';
   history[2].content.statement = 'caller mutation';
-  const currentAfterLeakAttempt = await memory.current<{ statement: string }>(created.revision.memoryId);
-  check(currentAfterLeakAttempt?.metadata.owner === 'cos', 'metadata reads are copy-safe');
-  check(currentAfterLeakAttempt?.content.statement === 'corrected state', 'content reads are copy-safe');
+  const currentAtT5 = await memory.getAt<{ statement: string }>({
+    memoryId: created.revision.memoryId,
+    asOf: T1,
+    knownAt: T5,
+    maxSensitivity: 'internal',
+  });
+  check(currentAtT5?.metadata.owner === 'cos', 'metadata reads are copy-safe');
+  check(currentAtT5?.content.statement === 'corrected state', 'content reads are copy-safe');
 
   const oldPolicy = await memory.create({
     projectId: 'COS_GRAPH_ENGINE',
@@ -211,8 +216,15 @@ async function main(): Promise<void> {
   const relationRetry = await memory.relate(relationInput);
   check(!relationRetry.appended && relationRetry.relation.id === relation.relation.id, 'relation retry converges');
 
-  // Reclassify the source after the relation was already accepted. A later retry
-  // must derive sensitivity from the endpoint state known at T5, not from T6.
+  const supersededAtT5 = await memory.query({
+    projectId: 'COS_GRAPH_ENGINE',
+    asOf: T5,
+    knownAt: T5,
+    statuses: ['superseded'],
+    maxSensitivity: 'internal',
+  });
+  check(supersededAtT5.some(item => item.memoryId === oldPolicy.revision.memoryId), 'internal reader sees supersession while both endpoints are internal');
+
   await memory.revise({
     memoryId: newPolicy.revision.memoryId,
     expectedRevision: 1,
@@ -224,23 +236,23 @@ async function main(): Promise<void> {
   check(!relationRetryAfterReclassification.appended, 'relation retry remains stable after future endpoint reclassification');
   check(relationRetryAfterReclassification.relation.contentHash === relation.relation.contentHash, 'relation retry preserves exact historical semantics');
 
-  const statusBeforeRelation = await memory.query({
+  const internalAfterReclassification = await memory.query({
     projectId: 'COS_GRAPH_ENGINE',
     asOf: T6,
-    knownAt: T4,
+    knownAt: T6,
     statuses: ['active'],
     maxSensitivity: 'internal',
   });
-  check(statusBeforeRelation.some(item => item.memoryId === oldPolicy.revision.memoryId), 'old policy is active before supersession is known');
+  check(internalAfterReclassification.some(item => item.memoryId === oldPolicy.revision.memoryId), 'internal reader does not infer hidden restricted supersession through old relation label');
 
-  const statusAfterRelation = await memory.query({
+  const restrictedAfterReclassification = await memory.query({
     projectId: 'COS_GRAPH_ENGINE',
     asOf: T6,
     knownAt: T6,
     statuses: ['superseded'],
-    maxSensitivity: 'internal',
+    maxSensitivity: 'restricted',
   });
-  check(statusAfterRelation.some(item => item.memoryId === oldPolicy.revision.memoryId), 'old policy becomes superseded only after relation recordedAt');
+  check(restrictedAfterReclassification.some(item => item.memoryId === oldPolicy.revision.memoryId), 'authorized restricted reader still sees supersession');
 
   const restricted = await memory.create({
     projectId: 'COS_GRAPH_ENGINE',
@@ -302,7 +314,7 @@ async function main(): Promise<void> {
   }), /CROSS_PROJECT_MEMORY_RELATION_REJECTED/);
   assertions += 1;
 
-  console.log(`Authority memory contract: ${assertions} assertions passed`);
+  console.log(`Authority memory gateway contract: ${assertions} assertions passed`);
 }
 
 main().catch(error => {
