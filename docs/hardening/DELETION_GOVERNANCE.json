@@ -2,7 +2,22 @@
   "schemaVersion": 1,
   "baselineCommit": "76dfdc737c231b2637f122125f7acf98b735ff1f",
   "deletionThresholdLines": 50,
-  "entries": [],
+  "entries": [
+    {
+      "path": "packages/knowledge/src/property-graph.ts",
+      "ledgerId": "DEL-P03-001",
+      "status": "PROPOSED",
+      "reason": "Close mutable-reference leakage and incorrect traversal semantics while preserving the IPropertyGraph surface.",
+      "replacement": "Same file: copy-safe storage/read/query/traversal boundaries, atomic index maintenance, directed/undirected traversal invariants and exact depth semantics.",
+      "rollback": "Restore packages/knowledge/src/property-graph.ts from Phase 02 closure head 097df3dcba6b71d838525bf8caa07ebda3925e6a.",
+      "evidence": [
+        "scripts/test-authority-property-graph.ts",
+        "legacy tests/graph.test.ts remains unchanged",
+        "Phase 07 strict typecheck + full legacy suite"
+      ],
+      "adr": "docs/hardening/adrs/ADR-001-SINGLE-AUTHORITY-OWNER.md"
+    }
+  ],
   "rules": [
     "Generated files may be exempt only through an explicit entry.",
     "A material deletion requires a stable ledgerId, behavior reason, replacement or retirement decision, rollback and evidence plan.",
