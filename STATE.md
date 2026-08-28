@@ -26,7 +26,7 @@ No score has moved during Phases 01–04 because their contracts remain unexecut
 
 - Phase 01 — `checkpoint/phase-01-reconciled-76dfdc7` → `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
 - Phase 02 — `checkpoint/phase-02-contracts-06487e7` → `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
-- Phase 03 — `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5b0182338dbcceb4` is NOT the code checkpoint; canonical Phase 03 code checkpoint remains `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` and its synchronized descendant/base for Phase 04 is `64dbdd85323d563ceb10af9b5b0182338dbcceb4` — PR #44
+- Phase 03 code — `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44; synchronized Phase 03 descendant/base used for Phase 04 = `64dbdd85323d563ceb10af9b5b0182338dbcceb4`
 - Phase 04 — `checkpoint/phase-04-temporal-event-bedfec6` → `bedfec6b8ea147c91ac7d50a888c38b0439d53ff` — PR #45
 
 ## Phase 04 closure
