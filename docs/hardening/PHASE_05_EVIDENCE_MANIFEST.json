@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "phase": "05_SECURITY_CONCURRENCY_AGENT_RUNTIME",
+  "authorityStatus": "SHADOW_ONLY",
+  "proofStatus": "WRITTEN_UNEXECUTED",
+  "parentCheckpoint": "checkpoint/phase-04-temporal-20260828",
+  "authoritySurface": "packages/execution/src/authority-phase05.ts",
+  "strictTypecheck": "npx tsc -p tsconfig.phase05.json --noEmit",
+  "candidateModules": [
+    "packages/execution/src/authority-side-effect.ts",
+    "packages/execution/src/authority-side-effect-runtime.ts",
+    "packages/execution/src/authority-side-effect-store-postgres.ts",
+    "packages/execution/src/authority-lease.ts",
+    "packages/execution/src/authority-execution-runtime.ts"
+  ],
+  "referenceAdapters": [
+    "packages/execution/src/authority-side-effect-coordinator.ts#InMemoryAuthorityFencingValidator",
+    "packages/execution/src/authority-side-effect.ts#InMemoryAuthoritySideEffectStore",
+    "packages/execution/src/authority-lease.ts#InMemoryAuthorityLeaseStore"
+  ],
+  "authorityContracts": [
+    {
+      "path": "scripts/test-authority-side-effect-runtime.ts",
+      "command": "npx tsx scripts/test-authority-side-effect-runtime.ts",
+      "guarantees": [
+        "payload-bound operation claim idempotency",
+        "crash interruption becomes reconciliation_required",
+        "provider-applied outcome commits without re-execution",
+        "provider-not-applied outcome prepares a new fenced attempt",
+        "partial application requires compensation",
+        "stale fencing token cannot commit",
+        "terminal accepted result survives runtime restart"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-side-effect-postgres.ts",
+      "command": "npx tsx scripts/test-authority-side-effect-postgres.ts",
+      "guarantees": [
+        "append-only Postgres operation/revision history",
+        "non-aborting ON CONFLICT classification",
+        "restart reconstruction",
+        "historical row immutability",
+        "content-hash corruption rejection"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-lease.ts",
+      "command": "npx tsx scripts/test-authority-lease.ts",
+      "guarantees": [
+        "bounded explicit-time leases",
+        "renewal without fencing-token reuse across owners",
+        "monotonic fencing on expiry/release/reacquire",
+        "stale lease and stale resource revision rejection",
+        "copy-safe append-only lease history"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-execution-runtime.ts",
+      "command": "npx tsx scripts/test-authority-execution-runtime.ts",
+      "guarantees": [
+        "prepare/begin/commit validate lease at operation timestamp",
+        "expired or superseded worker cannot commit",
+        "lease identity/owner/token checked before prepare",
+        "live side-effect history remains append-only"
+      ]
+    }
+  ],
+  "explicitlyNonAuthorityDrafts": [
+    {
+      "path": "packages/execution/src/postgres-authority-side-effect.ts",
+      "reason": "prototype catches a unique-insert error and then attempts classification inside the same transaction; PostgreSQL would leave that transaction aborted",
+      "replacement": "packages/execution/src/authority-side-effect-store-postgres.ts"
+    },
+    {
+      "path": "packages/execution/src/authority-side-effect-coordinator.ts#AuthoritySideEffectCoordinator",
+      "reason": "first orchestration draft records interruption and reconciliation at one timestamp; not exported by the Phase 05 authority barrel",
+      "replacement": "packages/execution/src/authority-side-effect-runtime.ts"
+    },
+    {
+      "path": "scripts/test-authority-side-effect.ts",
+      "reason": "early draft contract is not part of the qualification graph",
+      "replacement": "scripts/test-authority-side-effect-runtime.ts"
+    },
+    {
+      "path": "scripts/fixtures/fake-authority-side-effect-postgres.ts",
+      "reason": "fixture targets the superseded prototype SQL surface",
+      "replacement": "scripts/fixtures/fake-authority-side-effect-store-postgres.ts"
+    }
+  ],
+  "assuranceRules": [
+    "Presence in this manifest does not mean the contract passed.",
+    "No D01-D20 Assurance score changes until clean-checkout execution evidence exists.",
+    "A provider effect is not exactly-once unless provider/resource reconciliation evidence closes every crash window.",
+    "A fencing token must be validated at the resource commit boundary using an explicit evaluation time.",
+    "No production database or Supabase project is used by these static contracts."
+  ]
+}
