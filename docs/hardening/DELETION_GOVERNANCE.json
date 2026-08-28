@@ -22,6 +22,16 @@
       "rollback": "Restore packages/core/src/identity.ts from Phase 02 closure head 097df3dcba6b71d838525bf8caa07ebda3925e6a.",
       "evidence": ["scripts/test-authority-identity.ts","legacy identity callers remain compatible through stableHash128","Phase 07 strict typecheck + full legacy suite"],
       "adr": "docs/hardening/adrs/ADR-001-SINGLE-AUTHORITY-OWNER.md"
+    },
+    {
+      "path": "packages/graph/src/bidirectional-csr.ts",
+      "ledgerId": "DEL-P03-003",
+      "status": "PROPOSED",
+      "reason": "Consolidate the existing bidirectional CSR into the single authority CSR candidate with deterministic identity, deep-copy boundaries and stronger projection invariants.",
+      "replacement": "Same file: deterministic default edge IDs/identityKey, canonical payload validation, stable node/edge projection order, forward+reverse CSR, deterministic projectionHash and strengthened validate().",
+      "rollback": "Restore packages/graph/src/bidirectional-csr.ts from Phase 02 closure head 097df3dcba6b71d838525bf8caa07ebda3925e6a.",
+      "evidence": ["scripts/test-authority-csr.ts","legacy CSRGraph remains available separately","Phase 07 strict typecheck + CSR/benchmark suites"],
+      "adr": "docs/hardening/adrs/ADR-001-SINGLE-AUTHORITY-OWNER.md"
     }
   ],
   "rules": [
