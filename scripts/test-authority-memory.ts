@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  AuthorityMemoryService,
+  AuthorityMemoryCoordinator,
   InMemoryAuthorityMemoryStore,
 } from '../packages/memory/src';
 
@@ -20,7 +20,7 @@ async function main(): Promise<void> {
   };
 
   const store = new InMemoryAuthorityMemoryStore();
-  const memory = new AuthorityMemoryService(store);
+  const memory = new AuthorityMemoryCoordinator(store);
   const provenance = [{ source: 'github://rotprods/cos-graph-engine/pull/40' }];
 
   const created = await memory.create({
@@ -80,7 +80,7 @@ async function main(): Promise<void> {
   }), /MEMORY_IDEMPOTENCY_CONFLICT/);
   assertions += 1;
 
-  const revised = await memory.revise<{ statement: string }>({
+  const correctionInput = {
     memoryId: created.revision.memoryId,
     expectedRevision: 1,
     recordedAt: T2,
@@ -90,7 +90,8 @@ async function main(): Promise<void> {
       provenance: [{ source: 'github://rotprods/cos-graph-engine/pull/40', revision: 'correction-1' }],
       confidence: 0.98,
     },
-  });
+  };
+  const revised = await memory.revise<{ statement: string }>(correctionInput);
   check(revised.appended && revised.revision.revision === 2, 'revision appends instead of overwriting row one');
 
   await assert.rejects(() => memory.revise({
@@ -132,6 +133,12 @@ async function main(): Promise<void> {
   });
   check(domainCorrection.revision.revision === 3, 'late domain closure is a new system-time revision');
 
+  // Transport retry of revision 2 arrives after revision 3 exists. Authority
+  // semantics must resolve the already-accepted operation rather than calling it stale.
+  const lateRetry = await memory.revise<{ statement: string }>(correctionInput);
+  check(!lateRetry.appended && lateRetry.revision.revision === 2, 'late retry resolves historical accepted revision after newer writes');
+  check(lateRetry.revision.revisionId === revised.revision.revisionId, 'late retry returns the exact accepted revision identity');
+
   const beforeLateDiscovery = await memory.query({
     projectId: 'COS_GRAPH_ENGINE',
     asOf: T3,
@@ -152,7 +159,7 @@ async function main(): Promise<void> {
   check(history.length === 3, 'all three revisions remain available');
   check(history[0].systemUntil === T2 && history[1].systemUntil === T4 && history[2].systemUntil === null, 'systemUntil is derived from next immutable revision');
   history[2].metadata.owner = 'mutated-by-caller';
-  (history[2].content as { statement: string }).statement = 'caller mutation';
+  history[2].content.statement = 'caller mutation';
   const currentAfterLeakAttempt = await memory.current<{ statement: string }>(created.revision.memoryId);
   check(currentAfterLeakAttempt?.metadata.owner === 'cos', 'metadata reads are copy-safe');
   check(currentAfterLeakAttempt?.content.statement === 'corrected state', 'content reads are copy-safe');
@@ -188,29 +195,34 @@ async function main(): Promise<void> {
     idempotencyKey: 'memory:create:policy-new',
   });
 
-  const relation = await memory.relate({
+  const relationInput = {
     projectId: 'COS_GRAPH_ENGINE',
-    type: 'supersedes',
+    type: 'supersedes' as const,
     fromMemoryId: newPolicy.revision.memoryId,
     toMemoryId: oldPolicy.revision.memoryId,
     confidence: 1,
     provenance: [{ source: 'agentic://decision/policy-new' }],
     recordedAt: T5,
     idempotencyKey: 'memory:relation:policy-new-supersedes-old',
-  });
+  };
+  const relation = await memory.relate(relationInput);
   check(relation.appended, 'supersession relation is append-only');
 
-  const relationRetry = await memory.relate({
-    projectId: 'COS_GRAPH_ENGINE',
-    type: 'supersedes',
-    fromMemoryId: newPolicy.revision.memoryId,
-    toMemoryId: oldPolicy.revision.memoryId,
-    confidence: 1,
-    provenance: [{ source: 'agentic://decision/policy-new' }],
-    recordedAt: T5,
-    idempotencyKey: 'memory:relation:policy-new-supersedes-old',
-  });
+  const relationRetry = await memory.relate(relationInput);
   check(!relationRetry.appended && relationRetry.relation.id === relation.relation.id, 'relation retry converges');
+
+  // Reclassify the source after the relation was already accepted. A later retry
+  // must derive sensitivity from the endpoint state known at T5, not from T6.
+  await memory.revise({
+    memoryId: newPolicy.revision.memoryId,
+    expectedRevision: 1,
+    recordedAt: T6,
+    idempotencyKey: 'memory:revise:policy-new:restricted',
+    changes: { sensitivity: 'restricted', provenance: [{ source: 'agentic://classification/update' }] },
+  });
+  const relationRetryAfterReclassification = await memory.relate(relationInput);
+  check(!relationRetryAfterReclassification.appended, 'relation retry remains stable after future endpoint reclassification');
+  check(relationRetryAfterReclassification.relation.contentHash === relation.relation.contentHash, 'relation retry preserves exact historical semantics');
 
   const statusBeforeRelation = await memory.query({
     projectId: 'COS_GRAPH_ENGINE',
