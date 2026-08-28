@@ -68,6 +68,7 @@
     "scripts/test-authority-agentic-registry.ts",
     "scripts/test-authority-context-pack.ts",
     "scripts/test-authority-hub.ts",
+    "scripts/test-authority-hub-recovery-wire.ts",
     "scripts/test-authority-memory.ts",
     "scripts/test-authority-compat-readonly.ts",
     "scripts/test-authority-concurrency-copysafe.ts",
