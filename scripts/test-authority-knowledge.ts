@@ -5,6 +5,8 @@ import {
   AuthorityKnowledgeGateway,
   AuthorityKnowledgeProjector,
   InMemoryAuthorityKnowledgeStore,
+  PropertyGraph,
+  type AuthorityKnowledgeCreateInput,
 } from '../packages/knowledge/src';
 
 const T0 = '2026-08-01T10:00:00.000Z';
@@ -47,7 +49,6 @@ async function main(): Promise<void> {
   });
   check(beforeCorrection.length === 1 && beforeCorrection[0].object === 'SHADOW_ONLY', 'knownAt before correction sees original belief');
 
-  // Late correction: learned at T3 that the domain fact had changed at T2.
   const corrected = await gateway.revise({
     statementId: created.revision.statementId,
     expectedRevision: 1,
@@ -72,7 +73,6 @@ async function main(): Promise<void> {
   });
   check(afterCorrection[0]?.object === 'HARDENING_ACTIVE', 'same domain time resolves to corrected fact once correction is known');
 
-  // Domain closure is a new system revision, not a mutation of revision 2.
   const closed = await gateway.revise({
     statementId: created.revision.statementId,
     expectedRevision: 2,
@@ -95,7 +95,6 @@ async function main(): Promise<void> {
   check(history.length === 3, 'all knowledge revisions remain append-only');
   check(history[0].systemUntil === T3 && history[1].systemUntil === T4 && history[2].systemUntil === null, 'systemUntil is derived from successor revisions');
 
-  // Ancient retry after later revisions converges to the original accepted operation.
   const retry = await gateway.revise({
     statementId: created.revision.statementId,
     expectedRevision: 1,
@@ -138,18 +137,17 @@ async function main(): Promise<void> {
   });
   check(!internalView.some(item => item.statementId === restricted.revision.statementId), 'sensitivity filter prevents restricted leakage');
 
-  // Projection failure is explicit and repairable; ledger commit survives.
   const flakyGraph = new FailOnceGraph();
   const sagaStore = new InMemoryAuthorityKnowledgeStore();
   const sagaGateway = new AuthorityKnowledgeGateway(sagaStore);
   const coordinator = new AuthorityKnowledgeCoordinator(sagaGateway, new AuthorityKnowledgeProjector(flakyGraph));
-  const sagaInput = {
+  const sagaInput: AuthorityKnowledgeCreateInput = {
     projectId: 'COS_GRAPH_ENGINE', identityKey: 'projection-saga',
     subject: 'Authority Ledger', predicate: 'projects_to', object: 'Property Graph',
     confidence: 0.9, validFrom: T0, observedAt: T1, recordedAt: T1,
     provenance: [{ source: 'test://projection-saga' }], source: 'test://projection-saga',
     idempotencyKey: 'kn-saga-1',
-  } as const;
+  };
   await assert.rejects(() => coordinator.create(sagaInput), /KNOWLEDGE_PROJECTION_DEGRADED/);
   assertions += 1;
   check((await sagaStore.listProjectRevisions('COS_GRAPH_ENGINE')).length === 1, 'projection crash does not erase accepted authority revision');
@@ -162,7 +160,7 @@ async function main(): Promise<void> {
 }
 
 class FailOnceGraph implements IPropertyGraph {
-  private readonly delegate = new (require('../packages/knowledge/src/property-graph').PropertyGraph)() as IPropertyGraph;
+  private readonly delegate = new PropertyGraph();
   private fail = true;
   async addNode(node: GraphNode): Promise<EntityId> { return this.delegate.addNode(node); }
   async getNode(id: EntityId): Promise<GraphNode | null> { return this.delegate.getNode(id); }
