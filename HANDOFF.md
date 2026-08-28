@@ -2,14 +2,30 @@
 
 ## Recovery point
 
-COS is closing Phase 01 of the evidence-backed 10/10 Authority Program.
+Phase 01 canonical reconciliation is statically complete. COS remains `SHADOW_ONLY` and `IMPLEMENTED_UNVERIFIED`.
 
-Active branch: `hardening/canonical-authority-reconciliation`  
-Active draft PR: **#40**  
-Base: #33 @ `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`  
-Source evidence: #34 @ `af497356...`, #35 @ `8b7e197...`.
+Phase 01 code checkpoint:
 
-Authority remains `SHADOW_ONLY`. No merge, remote W13 run, deploy or automatic Actions are authorized.
+`checkpoint/phase-01-reconciled-76dfdc7`
+
+Exact code SHA:
+
+`76dfdc737c231b2637f122125f7acf98b735ff1f`
+
+Phase 01 PR:
+
+`#40 — hardening(reconciliation): unify W12.4 authority lineages from PRs #34 and #35`
+
+Source base:
+
+`#33 @ 5806a71fd7bb11245dfe1454b7094bc9febf8ed5`
+
+Source siblings remain preserved:
+
+- #34 @ `af4973561b5f7d7a7415fa8f88a12a7d8d678a66`;
+- #35 @ `8b7e197f35e6fc114cd90ec0907db4c2f5b625f4`.
+
+No merge or W13 run is authorized.
 
 ## Mandatory read order
 
@@ -19,176 +35,107 @@ Authority remains `SHADOW_ONLY`. No merge, remote W13 run, deploy or automatic A
 4. `SCORECARD_20D.md`
 5. `TASKS.md`
 6. `GRAPH.md`
-7. `docs/hardening/AUTHORITY_SURFACE_MANIFEST.json`
-8. `docs/hardening/API_BEHAVIOR_DIFF_PHASE01.md`
-9. `docs/hardening/DELETION_LEDGER.md`
-10. `docs/hardening/DELETION_LEDGER_PHASE01_ADDENDUM.md`
-11. `docs/hardening/LOCKFILE_TRUTH_PHASE01.md`
-12. `docs/hardening/PHASE_01_RECONCILIATION_34_35.md`
-13. audit PR #38 / issue #39
-14. `AGENTS.md`
+7. `docs/hardening/PHASE_01_CLOSURE.md`
+8. `docs/hardening/PHASE_01_SOURCE_COVERAGE.md`
+9. `docs/hardening/AUTHORITY_SURFACE_MANIFEST.json`
+10. `docs/hardening/API_BEHAVIOR_DIFF_PHASE01.md`
+11. deletion ledger + addendum
+12. `AGENTS.md`
 
-## Phase 01 materialized architecture
+## Phase 01 result
 
-```text
-strict tool execution
-        │
-        ├── AuthorityTelemetry
-        └── immutable delivery-failure evidence
+### Reconciliation truth
 
-AuthorityStateMachine
-        ↓
-AuthorityHub
- command → accepted/rejected outcome
-        ├── AuthorityHubQueryService
-        ├── AuthorityHubSnapshotManager
-        └── AuthorityHubContextProjector
-                      │
-AuthorityAgenticRegistry
-        ↓
-AuthorityGraphRAGIndex
-        ↓
-AuthorityContextPackCompiler
+- every material #34/#35 source surface classified;
+- no blind branch merge;
+- one candidate authority owner per reconciled capability;
+- legacy surfaces preserved as explicit shadow/deprecated compatibility;
+- W13 #36 rejected as complete qualification lineage;
+- code checkpoint frozen before Phase 02.
 
-AuthorityMemoryGateway
-        ├── AuthorityMemoryCoordinator
-        ├── InMemoryAuthorityMemoryStore
-        └── PostgresAuthorityMemoryStore
-```
+### Authority candidate surfaces
 
-## Implemented authority semantics
+- `AuthorityStateMachine`;
+- `AuthorityAgenticRegistry`;
+- `AuthorityGraphRAGIndex`;
+- `AuthorityContextPackCompiler`;
+- `AuthorityHub`, query/context/recovery surfaces;
+- `AuthorityMemoryGateway`, coordinator and append-only in-memory/Postgres stores;
+- `AuthorityTelemetry`;
+- strict tool runtime;
+- durable event-log interface/Postgres candidate.
 
-### State
-- one serialized mutation queue;
-- staged callbacks;
-- expected-state/revision fencing;
-- deterministic definition/snapshot hashes;
-- timer fencing and copy-safe reads.
+### Written but unexecuted authority contracts
 
-### Agentic topology
-- canonical IDs;
-- object + projection CAS;
-- append-only transaction-time revisions;
-- project/sensitivity/validAt/knownAt filtering;
-- deterministic relation history.
+- state/revision fencing and rollback;
+- agentic revision history/scope/sensitivity;
+- ContextPack staleness/integrity/non-leakage;
+- Hub idempotency/outcome/replay/snapshot recovery/query/context;
+- memory late-correction, retry, bitemporal and sensitivity non-leakage.
 
-### Retrieval/context
-- atomic complete GraphRAG projection replacement;
-- projection version/hash CAS;
-- deterministic relation IDs;
-- endpoint sensitivity propagation;
-- explicit valid/system knowledge cutoffs;
-- authority-only ContextPack compiler with explicit timestamps, evidence hash and SHA-256 integrity.
+## Phase 02 — ACTIVE NEXT
 
-### Hub
-- repository registration is event-sourced;
-- command and outcome are distinct durable facts;
-- command→transition→outcome serialized per repository;
-- command-without-outcome is incomplete/degraded and blocks clean snapshot;
-- replay applies recorded outcomes and never re-decides historical commands;
-- semantic state hash is independent from event cursor;
-- sealed in-memory/Postgres snapshot stores;
-- snapshot+tail replay coordinator;
-- authority query/context bridge.
+Create exactly one descendant branch from the Phase 01 closure head.
 
-### Memory
-- append-only immutable revisions;
-- `systemUntil` is derived, never back-written;
-- `AuthorityMemoryCoordinator` handles late retries against original accepted operation;
-- `AuthorityMemoryGateway` prevents future-revision timestamp leakage at `knownAt`;
-- relation visibility dynamically propagates endpoint sensitivity at the cutoff;
-- Postgres adapter serializes revision allocation with per-memory advisory transaction lock and CAS;
-- supersession/contradiction are append-only relations.
+Implementation order:
 
-## Contract code written but NOT executed
+1. `TEST_EVIDENCE_MANIFEST.md`
+   - inventory existing legacy tests by exact path;
+   - mark them immutable evidence during hardening;
+   - map authority tests as additive, not replacements.
+2. `ADR_INDEX.md` + canonical ADRs
+   - single authority owner;
+   - valid-time vs system-time;
+   - outcome-based replay;
+   - additive compatibility/deprecation;
+   - exactly-once limitations for side effects.
+3. `COMPATIBILITY_MATRIX.md`
+   - legacy symbol/API;
+   - authority replacement;
+   - behavior delta;
+   - compatibility status;
+   - migration adapter/owner.
+4. `ROLLBACK_MAP.md`
+   - code ref;
+   - data/schema rollback;
+   - event/replay implications;
+   - operational controls.
+5. complete deletion-ledger enforcement and package public-API policy.
+6. only where justified, implement read-only/migration adapters that cannot write authority state.
+7. freeze Phase 02 checkpoint.
 
-Root scripts now include:
+## Branch law
 
 ```text
-typecheck:authority
-test:authority:state
-test:authority:registry
-test:authority:context
-test:authority:hub
-test:authority:memory
-test:authority:reconciliation
+Phase 01 closure
+  └─ Phase 02
+       └─ Phase 03
+            └─ Phase 04
+                 └─ Phase 05
+                      └─ Phase 06
+                           └─ Phase 07
+                                └─ exact qualification SHA
+                                     └─ new W13
 ```
 
-No one may describe these as passing until they are executed in Phase 07/08.
-
-## Important remaining hardening
-
-These are downstream phases, not reasons to fork reconciliation again:
-
-- deep immutability for legacy CAS/PropertyGraph/Memory surfaces;
-- identity Unicode/provider normalization;
-- transactional/saga KnowledgeGraph;
-- durable side-effect ledger + resource fencing + lease lifecycle;
-- durable agent goal aggregate/restart semantics;
-- principal/scope/policy enforcement across all side effects;
-- deployment-level HTTP/FS isolation;
-- complete AuthorityTelemetry/near-miss wiring;
-- gold-query evaluation;
-- Postgres/Supabase executable parity fixtures;
-- legacy + authority suite manifest;
-- manual full CI matrix;
-- clean lockfile/toolchain pinning.
-
-## Lockfile blocker
-
-Current `package-lock.json` is stale (`0.1.0`, workspace list stops at `packages/graph`). Do not edit by hand. Phase 07/W13 Q0 will regenerate it from a clean registry-enabled environment and explicitly pin qualification `typescript` + `tsx`.
-
-## Process correction
-
-Do **not** recreate W13 now.
-
-Correct sequence:
-
-```text
-Phase 01 reconciliation freeze
-→ Phase 02 contracts/governance
-→ Phase 03 core correctness
-→ Phase 04 temporal/event/persistence
-→ Phase 05 security/concurrency/runtime
-→ Phase 06 operational context/observability hardening
-→ Phase 07 full test/manual-CI substrate
-→ freeze exact SHA
-→ recreate W13
-→ Phase 08 evidence
-→ Phase 09 20D qualification + merge
-```
-
-Creating W13 earlier would recreate the branch-drift failure we already observed.
-
-## Next exact action
-
-1. perform final Phase 01 static overlap review;
-2. record Phase 01 freeze SHA as architecture/reconciliation baseline — not merge/production certification;
-3. create **one linear descendant** for Phase 02, never a sibling authority branch;
-4. Phase 02: ADR index, compatibility matrix, rollback map and explicit legacy-test preservation contract.
+Do not create sibling authority branches.
 
 ## Hard safety rules
 
-- #34/#35 remain evidence sources, never merge targets;
-- #36 is invalid as final qualification lineage;
-- #37 cannot merge until full verification breadth is restored;
-- legacy tests are not rewritten to fit new code;
-- current-row overwrite is not bi-temporal history;
-- presence-only idempotency/fencing is not exact-once;
-- EventBus is not durable accepted history;
-- no Assurance increase without executed evidence;
-- no automatic Actions or CD.
+- do not merge #34/#35/#36/#37;
+- do not move `checkpoint/phase-01-reconciled-76dfdc7`;
+- do not delete or rewrite legacy tests as part of authority-test creation;
+- do not permit migration adapters to become alternate authority writers;
+- do not call current-row overwrite bi-temporal history;
+- do not claim exactly-once side effects from idempotency-key presence;
+- do not raise Assurance without executed evidence;
+- do not enable automatic Actions/CD.
 
-## Cross-plane persistence
+## Cross-plane checkpoint
 
-```text
-GitHub = executable/evidence truth
-Drive = Acta + global STATE
-Todoist = live execution state
-```
-
-Any failed synchronization must be recorded here.
+GitHub, Drive and the dedicated Todoist COS project must be synchronized on every material phase boundary. Do not mutate unrelated Todoist projects.
 
 ## Rollback
 
-Phase 01 reconciliation rollback root remains #33 SHA `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`. No production data or `main` state has been changed by this branch.
+- Phase 01 code candidate: `checkpoint/phase-01-reconciled-76dfdc7`.
+- Pre-reconciliation: #33 SHA `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`.
