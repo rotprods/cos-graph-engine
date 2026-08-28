@@ -76,7 +76,8 @@
     "scripts/test-authority-csr.ts",
     "scripts/test-authority-event-log-parity.ts",
     "scripts/test-authority-canonical-wire.ts",
-    "scripts/test-authority-knowledge.ts"
+    "scripts/test-authority-knowledge.ts",
+    "scripts/test-authority-knowledge-postgres.ts"
   ],
   "authorityRunner": "npm run test:authority:reconciliation",
   "waiversFile": "docs/hardening/TEST_COMPATIBILITY_WAIVERS.json"
