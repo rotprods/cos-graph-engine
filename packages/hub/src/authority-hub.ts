@@ -34,11 +34,13 @@ const REPO_TRANSITIONS: Array<{ from: RepoState; to: RepoState; event: RepoEvent
   { from: 'LIVE', to: 'DEAD', event: 'archive' },
   { from: 'BLOCKED', to: 'DEAD', event: 'archive' },
 ];
+const REPO_EVENTS = new Set<RepoEvent>(REPO_TRANSITIONS.map(transition => transition.event));
 
 const REPO_MACHINE_DEFINITION_REVISION = 'cos-hub/repository-state/v1';
 const REGISTRATION_EVENT = 'hub.authority.repo.registered';
 const COMMAND_PREFIX = 'hub.authority.repo.command.';
 const OUTCOME_EVENT = 'hub.authority.repo.transition_outcome';
+const RESERVED_COMMAND_METADATA = new Set(['logicalHash', 'sourceRef', 'actor']);
 
 export interface AuthorityHubRepository {
   id: string;
@@ -127,6 +129,7 @@ export interface AuthorityHubSnapshot {
   recordedAt: string;
   eventCursor: EventLogCursor;
   repositories: AuthorityHubSnapshotRepository[];
+  /** Semantic projection hash. Cursor and snapshot creation time are excluded. */
   stateHash: string;
 }
 
@@ -141,24 +144,14 @@ export interface AuthorityHubReplayReport {
 }
 
 /**
- * Authority repository runtime for COS Hub.
+ * Outcome-sourced authority repository runtime.
  *
- * This is intentionally additive: legacy `CosHub` remains a shadow/compatibility
- * surface until migration evidence exists. Authority guarantees are:
- *
- * - repository registration is event-sourced with canonical identity;
- * - each command and its accepted/rejected outcome are separate durable events;
- * - the whole command → transition → outcome operation is serialized per repo;
- * - an outcome append failure rolls the in-memory state machine back before the
- *   per-repository operation queue is released;
- * - retries are payload-bound even when an EventLog adapter only deduplicates by key;
- * - replay restores recorded state snapshots/outcomes and never re-runs the
- *   historical transition decision;
- * - snapshot creation refuses a cursor containing commands without outcomes;
- * - all authority timestamps are explicit — no wall clock enters event identity.
- *
- * State callbacks must remain side-effect free. External mutations belong to the
- * durable capability/operation-ledger path, not inside repository state callbacks.
+ * Legacy `CosHub` remains shadow/compatibility until migration evidence exists.
+ * This runtime serializes command→transition→outcome per repository, stores
+ * command and outcome separately, restores the previous in-memory state if an
+ * outcome append fails, payload-binds retries independently of EventLog adapter
+ * behavior, and replays recorded snapshots/outcomes without re-running the
+ * historical decision.
  */
 export class AuthorityHub {
   private readonly repos = new Map<string, AuthorityHubRepository>();
@@ -184,13 +177,12 @@ export class AuthorityHub {
         metadata: normalized.metadata,
         sourceRef: normalized.sourceRef,
       };
-      const logicalHash = stableHash128({
-        type: REGISTRATION_EVENT,
+      const logicalHash = registrationLogicalHash(
         payload,
-        actor: normalized.actor ?? null,
-        occurredAt: normalized.occurredAt,
-        recordedAt: normalized.recordedAt,
-      });
+        normalized.actor,
+        normalized.occurredAt,
+        normalized.recordedAt,
+      );
       const eventIdentity = canonicalIdentity({
         scheme: 'agentic',
         authority: 'cos-hub',
@@ -215,9 +207,9 @@ export class AuthorityHub {
         correlationId: normalized.correlationId,
         recordedAt: normalized.recordedAt,
       });
+      assertRegistrationEventIntegrity(append.event);
       assertEventLogicalHash(append.event, logicalHash, 'HUB_REGISTRATION_IDEMPOTENCY_CONFLICT');
-      const repository = this.materializeRegistration(append.event);
-      return cloneRepository(repository);
+      return cloneRepository(this.materializeRegistration(append.event));
     });
   }
 
@@ -242,9 +234,11 @@ export class AuthorityHub {
     event: RepoEvent,
     context: AuthorityRepoCommandContext,
   ): Promise<AuthorityRepoEventResult> {
+    assertRepoEvent(event);
     const initial = this.getRepository(repoReference);
     if (!initial) throw new Error(`Unknown authority repository '${repoReference}'`);
     const normalized = normalizeCommandContext(context);
+
     return this.enqueueRepo(initial.id, async () => {
       const repo = this.repos.get(initial.id);
       const machine = this.states.get(initial.id);
@@ -258,14 +252,14 @@ export class AuthorityHub {
         expectedRevision: normalized.expectedRevision,
         sourceRef: normalized.sourceRef,
       };
-      const commandLogicalHash = stableHash128({
-        type: `${COMMAND_PREFIX}${event}`,
-        payload: commandPayload,
-        actor: normalized.actor ?? null,
-        metadata: normalized.metadata,
-        occurredAt: normalized.occurredAt,
-        recordedAt: normalized.recordedAt,
-      });
+      const commandLogicalHash = commandLogicalHashFor(
+        event,
+        commandPayload,
+        normalized.actor,
+        normalized.metadata,
+        normalized.occurredAt,
+        normalized.recordedAt,
+      );
       const commandIdentity = canonicalIdentity({
         scheme: 'agentic',
         authority: 'cos-hub',
@@ -278,10 +272,10 @@ export class AuthorityHub {
         source: repo.id as EntityId,
         payload: commandPayload,
         metadata: {
+          ...normalized.metadata,
           logicalHash: commandLogicalHash,
           sourceRef: normalized.sourceRef,
           actor: normalized.actor ?? null,
-          ...normalized.metadata,
         },
         severity: event === 'build_failed' || event === 'deployment_failed' ? 'error' : 'info',
         timestamp: normalized.occurredAt,
@@ -291,7 +285,10 @@ export class AuthorityHub {
         correlationId: normalized.correlationId,
         recordedAt: normalized.recordedAt,
       });
-      assertEventLogicalHash(commandAppend.event, commandLogicalHash, 'HUB_COMMAND_IDEMPOTENCY_CONFLICT');
+      const actualCommandHash = assertCommandEventIntegrity(commandAppend.event);
+      if (actualCommandHash !== commandLogicalHash) {
+        throw new Error(`HUB_COMMAND_IDEMPOTENCY_CONFLICT expected=${commandLogicalHash} actual=${actualCommandHash}`);
+      }
 
       const outcomeKey = `${normalized.idempotencyKey}:outcome`;
       if (!commandAppend.appended) {
@@ -343,9 +340,7 @@ export class AuthorityHub {
       try {
         outcome = await this.appendOutcome(commandAppend.event, outcomeKey, normalized, payload);
       } catch (cause) {
-        if (after.stateHash !== before.stateHash) {
-          this.replaceMachineFromSnapshot(repo, before);
-        }
+        if (after.stateHash !== before.stateHash) this.replaceMachineFromSnapshot(repo, before);
         throw cause;
       }
 
@@ -354,10 +349,7 @@ export class AuthorityHub {
     });
   }
 
-  /**
-   * Rebuilds authority repository projection from durable registrations/outcomes.
-   * Transition callbacks/guards are never executed during replay.
-   */
+  /** Replays registrations and recorded outcomes without executing transition logic. */
   async replayFrom(cursor: EventLogCursor = { sequence: 0 }): Promise<AuthorityHubReplayReport> {
     assertCursor(cursor);
     if (cursor.sequence === 0) this.resetProjection();
@@ -375,17 +367,19 @@ export class AuthorityHub {
       if (!batch.length) break;
       for (const durable of batch) {
         if (durable.type === REGISTRATION_EVENT) {
+          assertRegistrationEventIntegrity(durable);
           this.materializeRegistration(durable);
           registrations += 1;
         } else if (durable.type.startsWith(COMMAND_PREFIX)) {
+          assertCommandEventIntegrity(durable);
           pendingCommands.set(String(durable.id), durable);
           commands += 1;
         } else if (durable.type === OUTCOME_EVENT) {
-          const payload = parseOutcomePayload(durable.payload);
+          const payload = assertOutcomeEventIntegrity(durable);
           const command = pendingCommands.get(payload.commandEventId)
             ?? await this.eventLog.get(payload.commandEventId as EntityId);
           if (!command) throw new Error(`HUB_REPLAY_MISSING_COMMAND id=${payload.commandEventId}`);
-          assertEventLogicalHash(command, payload.commandLogicalHash, 'HUB_REPLAY_COMMAND_HASH_MISMATCH');
+          assertCommandOutcomeLink(command, durable, payload);
           this.applyRecordedOutcome(payload);
           pendingCommands.delete(payload.commandEventId);
           outcomes += 1;
@@ -417,15 +411,12 @@ export class AuthorityHub {
     const eventCursor = await this.eventLog.latestCursor();
     await this.assertNoIncompleteCommandsThrough(eventCursor);
     const repositories = this.snapshotRepositories();
-    const base = {
-      schemaVersion: 1 as const,
+    return {
+      schemaVersion: 1,
+      recordedAt: timestamp,
       eventCursor,
       repositories,
-    };
-    return {
-      ...base,
-      recordedAt: timestamp,
-      stateHash: stableHash128(base),
+      stateHash: semanticHubHash(repositories),
     };
   }
 
@@ -434,36 +425,25 @@ export class AuthorityHub {
     if (snapshot.schemaVersion !== 1) throw new Error(`Unsupported AuthorityHub snapshot schema ${snapshot.schemaVersion}`);
     canonicalTime(snapshot.recordedAt, 'Hub snapshot recordedAt');
     assertCursor(snapshot.eventCursor);
-    const base = {
-      schemaVersion: 1 as const,
-      eventCursor: snapshot.eventCursor,
-      repositories: snapshot.repositories.map(cloneSnapshotRepository).sort((a, b) => a.id.localeCompare(b.id)),
-    };
-    const expectedHash = stableHash128(base);
+    const repositories = snapshot.repositories.map(cloneSnapshotRepository).sort((a, b) => a.id.localeCompare(b.id));
+    const expectedHash = semanticHubHash(repositories);
     if (expectedHash !== snapshot.stateHash) {
       throw new Error(`HUB_SNAPSHOT_STATE_HASH_MISMATCH expected=${snapshot.stateHash} actual=${expectedHash}`);
     }
 
-    for (const definition of base.repositories) {
-      const identity = repositoryIdentity(definition.owner, definition.name);
-      if (identity.id !== definition.id || identity.uri !== definition.canonicalUri) {
-        throw new Error(`HUB_SNAPSHOT_IDENTITY_MISMATCH repository=${definition.fullName}`);
-      }
+    for (const definition of repositories) {
+      assertRepositoryDefinition(definition);
       const repo = this.materializeRepositoryDefinition(definition);
       this.replaceMachineFromSnapshot(repo, definition.stateSnapshot);
     }
-    if (this.projectionHash() !== snapshot.stateHash) {
-      throw new Error(`HUB_SNAPSHOT_RESTORE_DIVERGENCE expected=${snapshot.stateHash} actual=${this.projectionHash()}`);
+    const restoredHash = this.projectionHash();
+    if (restoredHash !== snapshot.stateHash) {
+      throw new Error(`HUB_SNAPSHOT_RESTORE_DIVERGENCE expected=${snapshot.stateHash} actual=${restoredHash}`);
     }
   }
 
   projectionHash(): string {
-    const repositories = this.snapshotRepositories();
-    return stableHash128({
-      schemaVersion: 1,
-      eventCursor: { sequence: 0 },
-      repositories,
-    });
+    return semanticHubHash(this.snapshotRepositories());
   }
 
   private async appendOutcome(
@@ -473,7 +453,7 @@ export class AuthorityHub {
     payload: AuthorityRepoTransitionOutcomePayload,
   ): Promise<DurableEvent> {
     validateOutcomeSemantics(payload);
-    const logicalHash = stableHash128({ type: OUTCOME_EVENT, payload, recordedAt: context.recordedAt });
+    const logicalHash = outcomeLogicalHash(payload, context.recordedAt);
     const identity = canonicalIdentity({
       scheme: 'agentic',
       authority: 'cos-hub',
@@ -501,7 +481,10 @@ export class AuthorityHub {
       causationId: command.id,
       recordedAt: context.recordedAt,
     });
-    assertEventLogicalHash(result.event, logicalHash, 'HUB_OUTCOME_IDEMPOTENCY_CONFLICT');
+    const parsed = assertOutcomeEventIntegrity(result.event);
+    if (parsed.commandEventId !== payload.commandEventId) {
+      throw new Error(`HUB_OUTCOME_IDEMPOTENCY_CONFLICT command=${payload.commandEventId}`);
+    }
     return result.event;
   }
 
@@ -510,12 +493,10 @@ export class AuthorityHub {
     duplicate: boolean,
     commandLogicalHash: string,
   ): AuthorityRepoEventResult {
-    if (outcome.type !== OUTCOME_EVENT) throw new Error(`Expected ${OUTCOME_EVENT}, received ${outcome.type}`);
-    const payload = parseOutcomePayload(outcome.payload);
+    const payload = assertOutcomeEventIntegrity(outcome);
     if (payload.commandLogicalHash !== commandLogicalHash) {
       throw new Error(`HUB_OUTCOME_COMMAND_HASH_CONFLICT command=${payload.commandEventId}`);
     }
-    validateOutcomeSemantics(payload);
     return {
       repoId: payload.repoId,
       event: payload.event,
@@ -550,11 +531,11 @@ export class AuthorityHub {
   }
 
   private materializeRegistration(event: DurableEvent): AuthorityHubRepository {
-    if (event.type !== REGISTRATION_EVENT) throw new Error(`Expected ${REGISTRATION_EVENT}, received ${event.type}`);
     const payload = parseRegistrationPayload(event.payload);
     const existing = this.repos.get(payload.repoId);
     if (existing) {
-      if (stableHash128(repositoryDefinition(existing)) !== stableHash128({
+      const existingDefinition = repositoryDefinition(existing);
+      const eventDefinition = {
         id: payload.repoId,
         canonicalUri: payload.canonicalUri,
         owner: payload.owner,
@@ -563,11 +544,17 @@ export class AuthorityHub {
         projectId: payload.projectId ?? undefined,
         registeredAt: payload.registeredAt,
         metadata: payload.metadata,
-      })) {
+      };
+      if (stableHash128(existingDefinition) !== stableHash128(eventDefinition)) {
         throw new Error(`HUB_REPOSITORY_DEFINITION_CONFLICT id=${payload.repoId}`);
       }
       return existing;
     }
+    const initial = createRepoMachine({
+      id: payload.repoId,
+      fullName: payload.fullName,
+      registeredAt: payload.registeredAt,
+    }).snapshot();
     return this.materializeRepositoryDefinition({
       id: payload.repoId,
       canonicalUri: payload.canonicalUri,
@@ -577,16 +564,12 @@ export class AuthorityHub {
       projectId: payload.projectId ?? undefined,
       registeredAt: payload.registeredAt,
       metadata: payload.metadata,
-      stateSnapshot: createRepoMachine({
-        id: payload.repoId,
-        fullName: payload.fullName,
-        registeredAt: payload.registeredAt,
-      }).snapshot(),
+      stateSnapshot: initial,
     });
   }
 
   private materializeRepositoryDefinition(definition: AuthorityHubSnapshotRepository): AuthorityHubRepository {
-    assertCanonicalJson(definition.metadata, 'repository metadata');
+    assertRepositoryDefinition(definition);
     const repo: AuthorityHubRepository = {
       id: definition.id,
       canonicalUri: definition.canonicalUri,
@@ -603,13 +586,15 @@ export class AuthorityHub {
     this.repos.set(repo.id, repo);
     this.repoByFullName.set(repo.fullName.toLowerCase(), repo.id);
     this.repoByUri.set(repo.canonicalUri, repo.id);
-    if (!this.states.has(repo.id)) {
-      this.states.set(repo.id, createRepoMachine(repo));
-    }
+    if (!this.states.has(repo.id)) this.states.set(repo.id, createRepoMachine(repo));
     return repo;
   }
 
   private replaceMachineFromSnapshot(repo: AuthorityHubRepository, snapshot: AuthorityStateSnapshot): void {
+    const expectedMachineId = repositoryMachineIdentity(repo.id).id;
+    if (String(snapshot.machineId) !== expectedMachineId) {
+      throw new Error(`HUB_STATE_MACHINE_IDENTITY_MISMATCH repo=${repo.id}`);
+    }
     const restored = AuthorityStateMachine.restore(
       repo.fullName,
       repoStateDefinitions(),
@@ -649,25 +634,34 @@ export class AuthorityHub {
   }
 
   private async assertNoIncompleteCommandsThrough(cursor: EventLogCursor): Promise<void> {
-    const commands = new Set<string>();
+    const commands = new Map<string, DurableEvent>();
     const outcomes = new Set<string>();
     let readCursor: EventLogCursor = { sequence: 0 };
     while (readCursor.sequence < cursor.sequence) {
       const batch = await this.eventLog.readFrom(readCursor, 1000);
       if (!batch.length) break;
-      for (const event of batch) {
-        if (event.sequence > cursor.sequence) break;
-        if (event.type.startsWith(COMMAND_PREFIX)) commands.add(String(event.id));
+      const bounded = batch.filter(event => event.sequence <= cursor.sequence);
+      for (const event of bounded) {
+        if (event.type.startsWith(COMMAND_PREFIX)) {
+          assertCommandEventIntegrity(event);
+          commands.set(String(event.id), event);
+        }
         if (event.type === OUTCOME_EVENT) {
-          const payload = parseOutcomePayload(event.payload);
+          const payload = assertOutcomeEventIntegrity(event);
+          const command = commands.get(payload.commandEventId)
+            ?? await this.eventLog.get(payload.commandEventId as EntityId);
+          if (!command || command.sequence > cursor.sequence) {
+            throw new Error(`HUB_SNAPSHOT_OUTCOME_WITHOUT_COMMAND command=${payload.commandEventId}`);
+          }
+          assertCommandOutcomeLink(command, event, payload);
           outcomes.add(payload.commandEventId);
         }
       }
-      const last = batch.filter(event => event.sequence <= cursor.sequence).at(-1);
+      const last = bounded.at(-1);
       if (!last) break;
       readCursor = { sequence: last.sequence };
     }
-    const missing = Array.from(commands).filter(command => !outcomes.has(command));
+    const missing = Array.from(commands.keys()).filter(command => !outcomes.has(command));
     if (missing.length) throw new Error(`HUB_SNAPSHOT_INCOMPLETE_COMMANDS count=${missing.length} first=${missing[0]}`);
   }
 
@@ -692,12 +686,7 @@ export class AuthorityHub {
 }
 
 function createRepoMachine(repo: { id: string; fullName: string; registeredAt: string }): AuthorityStateMachine {
-  const machineIdentity = canonicalIdentity({
-    scheme: 'agentic',
-    authority: 'cos-hub',
-    resourceType: 'repository-state-machine',
-    resourceId: repo.id,
-  }, 'fsm');
+  const machineIdentity = repositoryMachineIdentity(repo.id);
   return new AuthorityStateMachine(
     repo.fullName,
     repoStateDefinitions(),
@@ -709,6 +698,16 @@ function createRepoMachine(repo: { id: string; fullName: string; registeredAt: s
       clock: () => repo.registeredAt,
     },
   );
+}
+
+function repositoryMachineIdentity(repoId: string): { id: string; uri: string } {
+  const identity = canonicalIdentity({
+    scheme: 'agentic',
+    authority: 'cos-hub',
+    resourceType: 'repository-state-machine',
+    resourceId: repoId,
+  }, 'fsm');
+  return { id: String(identity.id), uri: identity.uri };
 }
 
 function repoStateDefinitions(): Array<{ id: RepoState; label: RepoState }> {
@@ -756,6 +755,10 @@ function normalizeCommandContext(input: AuthorityRepoCommandContext) {
   const occurredAt = canonicalTime(input.occurredAt, 'command occurredAt');
   const recordedAt = canonicalTime(input.recordedAt, 'command recordedAt');
   assertRecordedAfterOccurred(occurredAt, recordedAt);
+  const metadata = { ...(input.metadata ?? {}) };
+  for (const key of Object.keys(metadata)) {
+    if (RESERVED_COMMAND_METADATA.has(key)) throw new Error(`Reserved Hub command metadata key: ${key}`);
+  }
   return {
     idempotencyKey: nonEmpty(input.idempotencyKey, 'command idempotencyKey'),
     correlationId: nonEmpty(input.correlationId, 'command correlationId'),
@@ -765,8 +768,96 @@ function normalizeCommandContext(input: AuthorityRepoCommandContext) {
     expectedState: input.expectedState,
     expectedRevision: input.expectedRevision,
     actor: optionalString(input.actor),
-    metadata: { ...(input.metadata ?? {}) },
+    metadata,
   };
+}
+
+function registrationLogicalHash(
+  payload: unknown,
+  actor: string | undefined,
+  occurredAt: string,
+  recordedAt: string,
+): string {
+  return stableHash128({ type: REGISTRATION_EVENT, payload, actor: actor ?? null, occurredAt, recordedAt });
+}
+
+function commandLogicalHashFor(
+  event: RepoEvent,
+  payload: unknown,
+  actor: string | undefined,
+  metadata: Record<string, string | number | boolean | null>,
+  occurredAt: string,
+  recordedAt: string,
+): string {
+  return stableHash128({
+    type: `${COMMAND_PREFIX}${event}`,
+    payload,
+    actor: actor ?? null,
+    metadata,
+    occurredAt,
+    recordedAt,
+  });
+}
+
+function outcomeLogicalHash(payload: AuthorityRepoTransitionOutcomePayload, recordedAt: string): string {
+  return stableHash128({ type: OUTCOME_EVENT, payload, recordedAt });
+}
+
+function assertRegistrationEventIntegrity(event: DurableEvent): void {
+  if (event.type !== REGISTRATION_EVENT) throw new Error(`Expected ${REGISTRATION_EVENT}, received ${event.type}`);
+  const payload = parseRegistrationPayload(event.payload);
+  const actor = typeof event.metadata.actor === 'string' ? event.metadata.actor : undefined;
+  const expected = registrationLogicalHash(payload, actor, canonicalTime(event.timestamp, 'registration timestamp'), canonicalTime(event.recordedAt, 'registration recordedAt'));
+  assertEventLogicalHash(event, expected, 'HUB_REGISTRATION_LOGICAL_HASH_MISMATCH');
+}
+
+function assertCommandEventIntegrity(event: DurableEvent): string {
+  if (!event.type.startsWith(COMMAND_PREFIX)) throw new Error(`Expected Hub command event, received ${event.type}`);
+  const eventName = event.type.slice(COMMAND_PREFIX.length) as RepoEvent;
+  assertRepoEvent(eventName);
+  const payload = parseCommandPayload(event.payload);
+  if (payload.event !== eventName) throw new Error(`HUB_COMMAND_TYPE_PAYLOAD_MISMATCH event=${event.type}`);
+  const actor = typeof event.metadata.actor === 'string' ? event.metadata.actor : undefined;
+  const metadata: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(event.metadata)) {
+    if (RESERVED_COMMAND_METADATA.has(key)) continue;
+    metadata[key] = value;
+  }
+  const expected = commandLogicalHashFor(
+    eventName,
+    payload,
+    actor,
+    metadata,
+    canonicalTime(event.timestamp, 'command timestamp'),
+    canonicalTime(event.recordedAt, 'command recordedAt'),
+  );
+  assertEventLogicalHash(event, expected, 'HUB_COMMAND_LOGICAL_HASH_MISMATCH');
+  return expected;
+}
+
+function assertOutcomeEventIntegrity(event: DurableEvent): AuthorityRepoTransitionOutcomePayload {
+  if (event.type !== OUTCOME_EVENT) throw new Error(`Expected ${OUTCOME_EVENT}, received ${event.type}`);
+  const payload = parseOutcomePayload(event.payload);
+  validateOutcomeSemantics(payload);
+  const expected = outcomeLogicalHash(payload, canonicalTime(event.recordedAt, 'outcome recordedAt'));
+  assertEventLogicalHash(event, expected, 'HUB_OUTCOME_LOGICAL_HASH_MISMATCH');
+  return payload;
+}
+
+function assertCommandOutcomeLink(
+  command: DurableEvent,
+  outcome: DurableEvent,
+  payload: AuthorityRepoTransitionOutcomePayload,
+): void {
+  const commandHash = assertCommandEventIntegrity(command);
+  const commandPayload = parseCommandPayload(command.payload);
+  if (payload.commandLogicalHash !== commandHash) throw new Error(`HUB_OUTCOME_COMMAND_HASH_MISMATCH command=${payload.commandEventId}`);
+  if (String(command.id) !== payload.commandEventId) throw new Error(`HUB_OUTCOME_COMMAND_ID_MISMATCH command=${payload.commandEventId}`);
+  if (outcome.causationId !== command.id) throw new Error(`HUB_OUTCOME_CAUSATION_MISMATCH command=${payload.commandEventId}`);
+  if (outcome.sequence <= command.sequence) throw new Error(`HUB_OUTCOME_ORDER_INVALID command=${payload.commandEventId}`);
+  if (commandPayload.repoId !== payload.repoId || commandPayload.event !== payload.event) {
+    throw new Error(`HUB_OUTCOME_COMMAND_PAYLOAD_MISMATCH command=${payload.commandEventId}`);
+  }
 }
 
 function parseRegistrationPayload(value: unknown): {
@@ -807,12 +898,41 @@ function parseRegistrationPayload(value: unknown): {
   };
 }
 
+function parseCommandPayload(value: unknown): {
+  repoId: string;
+  canonicalUri: string;
+  event: RepoEvent;
+  expectedState: RepoState;
+  expectedRevision: number;
+  sourceRef: string;
+} {
+  if (!value || typeof value !== 'object') throw new Error('Invalid Hub command payload');
+  const payload = value as Record<string, unknown>;
+  const event = String(payload.event ?? '') as RepoEvent;
+  assertRepoEvent(event);
+  const expectedState = String(payload.expectedState ?? '') as RepoState;
+  if (!REPO_STATES.includes(expectedState)) throw new Error(`Invalid Hub command expectedState ${expectedState}`);
+  const expectedRevision = Number(payload.expectedRevision);
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) throw new Error('Invalid Hub command expectedRevision');
+  return {
+    repoId: nonEmpty(String(payload.repoId ?? ''), 'command repoId'),
+    canonicalUri: nonEmpty(String(payload.canonicalUri ?? ''), 'command canonicalUri'),
+    event,
+    expectedState,
+    expectedRevision,
+    sourceRef: nonEmpty(String(payload.sourceRef ?? ''), 'command sourceRef'),
+  };
+}
+
 function parseOutcomePayload(value: unknown): AuthorityRepoTransitionOutcomePayload {
   if (!value || typeof value !== 'object') throw new Error('Invalid Hub transition outcome payload');
   const payload = value as AuthorityRepoTransitionOutcomePayload;
   if (!payload.commandEventId || !payload.commandLogicalHash || !payload.repoId || !payload.event) {
     throw new Error('Incomplete Hub transition outcome payload');
   }
+  assertRepoEvent(payload.event);
+  if (!REPO_STATES.includes(payload.expectedState)) throw new Error(`Invalid Hub outcome expectedState ${payload.expectedState}`);
+  if (!Number.isSafeInteger(payload.expectedRevision) || payload.expectedRevision < 0) throw new Error('Invalid Hub outcome expectedRevision');
   if (payload.disposition !== 'applied' && payload.disposition !== 'rejected') {
     throw new Error(`Invalid Hub outcome disposition ${String(payload.disposition)}`);
   }
@@ -820,11 +940,6 @@ function parseOutcomePayload(value: unknown): AuthorityRepoTransitionOutcomePayl
 }
 
 function validateOutcomeSemantics(payload: AuthorityRepoTransitionOutcomePayload): void {
-  if (payload.before.state !== payload.expectedState || payload.before.revision !== payload.expectedRevision) {
-    if (payload.disposition === 'applied') {
-      throw new Error(`HUB_APPLIED_OUTCOME_IGNORED_EXPECTED_STATE command=${payload.commandEventId}`);
-    }
-  }
   if (payload.disposition === 'rejected') {
     if (payload.before.stateHash !== payload.after.stateHash
       || payload.before.revision !== payload.after.revision
@@ -833,6 +948,9 @@ function validateOutcomeSemantics(payload: AuthorityRepoTransitionOutcomePayload
     }
     return;
   }
+  if (payload.before.state !== payload.expectedState || payload.before.revision !== payload.expectedRevision) {
+    throw new Error(`HUB_APPLIED_OUTCOME_IGNORED_EXPECTED_STATE command=${payload.commandEventId}`);
+  }
   if (payload.after.revision !== payload.before.revision + 1) {
     throw new Error(`HUB_APPLIED_OUTCOME_REVISION_INVALID command=${payload.commandEventId}`);
   }
@@ -840,9 +958,27 @@ function validateOutcomeSemantics(payload: AuthorityRepoTransitionOutcomePayload
     candidate.from === payload.before.state
     && candidate.event === payload.event
     && candidate.to === payload.after.state);
-  if (!transition) {
-    throw new Error(`HUB_APPLIED_OUTCOME_TRANSITION_INVALID command=${payload.commandEventId}`);
+  if (!transition) throw new Error(`HUB_APPLIED_OUTCOME_TRANSITION_INVALID command=${payload.commandEventId}`);
+}
+
+function assertRepositoryDefinition(definition: AuthorityHubSnapshotRepository): void {
+  const owner = nonEmpty(definition.owner, 'repository owner').toLowerCase();
+  const name = nonEmpty(definition.name, 'repository name');
+  const fullName = `${owner}/${name}`;
+  if (definition.fullName !== fullName) throw new Error(`HUB_REPOSITORY_FULLNAME_MISMATCH ${definition.fullName}`);
+  const identity = repositoryIdentity(owner, name);
+  if (identity.id !== definition.id || identity.uri !== definition.canonicalUri) {
+    throw new Error(`HUB_REPOSITORY_IDENTITY_MISMATCH ${definition.fullName}`);
   }
+  canonicalTime(definition.registeredAt, 'repository registeredAt');
+  assertCanonicalJson(definition.metadata, 'repository metadata');
+}
+
+function semanticHubHash(repositories: AuthorityHubSnapshotRepository[]): string {
+  return stableHash128({
+    schemaVersion: 1,
+    repositories: repositories.map(cloneSnapshotRepository).sort((a, b) => a.id.localeCompare(b.id)),
+  });
 }
 
 function assertEventLogicalHash(event: DurableEvent, expected: string, code: string): void {
@@ -891,6 +1027,10 @@ function assertCursor(cursor: EventLogCursor): void {
   if (!Number.isSafeInteger(cursor.sequence) || cursor.sequence < 0) {
     throw new Error(`Invalid event-log cursor ${cursor.sequence}`);
   }
+}
+
+function assertRepoEvent(value: RepoEvent): void {
+  if (!REPO_EVENTS.has(value)) throw new Error(`Invalid repository event ${String(value)}`);
 }
 
 function nonEmpty(value: string, label: string): string {
