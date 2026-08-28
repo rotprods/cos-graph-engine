@@ -17,6 +17,7 @@
     "packages/runtime/src/postgres-event-log.ts",
     "packages/runtime/src/eventbus.ts",
     "packages/runtime/src/concurrency.ts",
+    "packages/knowledge/src/property-graph.ts",
     "packages/execution/src/tool-runtime.ts",
     "packages/observability/src/authority.ts",
     "packages/graph/src/authority-state-machine.ts",
@@ -41,6 +42,7 @@
     "scripts/test-authority-hub.ts",
     "scripts/test-authority-memory.ts",
     "scripts/test-authority-compat-readonly.ts",
-    "scripts/test-authority-concurrency-copysafe.ts"
+    "scripts/test-authority-concurrency-copysafe.ts",
+    "scripts/test-authority-property-graph.ts"
   ]
 }
