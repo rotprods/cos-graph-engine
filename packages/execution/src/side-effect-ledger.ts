@@ -8,15 +8,35 @@ import {
 
 export const SIDE_EFFECT_LEDGER_SCHEMA_VERSION = 1 as const;
 
-export type SideEffectOperationState =
-  | 'claimed'
-  | 'prepared'
-  | 'executing'
-  | 'succeeded'
-  | 'failed'
-  | 'uncertain'
-  | 'compensating'
-  | 'compensated';
+export const SIDE_EFFECT_OPERATION_STATES = [
+  'claimed',
+  'prepared',
+  'executing',
+  'succeeded',
+  'failed',
+  'uncertain',
+  'compensating',
+  'compensated',
+] as const;
+
+export type SideEffectOperationState = typeof SIDE_EFFECT_OPERATION_STATES[number];
+
+const TERMINAL_STATES = new Set<SideEffectOperationState>([
+  'succeeded',
+  'failed',
+  'compensated',
+]);
+
+const ALLOWED_TRANSITIONS: Record<SideEffectOperationState, readonly SideEffectOperationState[]> = {
+  claimed: ['prepared', 'failed'],
+  prepared: ['executing', 'failed'],
+  executing: ['succeeded', 'failed', 'uncertain'],
+  succeeded: ['compensating'],
+  failed: [],
+  uncertain: ['succeeded', 'failed', 'compensating'],
+  compensating: ['compensated', 'failed', 'uncertain'],
+  compensated: [],
+};
 
 export interface SideEffectError {
   code: string;
@@ -25,6 +45,13 @@ export interface SideEffectError {
   details: CanonicalJsonValue | null;
 }
 
+/**
+ * Immutable aggregate revision for one externally visible operation.
+ *
+ * `operationKey` is unique inside principal+project scope. Reusing it for a
+ * different resource/action/request resolves to the same operation ID and fails
+ * closed instead of creating a second effect under a different derived ID.
+ */
 export interface SideEffectOperationRevision {
   schemaVersion: typeof SIDE_EFFECT_LEDGER_SCHEMA_VERSION;
   serializationVersion: typeof CANONICAL_JSON_WIRE_VERSION;
@@ -39,6 +66,7 @@ export interface SideEffectOperationRevision {
   projectId: string;
   resource: string;
   action: string;
+  request: CanonicalJsonValue;
   requestHash: string;
   sourceRef: string;
   systemFrom: string;
@@ -87,17 +115,17 @@ export interface SideEffectTransitionInput {
   state: Exclude<SideEffectOperationState, 'claimed'>;
   idempotencyKey: string;
   recordedAt: string;
-  fencingVersion?: number | null;
-  providerReference?: string | null;
+  fencingVersion?: number;
+  providerReference?: string;
   result?: unknown;
   error?: {
     code: string;
     message: string;
     retryable?: boolean;
     details?: unknown;
-  } | null;
-  uncertaintyReason?: string | null;
-  compensationReference?: string | null;
+  };
+  uncertaintyReason?: string;
+  compensationReference?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -122,7 +150,7 @@ export type SideEffectProviderOutcome =
     };
 
 export interface SideEffectExecutionInput extends SideEffectClaimInput {
-  fencingVersion?: number | null;
+  fencingVersion?: number;
 }
 
 export interface SideEffectExecutionReceipt {
@@ -144,11 +172,11 @@ export class InMemorySideEffectLedgerStore implements ISideEffectLedgerStore {
   ): Promise<SideEffectAppendResult> {
     return this.enqueue(revision.operationId, async () => {
       assertSideEffectRevision(revision);
-      assertExpectedRevision(expectedCurrentRevision);
+      assertExpectedRevision(expectedCurrentRevision, 'expectedCurrentRevision');
 
       const duplicate = this.revisionByTransition.get(revision.transitionKey);
       if (duplicate) {
-        if (duplicate.contentHash !== revision.contentHash) {
+        if (duplicate.transitionIntentHash !== revision.transitionIntentHash) {
           throw new Error(`SIDE_EFFECT_TRANSITION_CONFLICT key=${revision.transitionKey}`);
         }
         return { revision: cloneSideEffectRevision(duplicate), appended: false };
@@ -167,10 +195,8 @@ export class InMemorySideEffectLedgerStore implements ISideEffectLedgerStore {
           `SIDE_EFFECT_REVISION_SEQUENCE operation=${revision.operationId} expected=${currentRevision + 1} incoming=${revision.revision}`,
         );
       }
-      if (current) assertOperationContinuity(current, revision);
-      else if (revision.previousRevisionId !== null || revision.state !== 'claimed') {
-        throw new Error(`SIDE_EFFECT_INITIAL_REVISION_INVALID operation=${revision.operationId}`);
-      }
+      if (current) assertSideEffectContinuity(current, revision);
+      else assertInitialSideEffectRevision(revision);
 
       const idCollision = this.revisionById.get(revision.revisionId);
       if (idCollision) {
@@ -195,7 +221,8 @@ export class InMemorySideEffectLedgerStore implements ISideEffectLedgerStore {
   }
 
   async getHistory(operationId: string): Promise<SideEffectOperationRevision[]> {
-    return (this.histories.get(nonEmpty(operationId, 'operationId')) ?? []).map(cloneSideEffectRevision);
+    return (this.histories.get(nonEmpty(operationId, 'operationId')) ?? [])
+      .map(cloneSideEffectRevision);
   }
 
   async getByTransitionKey(transitionKey: string): Promise<SideEffectOperationRevision | null> {
@@ -224,10 +251,11 @@ export class InMemorySideEffectLedgerStore implements ISideEffectLedgerStore {
 }
 
 /**
- * Service owning operation identity and append-only state transitions.
+ * Owns operation identity and append-only state transitions.
  *
- * It does not claim exactly-once provider effects. An `executing` record found
- * after interruption must be reconciled to `uncertain` before any retry.
+ * An `executing` or `compensating` revision discovered after interruption cannot
+ * be run again automatically. It must first become `uncertain` and be reconciled
+ * against provider evidence.
  */
 export class SideEffectLedger {
   constructor(private readonly store: ISideEffectLedgerStore) {}
@@ -235,27 +263,30 @@ export class SideEffectLedger {
   async claim(input: SideEffectClaimInput): Promise<SideEffectAppendResult> {
     const normalized = normalizeClaim(input);
     const operationId = sideEffectOperationId(normalized);
-    const current = await this.store.getCurrent(operationId);
-    if (current) {
-      assertClaimCompatible(current, normalized);
+    const transitionKey = sideEffectTransitionKey(operationId, normalized.operationKey);
+    const requestHash = sideEffectRequestHash(normalized.request);
+    const transitionIntentHash = claimIntentHash({
+      ...normalized,
+      operationId,
+      requestHash,
+    });
+
+    const historical = await this.store.getByTransitionKey(transitionKey);
+    if (historical) {
+      if (historical.transitionIntentHash !== transitionIntentHash) {
+        throw new Error(`SIDE_EFFECT_OPERATION_CONFLICT id=${operationId}`);
+      }
+      const current = await this.store.getCurrent(operationId);
+      if (!current) throw new Error(`SIDE_EFFECT_LEDGER_CORRUPT operation=${operationId}`);
+      assertClaimCompatible(current, normalized, requestHash);
       return { revision: current, appended: false };
     }
 
-    const transitionKey = sideEffectTransitionKey(operationId, normalized.operationKey);
-    const requestHash = sideEffectRequestHash(normalized.request);
-    const transitionIntentHash = canonicalHash128({
-      schemaVersion: SIDE_EFFECT_LEDGER_SCHEMA_VERSION,
-      operationId,
-      targetState: 'claimed',
-      principalId: normalized.principalId,
-      projectId: normalized.projectId,
-      resource: normalized.resource,
-      action: normalized.action,
-      operationKey: normalized.operationKey,
-      requestHash,
-      sourceRef: normalized.sourceRef,
-      metadata: normalized.metadata,
-    });
+    const current = await this.store.getCurrent(operationId);
+    if (current) {
+      throw new Error(`SIDE_EFFECT_CLAIM_REVISION_MISSING operation=${operationId}`);
+    }
+
     const revision = sealSideEffectRevision({
       revisionId: sideEffectRevisionId(operationId, 1, transitionKey),
       operationId,
@@ -268,6 +299,7 @@ export class SideEffectLedger {
       projectId: normalized.projectId,
       resource: normalized.resource,
       action: normalized.action,
+      request: normalized.request,
       requestHash,
       sourceRef: normalized.sourceRef,
       systemFrom: normalized.recordedAt,
@@ -287,6 +319,7 @@ export class SideEffectLedger {
     const normalized = normalizeTransition(input);
     const transitionKey = sideEffectTransitionKey(normalized.operationId, normalized.idempotencyKey);
     const transitionIntentHash = transitionIntentHashFor(normalized);
+
     const historical = await this.store.getByTransitionKey(transitionKey);
     if (historical) {
       if (historical.transitionIntentHash !== transitionIntentHash) {
@@ -302,18 +335,32 @@ export class SideEffectLedger {
         `STALE_SIDE_EFFECT_REVISION operation=${normalized.operationId} expected=${normalized.expectedRevision} current=${current.revision}`,
       );
     }
-    assertAllowedTransition(current.state, normalized.state);
+    assertAllowedSideEffectTransition(current.state, normalized.state);
     if (Date.parse(normalized.recordedAt) <= Date.parse(current.systemFrom)) {
       throw new Error(`SIDE_EFFECT_SYSTEM_TIME_NOT_MONOTONIC operation=${normalized.operationId}`);
     }
-    if (normalized.fencingVersion !== null
+
+    const effectiveFencingVersion = normalized.fencingVersion ?? current.fencingVersion;
+    if (effectiveFencingVersion !== null
       && current.fencingVersion !== null
-      && normalized.fencingVersion < current.fencingVersion) {
+      && effectiveFencingVersion < current.fencingVersion) {
       throw new Error(
-        `SIDE_EFFECT_FENCING_REGRESSION operation=${normalized.operationId} current=${current.fencingVersion} incoming=${normalized.fencingVersion}`,
+        `SIDE_EFFECT_FENCING_REGRESSION operation=${normalized.operationId} current=${current.fencingVersion} incoming=${effectiveFencingVersion}`,
       );
     }
-    assertStateEvidence(normalized);
+
+    const effectiveProviderReference = normalized.providerReference ?? current.providerReference;
+    const effectiveCompensationReference = normalized.compensationReference ?? current.compensationReference;
+    const effectiveResult = resultForTransition(current, normalized);
+    const effectiveEvidence = {
+      state: normalized.state,
+      providerReference: effectiveProviderReference,
+      result: effectiveResult,
+      error: normalized.error,
+      uncertaintyReason: normalized.uncertaintyReason,
+      compensationReference: effectiveCompensationReference,
+    };
+    assertStateEvidence(effectiveEvidence);
 
     const revisionNumber = current.revision + 1;
     const revision = sealSideEffectRevision({
@@ -328,15 +375,16 @@ export class SideEffectLedger {
       projectId: current.projectId,
       resource: current.resource,
       action: current.action,
+      request: current.request,
       requestHash: current.requestHash,
       sourceRef: current.sourceRef,
       systemFrom: normalized.recordedAt,
-      fencingVersion: normalized.fencingVersion ?? current.fencingVersion,
-      providerReference: normalized.providerReference,
-      result: normalized.result,
+      fencingVersion: effectiveFencingVersion,
+      providerReference: effectiveProviderReference,
+      result: effectiveResult,
       error: normalized.error,
       uncertaintyReason: normalized.uncertaintyReason,
-      compensationReference: normalized.compensationReference,
+      compensationReference: effectiveCompensationReference,
       metadata: mergeMetadata(current.metadata, normalized.metadata),
       previousRevisionId: current.revisionId,
     });
@@ -373,8 +421,8 @@ export class SideEffectLedger {
       state: 'uncertain',
       idempotencyKey,
       recordedAt,
-      fencingVersion: current.fencingVersion,
-      providerReference: current.providerReference,
+      ...(current.fencingVersion === null ? {} : { fencingVersion: current.fencingVersion }),
+      ...(current.providerReference === null ? {} : { providerReference: current.providerReference }),
       uncertaintyReason: reason,
       metadata: { recoveredFromState: current.state },
     });
@@ -382,9 +430,12 @@ export class SideEffectLedger {
 }
 
 /**
- * Provider-execution coordinator. A provider callback returns an explicit
- * disposition; thrown exceptions are classified as `uncertain`, not `failed`,
- * because the provider may have accepted the effect before the connection broke.
+ * Provider-execution coordinator.
+ *
+ * A provider callback must return an explicit disposition. A thrown exception is
+ * `uncertain`, not `failed`, because the provider may have accepted the effect
+ * before the caller lost the response. If the terminal ledger append fails, the
+ * stored state remains `executing`, and later attempts require reconciliation.
  */
 export class SideEffectCoordinator {
   constructor(
@@ -396,23 +447,15 @@ export class SideEffectCoordinator {
     input: SideEffectExecutionInput,
     provider: (operation: SideEffectOperationRevision) => Promise<SideEffectProviderOutcome>,
   ): Promise<SideEffectExecutionReceipt> {
-    const claim = await this.ledger.claim({
-      principalId: input.principalId,
-      projectId: input.projectId,
-      resource: input.resource,
-      action: input.action,
-      operationKey: input.operationKey,
-      request: input.request,
-      sourceRef: input.sourceRef,
-      recordedAt: input.recordedAt,
-      metadata: input.metadata,
-    });
+    const claim = await this.ledger.claim(input);
     let current = claim.revision;
 
-    if (current.state === 'succeeded' || current.state === 'compensated' || current.state === 'failed') {
+    if (TERMINAL_STATES.has(current.state)) {
       return { operation: current, providerInvoked: false, reusedTerminalResult: true };
     }
-    if (current.state === 'executing' || current.state === 'uncertain' || current.state === 'compensating') {
+    if (current.state === 'executing'
+      || current.state === 'uncertain'
+      || current.state === 'compensating') {
       throw new Error(`SIDE_EFFECT_RECONCILIATION_REQUIRED operation=${current.operationId} state=${current.state}`);
     }
 
@@ -423,7 +466,7 @@ export class SideEffectCoordinator {
         state: 'prepared',
         idempotencyKey: `${input.operationKey}:prepared`,
         recordedAt: this.nextTime(current.systemFrom),
-        fencingVersion: input.fencingVersion,
+        ...(input.fencingVersion === undefined ? {} : { fencingVersion: input.fencingVersion }),
       })).revision;
     }
 
@@ -433,7 +476,7 @@ export class SideEffectCoordinator {
       state: 'executing',
       idempotencyKey: `${input.operationKey}:executing`,
       recordedAt: this.nextTime(current.systemFrom),
-      fencingVersion: input.fencingVersion,
+      ...(input.fencingVersion === undefined ? {} : { fencingVersion: input.fencingVersion }),
     })).revision;
 
     let outcome: SideEffectProviderOutcome;
@@ -455,9 +498,9 @@ export class SideEffectCoordinator {
         state: 'succeeded',
         idempotencyKey: `${input.operationKey}:succeeded`,
         recordedAt,
-        fencingVersion: input.fencingVersion,
+        ...(input.fencingVersion === undefined ? {} : { fencingVersion: input.fencingVersion }),
         providerReference: outcome.providerReference,
-        result: outcome.result,
+        ...(outcome.result === undefined ? {} : { result: outcome.result }),
         metadata: outcome.metadata,
       })).revision;
     } else if (outcome.disposition === 'failed') {
@@ -467,8 +510,8 @@ export class SideEffectCoordinator {
         state: 'failed',
         idempotencyKey: `${input.operationKey}:failed`,
         recordedAt,
-        fencingVersion: input.fencingVersion,
-        providerReference: outcome.providerReference,
+        ...(input.fencingVersion === undefined ? {} : { fencingVersion: input.fencingVersion }),
+        ...(outcome.providerReference === undefined ? {} : { providerReference: outcome.providerReference }),
         error: outcome.error,
         metadata: outcome.metadata,
       })).revision;
@@ -479,8 +522,8 @@ export class SideEffectCoordinator {
         state: 'uncertain',
         idempotencyKey: `${input.operationKey}:uncertain`,
         recordedAt,
-        fencingVersion: input.fencingVersion,
-        providerReference: outcome.providerReference,
+        ...(input.fencingVersion === undefined ? {} : { fencingVersion: input.fencingVersion }),
+        ...(outcome.providerReference === undefined ? {} : { providerReference: outcome.providerReference }),
         uncertaintyReason: outcome.reason,
         metadata: outcome.metadata,
       })).revision;
@@ -503,23 +546,21 @@ export function sideEffectRequestHash(request: unknown): string {
   });
 }
 
+/** Operation key identity is scoped by principal+project, not by requested effect. */
 export function sideEffectOperationId(input: {
   principalId: string;
   projectId: string;
-  resource: string;
-  action: string;
   operationKey: string;
 }): string {
+  const projectId = nonEmpty(input.projectId, 'projectId');
   const identityHash = canonicalHash128({
     principalId: nonEmpty(input.principalId, 'principalId'),
-    projectId: nonEmpty(input.projectId, 'projectId'),
-    resource: nonEmpty(input.resource, 'resource'),
-    action: nonEmpty(input.action, 'action'),
+    projectId,
     operationKey: nonEmpty(input.operationKey, 'operationKey'),
   });
   return String(canonicalIdentity({
     scheme: 'agentic',
-    authority: nonEmpty(input.projectId, 'projectId'),
+    authority: projectId,
     resourceType: 'side-effect-operation',
     resourceId: identityHash,
   }, 'sfx').id);
@@ -541,10 +582,12 @@ export function sealSideEffectRevision(
     schemaVersion: SIDE_EFFECT_LEDGER_SCHEMA_VERSION,
     serializationVersion: CANONICAL_JSON_WIRE_VERSION,
     ...input,
-  }) as Record<string, CanonicalJsonValue>;
+  });
+  if (!canonical || Array.isArray(canonical) || typeof canonical !== 'object') {
+    throw new Error('side-effect revision must canonicalize to an object');
+  }
   const revision = canonical as unknown as Omit<SideEffectOperationRevision, 'contentHash'>;
-  const contentHash = canonicalHash128(canonical);
-  return { ...revision, contentHash };
+  return { ...revision, contentHash: canonicalHash128(canonical) };
 }
 
 export function assertSideEffectRevision(revision: SideEffectOperationRevision): void {
@@ -554,7 +597,10 @@ export function assertSideEffectRevision(revision: SideEffectOperationRevision):
   if (revision.serializationVersion !== CANONICAL_JSON_WIRE_VERSION) {
     throw new Error(`Unsupported side-effect serialization ${revision.serializationVersion}`);
   }
-  assertExpectedRevision(revision.revision);
+  if (!isSideEffectState(revision.state)) {
+    throw new Error(`Unsupported side-effect state ${String(revision.state)}`);
+  }
+  assertExpectedRevision(revision.revision, 'revision');
   if (revision.revision < 1) throw new Error('side-effect revision must be >=1');
   nonEmpty(revision.revisionId, 'revisionId');
   nonEmpty(revision.operationId, 'operationId');
@@ -572,8 +618,38 @@ export function assertSideEffectRevision(revision: SideEffectOperationRevision):
     && (!Number.isSafeInteger(revision.fencingVersion) || revision.fencingVersion < 1)) {
     throw new Error('fencingVersion must be null or a positive safe integer');
   }
+  if (revision.revision === 1 && revision.previousRevisionId !== null) {
+    throw new Error('initial side-effect revision cannot have a parent');
+  }
+  if (revision.revision > 1 && !revision.previousRevisionId) {
+    throw new Error('non-initial side-effect revision requires a parent');
+  }
+
+  const expectedOperationId = sideEffectOperationId(revision);
+  if (revision.operationId !== expectedOperationId) {
+    throw new Error(
+      `SIDE_EFFECT_OPERATION_ID_MISMATCH expected=${expectedOperationId} actual=${revision.operationId}`,
+    );
+  }
+  const expectedRequestHash = sideEffectRequestHash(revision.request);
+  if (revision.requestHash !== expectedRequestHash) {
+    throw new Error(
+      `SIDE_EFFECT_REQUEST_HASH_MISMATCH expected=${expectedRequestHash} actual=${revision.requestHash}`,
+    );
+  }
+  const expectedRevisionId = sideEffectRevisionId(
+    revision.operationId,
+    revision.revision,
+    revision.transitionKey,
+  );
+  if (revision.revisionId !== expectedRevisionId) {
+    throw new Error(
+      `SIDE_EFFECT_REVISION_ID_MISMATCH expected=${expectedRevisionId} actual=${revision.revisionId}`,
+    );
+  }
+
   assertStateEvidence(revision);
-  const expected = sealSideEffectRevision({
+  const expectedHash = sealSideEffectRevision({
     revisionId: revision.revisionId,
     operationId: revision.operationId,
     transitionKey: revision.transitionKey,
@@ -585,6 +661,7 @@ export function assertSideEffectRevision(revision: SideEffectOperationRevision):
     projectId: revision.projectId,
     resource: revision.resource,
     action: revision.action,
+    request: revision.request,
     requestHash: revision.requestHash,
     sourceRef: revision.sourceRef,
     systemFrom: revision.systemFrom,
@@ -597,14 +674,109 @@ export function assertSideEffectRevision(revision: SideEffectOperationRevision):
     metadata: revision.metadata,
     previousRevisionId: revision.previousRevisionId,
   }).contentHash;
-  if (expected !== revision.contentHash) {
+  if (expectedHash !== revision.contentHash) {
     throw new Error(`SIDE_EFFECT_REVISION_HASH_MISMATCH id=${revision.revisionId}`);
   }
 }
 
-export function cloneSideEffectRevision(revision: SideEffectOperationRevision): SideEffectOperationRevision {
+export function assertInitialSideEffectRevision(revision: SideEffectOperationRevision): void {
+  assertSideEffectRevision(revision);
+  if (revision.revision !== 1
+    || revision.state !== 'claimed'
+    || revision.previousRevisionId !== null) {
+    throw new Error(`SIDE_EFFECT_INITIAL_REVISION_INVALID operation=${revision.operationId}`);
+  }
+}
+
+/** Store-level invariant; authority adapters must call this independently. */
+export function assertSideEffectContinuity(
+  current: SideEffectOperationRevision,
+  next: SideEffectOperationRevision,
+): void {
+  assertSideEffectRevision(current);
+  assertSideEffectRevision(next);
+  if (next.previousRevisionId !== current.revisionId) {
+    throw new Error(`SIDE_EFFECT_PARENT_MISMATCH operation=${next.operationId}`);
+  }
+  if (next.revision !== current.revision + 1) {
+    throw new Error(
+      `SIDE_EFFECT_REVISION_SEQUENCE operation=${next.operationId} expected=${current.revision + 1} incoming=${next.revision}`,
+    );
+  }
+  const immutableFields: Array<keyof SideEffectOperationRevision> = [
+    'operationId',
+    'operationKey',
+    'principalId',
+    'projectId',
+    'resource',
+    'action',
+    'requestHash',
+    'sourceRef',
+  ];
+  for (const field of immutableFields) {
+    if (next[field] !== current[field]) {
+      throw new Error(`SIDE_EFFECT_IDENTITY_MUTATION field=${String(field)} operation=${next.operationId}`);
+    }
+  }
+  if (canonicalHash128(next.request) !== canonicalHash128(current.request)) {
+    throw new Error(`SIDE_EFFECT_REQUEST_MUTATION operation=${next.operationId}`);
+  }
+  if (Date.parse(next.systemFrom) <= Date.parse(current.systemFrom)) {
+    throw new Error(`SIDE_EFFECT_SYSTEM_TIME_NOT_MONOTONIC operation=${next.operationId}`);
+  }
+  if (current.fencingVersion !== null
+    && (next.fencingVersion === null || next.fencingVersion < current.fencingVersion)) {
+    throw new Error(
+      `SIDE_EFFECT_FENCING_REGRESSION operation=${next.operationId} current=${current.fencingVersion} incoming=${String(next.fencingVersion)}`,
+    );
+  }
+  assertAllowedSideEffectTransition(current.state, next.state);
+}
+
+export function assertAllowedSideEffectTransition(
+  from: SideEffectOperationState,
+  to: SideEffectOperationState,
+): void {
+  if (!isSideEffectState(from) || !isSideEffectState(to)) {
+    throw new Error(`SIDE_EFFECT_TRANSITION_UNKNOWN from=${String(from)} to=${String(to)}`);
+  }
+  if (!ALLOWED_TRANSITIONS[from].includes(to)) {
+    throw new Error(`SIDE_EFFECT_TRANSITION_INVALID from=${from} to=${to}`);
+  }
+}
+
+export function cloneSideEffectRevision(
+  revision: SideEffectOperationRevision,
+): SideEffectOperationRevision {
   assertSideEffectRevision(revision);
   return structuredClone(revision);
+}
+
+function claimIntentHash(input: {
+  operationId: string;
+  principalId: string;
+  projectId: string;
+  resource: string;
+  action: string;
+  operationKey: string;
+  requestHash: string;
+  sourceRef: string;
+  metadata: Record<string, CanonicalJsonValue>;
+}): string {
+  return canonicalHash128({
+    schemaVersion: SIDE_EFFECT_LEDGER_SCHEMA_VERSION,
+    serializationVersion: CANONICAL_JSON_WIRE_VERSION,
+    operationId: input.operationId,
+    targetState: 'claimed',
+    principalId: input.principalId,
+    projectId: input.projectId,
+    resource: input.resource,
+    action: input.action,
+    operationKey: input.operationKey,
+    requestHash: input.requestHash,
+    sourceRef: input.sourceRef,
+    metadata: input.metadata,
+  });
 }
 
 function normalizeClaim(input: SideEffectClaimInput): {
@@ -640,17 +812,22 @@ function normalizeTransition(input: SideEffectTransitionInput): {
   fencingVersion: number | null;
   providerReference: string | null;
   result: CanonicalJsonValue | null;
+  resultProvided: boolean;
   error: SideEffectError | null;
   uncertaintyReason: string | null;
   compensationReference: string | null;
   metadata: Record<string, CanonicalJsonValue>;
 } {
-  assertExpectedRevision(input.expectedRevision);
-  if (input.state === 'claimed') throw new Error('claimed is only valid through claim()');
-  const fencingVersion = input.fencingVersion ?? null;
-  if (fencingVersion !== null && (!Number.isSafeInteger(fencingVersion) || fencingVersion < 1)) {
-    throw new Error('fencingVersion must be null or a positive safe integer');
+  assertExpectedRevision(input.expectedRevision, 'expectedRevision');
+  if (!isSideEffectState(input.state) || input.state === 'claimed') {
+    throw new Error(`Invalid side-effect transition target ${String(input.state)}`);
   }
+  const fencingVersion = input.fencingVersion ?? null;
+  if (fencingVersion !== null
+    && (!Number.isSafeInteger(fencingVersion) || fencingVersion < 1)) {
+    throw new Error('fencingVersion must be a positive safe integer');
+  }
+  const resultProvided = Object.prototype.hasOwnProperty.call(input, 'result');
   return {
     operationId: nonEmpty(input.operationId, 'operationId'),
     expectedRevision: input.expectedRevision,
@@ -658,11 +835,12 @@ function normalizeTransition(input: SideEffectTransitionInput): {
     idempotencyKey: nonEmpty(input.idempotencyKey, 'transition idempotencyKey'),
     recordedAt: canonicalTime(input.recordedAt, 'recordedAt'),
     fencingVersion,
-    providerReference: optionalString(input.providerReference),
-    result: input.result === undefined ? null : canonicalizeJsonValue(input.result),
+    providerReference: optionalString(input.providerReference, 'providerReference'),
+    result: resultProvided ? canonicalizeJsonValue(input.result) : null,
+    resultProvided,
     error: input.error ? normalizeError(input.error) : null,
-    uncertaintyReason: optionalString(input.uncertaintyReason),
-    compensationReference: optionalString(input.compensationReference),
+    uncertaintyReason: optionalString(input.uncertaintyReason, 'uncertaintyReason'),
+    compensationReference: optionalString(input.compensationReference, 'compensationReference'),
     metadata: canonicalObject(input.metadata ?? {}, 'transition metadata'),
   };
 }
@@ -676,6 +854,7 @@ function transitionIntentHashFor(input: ReturnType<typeof normalizeTransition>):
     targetState: input.state,
     fencingVersion: input.fencingVersion,
     providerReference: input.providerReference,
+    resultProvided: input.resultProvided,
     result: input.result,
     error: input.error,
     uncertaintyReason: input.uncertaintyReason,
@@ -687,8 +866,8 @@ function transitionIntentHashFor(input: ReturnType<typeof normalizeTransition>):
 function assertClaimCompatible(
   current: SideEffectOperationRevision,
   input: ReturnType<typeof normalizeClaim>,
+  requestHash: string,
 ): void {
-  const requestHash = sideEffectRequestHash(input.request);
   const compatible = current.principalId === input.principalId
     && current.projectId === input.projectId
     && current.resource === input.resource
@@ -699,20 +878,15 @@ function assertClaimCompatible(
   if (!compatible) throw new Error(`SIDE_EFFECT_OPERATION_CONFLICT id=${current.operationId}`);
 }
 
-function assertAllowedTransition(from: SideEffectOperationState, to: SideEffectOperationState): void {
-  const allowed: Record<SideEffectOperationState, SideEffectOperationState[]> = {
-    claimed: ['prepared', 'failed'],
-    prepared: ['executing', 'failed'],
-    executing: ['succeeded', 'failed', 'uncertain'],
-    uncertain: ['succeeded', 'failed', 'compensating'],
-    succeeded: ['compensating'],
-    failed: [],
-    compensating: ['compensated', 'failed', 'uncertain'],
-    compensated: [],
-  };
-  if (!allowed[from].includes(to)) {
-    throw new Error(`SIDE_EFFECT_TRANSITION_INVALID from=${from} to=${to}`);
+function resultForTransition(
+  current: SideEffectOperationRevision,
+  input: ReturnType<typeof normalizeTransition>,
+): CanonicalJsonValue | null {
+  if (input.state === 'succeeded') return input.resultProvided ? input.result : null;
+  if (input.state === 'compensating' || input.state === 'compensated') {
+    return input.resultProvided ? input.result : current.result;
   }
+  return null;
 }
 
 function assertStateEvidence(input: {
@@ -742,27 +916,12 @@ function assertStateEvidence(input: {
   if (input.state !== 'uncertain' && input.uncertaintyReason) {
     throw new Error(`SIDE_EFFECT_UNCERTAINTY_NOT_ALLOWED state=${input.state}`);
   }
-}
-
-function assertOperationContinuity(
-  current: SideEffectOperationRevision,
-  next: SideEffectOperationRevision,
-): void {
-  if (next.previousRevisionId !== current.revisionId) {
-    throw new Error(`SIDE_EFFECT_PARENT_MISMATCH operation=${next.operationId}`);
+  if (input.result !== null
+    && input.state !== 'succeeded'
+    && input.state !== 'compensating'
+    && input.state !== 'compensated') {
+    throw new Error(`SIDE_EFFECT_RESULT_NOT_ALLOWED state=${input.state}`);
   }
-  const immutableFields: Array<keyof SideEffectOperationRevision> = [
-    'operationId', 'operationKey', 'principalId', 'projectId', 'resource', 'action', 'requestHash', 'sourceRef',
-  ];
-  for (const field of immutableFields) {
-    if (next[field] !== current[field]) {
-      throw new Error(`SIDE_EFFECT_IDENTITY_MUTATION field=${String(field)} operation=${next.operationId}`);
-    }
-  }
-  if (Date.parse(next.systemFrom) <= Date.parse(current.systemFrom)) {
-    throw new Error(`SIDE_EFFECT_SYSTEM_TIME_NOT_MONOTONIC operation=${next.operationId}`);
-  }
-  assertAllowedTransition(current.state, next.state);
 }
 
 function sideEffectRevisionId(operationId: string, revision: number, transitionKey: string): string {
@@ -815,15 +974,20 @@ function nonEmpty(value: string, label: string): string {
   return normalized;
 }
 
-function optionalString(value?: string | null): string | null {
-  if (value === undefined || value === null) return null;
-  return nonEmpty(value, 'optional string');
+function optionalString(value: string | undefined, label: string): string | null {
+  if (value === undefined) return null;
+  return nonEmpty(value, label);
 }
 
-function assertExpectedRevision(value: number): void {
+function assertExpectedRevision(value: number, label: string): void {
   if (!Number.isSafeInteger(value) || value < 0) {
-    throw new Error('expectedRevision must be a non-negative safe integer');
+    throw new Error(`${label} must be a non-negative safe integer`);
   }
+}
+
+function isSideEffectState(value: unknown): value is SideEffectOperationState {
+  return typeof value === 'string'
+    && (SIDE_EFFECT_OPERATION_STATES as readonly string[]).includes(value);
 }
 
 function compareSideEffectRevision(
