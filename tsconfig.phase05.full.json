@@ -22,6 +22,7 @@
     "packages/execution/src/authority-policy.ts",
     "packages/execution/src/authority-policy-bound-runtime.ts",
     "packages/execution/src/authority-agent-run.ts",
+    "packages/execution/src/authority-isolation.ts",
     "packages/execution/src/authority-phase05-current.ts",
     "scripts/fixtures/fake-authority-side-effect-store-postgres.ts",
     "scripts/fixtures/fake-authority-lease-postgres.ts",
@@ -33,6 +34,7 @@
     "scripts/test-authority-execution-evidence.ts",
     "scripts/test-authority-policy.ts",
     "scripts/test-authority-policy-bound-runtime.ts",
-    "scripts/test-authority-agent-run.ts"
+    "scripts/test-authority-agent-run.ts",
+    "scripts/test-authority-isolation.ts"
   ]
 }
