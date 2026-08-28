@@ -79,6 +79,16 @@
       "rollback": "Restore packages/runtime/src/postgres-event-log.ts from Phase 03 closure head 64dbdd85323d563ceb10af9b5b0182338dbcceb4.",
       "evidence": ["scripts/test-authority-event-log-parity.ts","fake Postgres executor parity fixture","Phase 07 strict typecheck/runtime suite"],
       "adr": "docs/hardening/adrs/ADR-003-OUTCOME-SOURCED-REPLAY.md"
+    },
+    {
+      "path": "packages/hub/src/authority-hub.ts",
+      "ledgerId": "DEL-P04-003",
+      "status": "PROPOSED",
+      "reason": "AuthorityHub still hashes optional TS object shape with legacy stableHash128. EventLog/JSONB canonicalization can omit undefined properties and make the persisted logical event or snapshot differ from the pre-persistence Hub hash.",
+      "replacement": "Same AuthorityHub surface with wire-canonical logical/event/projection hashes, optional fields omitted before hashing, JSONB-roundtrip-stable snapshots and unchanged command/outcome replay semantics.",
+      "rollback": "Restore packages/hub/src/authority-hub.ts from Phase 03 closure head 64dbdd85323d563ceb10af9b5b0182338dbcceb4 and restore the matching pre-wire EventLog as one coupled rollback.",
+      "evidence": ["scripts/test-authority-hub.ts","scripts/test-authority-hub-recovery-wire.ts","scripts/test-authority-event-log-parity.ts","Phase 07 strict typecheck + replay/restore campaign"],
+      "adr": "docs/hardening/adrs/ADR-007-STRICT-CANONICAL-SERIALIZATION.md"
     }
   ],
   "rules": [
