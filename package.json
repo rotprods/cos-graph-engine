@@ -35,6 +35,7 @@
     "test:l3": "npx tsx scripts/test-level3-consistency.ts && npx tsx scripts/test-level3-mutation.ts",
     "test:l7": "npx tsx scripts/test-level7-compute.ts",
     "test:mutation": "npx tsx scripts/test-level1-mutation.ts && npx tsx scripts/test-level3-mutation.ts",
+    "typecheck:authority": "npx tsc -p tsconfig.authority.json --noEmit",
     "test:authority:state": "npx tsx scripts/test-authority-state-machine.ts",
     "test:authority:registry": "npx tsx scripts/test-authority-agentic-registry.ts",
     "test:authority:context": "npx tsx scripts/test-authority-context-pack.ts",
