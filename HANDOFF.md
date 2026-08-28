@@ -4,12 +4,14 @@
 
 Phases 01–04 are statically complete. COS remains `SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`.
 
-### Frozen/checkpointed lineage
+### Frozen lineage
 
 - Phase 01: `checkpoint/phase-01-reconciled-76dfdc7` → `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
 - Phase 02: `checkpoint/phase-02-contracts-06487e7` → `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
 - Phase 03: `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44
-- Phase 04: PR #45; synchronized checkpoint branch created after closure documents
+- Phase 04: `checkpoint/phase-04-temporal-event-bedfec6` → `bedfec6b8ea147c91ac7d50a888c38b0439d53ff` — PR #45
+
+The Phase 04 branch continued after the code checkpoint only for rolling control-plane synchronization. Do not move the checkpoint ref.
 
 Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #37 remains draft/rework. No merge, automatic Action, deployment or production data mutation has occurred.
 
@@ -36,40 +38,35 @@ Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #3
 ## Phase 04 completed-static guarantees
 
 ### Durable event contract
-
-- InMemory/Postgres adapters share one logical-event projection/hash;
-- equal logical retries converge even when attempt-local IDs differ;
-- conflicting reuse of an idempotency key fails closed;
-- accepted events and reads are detached;
-- cursor/limit/order behavior is aligned;
-- fake Postgres fixture covers transaction and conflict paths.
+- InMemory/Postgres share one payload-bound logical-event projection/hash.
+- Same logical retry converges despite attempt-local ID/trace/span/recordedAt changes.
+- Conflicting key reuse and event-ID reuse fail closed.
+- Accepted events/read results are detached.
+- Fake Postgres covers transaction/conflict parity.
 
 ### Canonical persistence wire
-
-- canonical JSON wire version 1 is explicit;
+- canonical JSON wire v1 is explicit;
 - optional object `undefined` is omitted only at the wire boundary;
-- ambiguous JS values, cycles, accessors, sparse arrays and non-finite numbers fail closed;
-- NFC normalization and normalized-key collision rejection are enforced;
-- SHA-256 hashes exact canonical persisted values.
+- invalid/ambiguous JS values fail closed;
+- NFC normalization and normalized-key collision rejection;
+- SHA-256 covers the exact persisted wire value.
 
 ### Knowledge authority
-
-- AuthorityKnowledgeGateway + append-only stores own the candidate truth path;
+- `AuthorityKnowledgeGateway` + append-only stores own candidate truth;
 - valid time and system time are independent;
-- future corrections do not leak into historical knownAt;
-- domain closure is a new revision, not historical mutation;
-- PropertyGraph is a derived projection;
-- projection failure is explicit degraded saga evidence and can be repaired idempotently;
-- Postgres candidate uses advisory transaction lock, revision CAS and INSERT-only history.
+- late correction/closure cannot leak into earlier `knownAt`;
+- PropertyGraph is a rebuildable projection;
+- projection failure becomes explicit degraded saga evidence and is retry-repairable;
+- Postgres candidate uses advisory lock + revision CAS + INSERT-only history.
 
 ### Hub recovery
-
-- command/outcome/projection hashes survive JSON/JSONB roundtrip;
+- Hub logical/projection hashes are canonical-wire stable;
+- transaction-time retry may arrive later without redefining logical command identity;
 - snapshot envelope has schema + serialization version;
-- SHA-256 covers the actual wire payload;
-- runtime hydration does not change semantic/integrity hash;
-- snapshot + tail replay rebuilds an empty projection;
-- corruption/schema/serialization/metadata/event-log-behind failures are explicit.
+- SHA-256 covers exact JSONB wire payload;
+- runtime hydration preserves semantic/integrity hashes;
+- snapshot + command/outcome tail rebuilds empty projection;
+- corruption/version/tamper/log-behind failures are explicit.
 
 All contracts remain unexecuted. Assurance did not move.
 
@@ -79,37 +76,36 @@ Create exactly one descendant branch:
 
 `hardening/phase-05-security-concurrency-runtime`
 
-from the synchronized Phase 04 checkpoint.
+from the **synchronized current Phase 04 branch head**, while retaining `checkpoint/phase-04-temporal-event-bedfec6` as the immutable implementation rollback point.
 
 ### Exact implementation order
 
 1. Durable side-effect ledger
-   - define operation identity from principal/project/resource/action/request hash;
-   - states: claimed, prepared, executing, succeeded, failed, uncertain, compensating, compensated;
-   - append/store attempts and accepted terminal evidence;
-   - same key/same request converges, conflict fails closed;
-   - crash window after provider mutation becomes uncertain, not automatic success/retry.
+   - canonical operation identity from principal/project/resource/capability/request hash;
+   - immutable attempts and outcomes;
+   - explicit `uncertain` crash window;
+   - accepted retry convergence and conflict rejection;
+   - in-memory + Postgres/Supabase candidates.
 2. Resource fencing
-   - monotonic token per resource;
-   - validate at resource commit boundary;
-   - reject stale workers and emit near-miss evidence.
+   - monotonic resource fence;
+   - validate at protected resource commit boundary;
+   - stale worker rejection + near-miss evidence.
 3. Lease lifecycle
    - acquire/renew/release/expire/reacquire;
-   - deterministic clock;
-   - orphan/crash recovery;
-   - bounded TTL, no indefinite locks.
+   - bounded TTL and deterministic clock;
+   - crash/orphan recovery.
 4. Durable goal aggregate
    - immutable goal/plan/step/result history;
-   - resume without repeating accepted external effects;
-   - compensation/waiver for partial completion.
-5. Policy
+   - restart without repeating accepted side effects;
+   - explicit compensation/waiver for partial completion.
+5. Policy enforcement
    - principal/project/sensitivity context;
-   - enforce at all execution/destructive boundaries;
-   - unknown actions/operators/fields fail closed;
+   - real server/retrieval/memory/tool/workflow/destructive boundaries;
+   - unknown field/operator/action fails closed;
    - durable approvals.
 6. Deployment isolation
-   - DNS/egress/HTTP and filesystem sandbox contracts;
-   - SSRF rebinding, private network, symlink and TOCTOU cases.
+   - HTTP/DNS/egress + filesystem sandbox contract;
+   - rebinding/private-network/symlink/TOCTOU cases.
 7. Near-miss evidence
    - duplicate/stale/lease/policy/uncertain/compensation signals;
    - observer failure cannot change protected outcome.
@@ -119,12 +115,12 @@ from the synchronized Phase 04 checkpoint.
 - do not claim exactly-once provider effects;
 - idempotency-key presence is not durable idempotency;
 - fencing-token presence is not commit-boundary validation;
-- do not auto-retry an operation whose provider outcome is unknown;
-- state-machine rollback cannot undo an external side effect;
-- no alternate tool/runtime path may bypass the operation ledger;
+- do not auto-retry when provider outcome is unknown;
+- state-machine rollback cannot undo external side effects;
+- no alternate authority tool/runtime path may bypass the operation ledger;
 - no legacy test rewrite without waiver+ADR;
 - material deletion requires deletion-governance entry;
-- no automatic Actions or CD;
+- no automatic Actions/CD;
 - no Assurance score movement before execution.
 
 ## Branch law
@@ -147,7 +143,7 @@ Phase01 → Phase02 → Phase03 → Phase04 → Phase05 → Phase06 → Phase07
 
 ## Rollback
 
-- Phase04: use the final `checkpoint/phase-04-*` branch created from the synchronized closure head;
+- Phase04 implementation: `checkpoint/phase-04-temporal-event-bedfec6`;
 - Phase03: `checkpoint/phase-03-core-ad6a93c`;
 - Phase02: `checkpoint/phase-02-contracts-06487e7`;
 - Phase01: `checkpoint/phase-01-reconciled-76dfdc7`;
