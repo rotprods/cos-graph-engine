@@ -1,6 +1,8 @@
 import {
+  CANONICAL_JSON_WIRE_VERSION,
   canonicalHash128,
   canonicalSerialize,
+  canonicalizeJsonValue,
   type CogEvent,
   type EntityId,
   type Metadata,
@@ -39,6 +41,7 @@ export interface IEventLog {
 }
 
 export interface LogicalEventProjection {
+  serializationVersion: typeof CANONICAL_JSON_WIRE_VERSION;
   type: string;
   source: string;
   target: string | null;
@@ -91,10 +94,11 @@ export function normalizeAppendEventInput(input: AppendEventInput): AppendEventI
 /**
  * Logical retry equality excludes attempt-local event/trace/span IDs and
  * recordedAt. The first accepted delivery still preserves those values as
- * evidence, while retries bind to domain-semantic content.
+ * evidence, while retries bind to domain-semantic content and wire version.
  */
 export function logicalEventProjection(event: AppendEventInput | DurableEvent): LogicalEventProjection {
   return {
+    serializationVersion: CANONICAL_JSON_WIRE_VERSION,
     type: nonEmpty(event.type, 'Event type'),
     source: nonEmpty(String(event.source), 'Event source'),
     target: event.target === undefined ? null : nonEmpty(String(event.target), 'Event target'),
@@ -220,6 +224,7 @@ function toDurableEvent(input: AppendEventInput, sequence: number, recordedAt: s
 
 function eventEvidenceProjection(event: DurableEvent): Record<string, unknown> {
   return {
+    serializationVersion: CANONICAL_JSON_WIRE_VERSION,
     id: String(event.id),
     type: event.type,
     source: String(event.source),
@@ -241,10 +246,11 @@ function eventEvidenceProjection(event: DurableEvent): Record<string, unknown> {
 
 function canonicalClone<T>(value: T, label: string): T {
   try {
-    canonicalSerialize(value);
-    return structuredClone(value);
+    const canonical = canonicalizeJsonValue(value);
+    canonicalSerialize(canonical);
+    return structuredClone(canonical) as T;
   } catch (error) {
-    throw new Error(`${label} must be canonical JSON-like data: ${message(error)}`);
+    throw new Error(`${label} must be canonical JSON wire data: ${message(error)}`);
   }
 }
 
