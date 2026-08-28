@@ -3,8 +3,8 @@
 ## Program status
 
 - North Star: `20/20 verticals at Authority 10.0`
-- Current phase: `04 COMPLETE_STATIC → 05 NEXT`
-- Checkpoints: Phase01 `76dfdc7`, Phase02 `06487e7`, Phase03 `ad6a93c`, Phase04 pending synchronized checkpoint ref
+- Current phase: `05 — SECURITY / CONCURRENCY / AGENT RUNTIME`
+- Checkpoints: Phase01 `76dfdc7`, Phase02 `06487e7`, Phase03 `ad6a93c`, Phase04 `bedfec6`
 - Draft PR chain: `#40 → #43 → #44 → #45`
 - Authority: `SHADOW_ONLY`
 - Automatic CI/CD: `OFF`
@@ -32,7 +32,7 @@
 
 ### P04.1 EventLog semantic parity
 - [x] Shared payload-bound logical-event contract for InMemory/Postgres.
-- [x] Same logical retry converges across changing attempt IDs.
+- [x] Same logical retry converges across changing attempt IDs/recordedAt.
 - [x] Same key + different semantic event fails closed.
 - [x] Copy-safe append/get/getByKey/readFrom.
 - [x] Shared cursor/limit/order validation.
@@ -73,24 +73,24 @@
 
 - [x] Update authority ownership/deletion/evidence manifests.
 - [x] Publish `docs/hardening/PHASE_04_CLOSURE.md`.
-- [ ] Create final synchronized Phase 04 checkpoint branch.
+- [x] Freeze `checkpoint/phase-04-temporal-event-bedfec6` @ `bedfec6b8ea147c91ac7d50a888c38b0439d53ff`.
 
 **Checkpoint:** `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`. Assurance remains unchanged.
 
-## Phase 05 — Security / Concurrency / Agent Runtime — NEXT
+## Phase 05 — Security / Concurrency / Agent Runtime — ACTIVE
 
 ### P05.1 Durable side-effect ledger
-- [ ] Define operation states: `claimed → prepared → executing → succeeded|failed|uncertain|compensating|compensated`.
-- [ ] Bind operation identity to principal, project, resource, action and canonical request hash.
-- [ ] Persist accepted result/error/provider reference and attempt evidence.
+- [ ] Define operation states: `claimed → prepared → executing → effect_observed → committed|failed|uncertain|compensation_required|compensated`.
+- [ ] Bind operation identity to principal, project, resource, capability/action and canonical request hash.
+- [ ] Persist immutable attempts/outcomes/provider references.
 - [ ] Same operation key + same request converges; conflict fails closed.
 - [ ] Crash after provider mutation but before result commit becomes `uncertain`, never silently retried as new work.
-- [ ] Add in-memory reference store + Postgres/Supabase candidate + additive contracts.
+- [ ] Add in-memory reference store + Postgres/Supabase candidate + additive crash-window contracts.
 
 ### P05.2 Resource-bound fencing
 - [ ] Issue monotonic fencing tokens per resource.
-- [ ] Validate token at the actual resource commit boundary.
-- [ ] Reject stale owner even if it retains a formerly valid lease token.
+- [ ] Validate owner/token/fencing version at the actual resource commit boundary.
+- [ ] Reject stale owner even if it retains a formerly valid local lease token.
 - [ ] Record stale-write near miss.
 
 ### P05.3 Lease lifecycle and recovery
@@ -123,7 +123,7 @@
 **Phase 05 checkpoint:** stale, duplicate, unauthorized or crash-recovered workers cannot create uncontrolled external effects or falsely report exactly-once completion.
 
 ## Phase 06 — Hub / Memory / GraphRAG / Observability
-- [x] Candidate GraphRAG/context/memory/Hub paths implemented.
+- [x] Candidate GraphRAG/context/memory/Hub/knowledge paths implemented.
 - [ ] Complete AuthorityTelemetry integration, gold-query set and cross-project leakage evidence.
 
 ## Phase 07 — Test Truth / Manual CI
