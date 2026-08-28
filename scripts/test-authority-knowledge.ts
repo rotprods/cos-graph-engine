@@ -47,7 +47,7 @@ async function main(): Promise<void> {
   const beforeCorrection = await gateway.query({
     projectId: 'COS_GRAPH_ENGINE', asOf: T2, knownAt: T2, maxSensitivity: 'internal',
   });
-  check(beforeCorrection.length === 1 && beforeCorrection[0].object === 'SHADOW_ONLY', 'knownAt before correction sees original belief');
+  check(beforeCorrection.at(0)?.object === 'SHADOW_ONLY', 'knownAt before correction sees original belief');
 
   const corrected = await gateway.revise({
     statementId: created.revision.statementId,
@@ -66,12 +66,12 @@ async function main(): Promise<void> {
   const historicalKnowledge = await gateway.query({
     projectId: 'COS_GRAPH_ENGINE', asOf: T2, knownAt: T2, maxSensitivity: 'internal',
   });
-  check(historicalKnowledge[0]?.object === 'SHADOW_ONLY', 'future correction does not leak into historical knownAt');
+  check(historicalKnowledge.at(0)?.object === 'SHADOW_ONLY', 'future correction does not leak into historical knownAt');
 
   const afterCorrection = await gateway.query({
     projectId: 'COS_GRAPH_ENGINE', asOf: T2, knownAt: T3, maxSensitivity: 'internal',
   });
-  check(afterCorrection[0]?.object === 'HARDENING_ACTIVE', 'same domain time resolves to corrected fact once correction is known');
+  check(afterCorrection.at(0)?.object === 'HARDENING_ACTIVE', 'same domain time resolves to corrected fact once correction is known');
 
   const closed = await gateway.revise({
     statementId: created.revision.statementId,
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
   const beforeClosureKnown = await gateway.query({
     projectId: 'COS_GRAPH_ENGINE', asOf: T4, knownAt: T3, maxSensitivity: 'internal',
   });
-  check(beforeClosureKnown[0]?.object === 'HARDENING_ACTIVE', 'closure learned later does not rewrite earlier system knowledge');
+  check(beforeClosureKnown.at(0)?.object === 'HARDENING_ACTIVE', 'closure learned later does not rewrite earlier system knowledge');
   const afterClosureKnown = await gateway.query({
     projectId: 'COS_GRAPH_ENGINE', asOf: T4, knownAt: T4, maxSensitivity: 'internal',
   });
@@ -93,7 +93,10 @@ async function main(): Promise<void> {
 
   const history = await gateway.history(created.revision.statementId);
   check(history.length === 3, 'all knowledge revisions remain append-only');
-  check(history[0].systemUntil === T3 && history[1].systemUntil === T4 && history[2].systemUntil === null, 'systemUntil is derived from successor revisions');
+  check(
+    history.at(0)?.systemUntil === T3 && history.at(1)?.systemUntil === T4 && history.at(2)?.systemUntil === null,
+    'systemUntil is derived from successor revisions',
+  );
 
   const retry = await gateway.revise({
     statementId: created.revision.statementId,
@@ -119,9 +122,11 @@ async function main(): Promise<void> {
   assertions += 1;
 
   const leaked = await store.getHistory(created.revision.statementId);
-  leaked[0].metadata.phase = 'tampered';
+  const leakedFirst = leaked.at(0);
+  if (!leakedFirst) throw new Error('expected knowledge history');
+  leakedFirst.metadata.phase = 'tampered';
   const pristine = await store.getHistory(created.revision.statementId);
-  check(pristine[0].metadata.phase === '04', 'store history reads are detached from canonical revisions');
+  check(pristine.at(0)?.metadata.phase === '04', 'store history reads are detached from canonical revisions');
 
   const restricted = await gateway.create({
     projectId: 'COS_GRAPH_ENGINE',
