@@ -40,11 +40,11 @@ async function main(): Promise<void> {
   const before = await gateway.query({
     projectId: 'COS_GRAPH_ENGINE', asOf: T2, knownAt: T2, maxSensitivity: 'internal',
   });
-  check(before[0]?.object === 'append-only', 'Postgres knownAt before correction returns historical revision');
+  check(before.at(0)?.object === 'append-only', 'Postgres knownAt before correction returns historical revision');
   const after = await gateway.query({
     projectId: 'COS_GRAPH_ENGINE', asOf: T2, knownAt: T3, maxSensitivity: 'internal',
   });
-  check(after[0]?.object === 'append-only-authority', 'Postgres knownAt after correction returns corrected revision');
+  check(after.at(0)?.object === 'append-only-authority', 'Postgres knownAt after correction returns corrected revision');
 
   const retry = await gateway.revise({
     statementId: created.revision.statementId,
@@ -66,8 +66,11 @@ async function main(): Promise<void> {
 
   const rows = db.snapshot();
   check(rows.length === 2, 'Postgres fake contains exactly two immutable rows');
-  check(rows[0].content_hash !== rows[1].content_hash, 'each system revision has independent content hash');
-  check(rows[0].valid_until === null, 'later correction did not mutate prior valid-time row');
+  const first = rows.at(0);
+  const second = rows.at(1);
+  if (!first || !second) throw new Error('expected two Postgres knowledge rows');
+  check(first.content_hash !== second.content_hash, 'each system revision has independent content hash');
+  check(first.valid_until === null, 'later correction did not mutate prior valid-time row');
   check(
     !db.statements.some(sql => /^UPDATE\b|^DELETE\b|^TRUNCATE\b/i.test(sql)),
     'authority knowledge adapter never updates or deletes historical rows',
@@ -78,9 +81,11 @@ async function main(): Promise<void> {
   );
 
   const leaked = await store.getHistory(created.revision.statementId);
-  leaked[0].metadata.tampered = true;
+  const leakedFirst = leaked.at(0);
+  if (!leakedFirst) throw new Error('expected Postgres knowledge history');
+  leakedFirst.metadata.tampered = true;
   const pristine = await store.getHistory(created.revision.statementId);
-  check(pristine[0].metadata.tampered === undefined, 'Postgres adapter reads are detached');
+  check(pristine.at(0)?.metadata.tampered === undefined, 'Postgres adapter reads are detached');
 
   console.log(`Authority knowledge Postgres contract: ${assertions} assertions passed`);
 }
