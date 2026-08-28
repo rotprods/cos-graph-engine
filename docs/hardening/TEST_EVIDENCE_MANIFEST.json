@@ -73,7 +73,8 @@
     "scripts/test-authority-concurrency-copysafe.ts",
     "scripts/test-authority-property-graph.ts",
     "scripts/test-authority-identity.ts",
-    "scripts/test-authority-csr.ts"
+    "scripts/test-authority-csr.ts",
+    "scripts/test-authority-event-log-parity.ts"
   ],
   "authorityRunner": "npm run test:authority:reconciliation",
   "waiversFile": "docs/hardening/TEST_COMPATIBILITY_WAIVERS.json"
