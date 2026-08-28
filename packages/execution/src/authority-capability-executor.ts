@@ -78,12 +78,9 @@ export class AuthorityCapabilityExecutor {
     }
 
     const operationKey = nonEmpty(request.operationKey ?? '', 'operationKey');
-    const fencingVersion = request.fencingVersion;
-    if (!Number.isSafeInteger(fencingVersion) || (fencingVersion ?? 0) < 1) {
-      throw new Error(`AUTHORITY_CAPABILITY_FENCING_REQUIRED name=${capability}`);
-    }
-
+    const fencingVersion = positiveSafeInteger(request.fencingVersion, 'fencingVersion');
     let capabilityReceipt: CapabilityExecutionReceipt | null = null;
+
     const execution = await this.sideEffects.execute({
       principalId: nonEmpty(request.principalId, 'principalId'),
       projectId: nonEmpty(request.projectId, 'projectId'),
@@ -183,6 +180,13 @@ function isPreEffectFailure(message: string): boolean {
 function errorCode(message: string): string {
   const match = /^[A-Z0-9_]+/.exec(message);
   return match?.[0] ?? 'CAPABILITY_PRE_EFFECT_FAILURE';
+}
+
+function positiveSafeInteger(value: number | undefined, label: string): number {
+  if (!Number.isSafeInteger(value) || (value ?? 0) < 1) {
+    throw new Error(`AUTHORITY_CAPABILITY_${label.toUpperCase()}_REQUIRED`);
+  }
+  return value as number;
 }
 
 function canonicalTime(value: string, label: string): string {
