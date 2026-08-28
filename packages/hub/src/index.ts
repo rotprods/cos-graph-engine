@@ -6,3 +6,4 @@ export * from './authority-hub';
 export * from './authority-query';
 export * from './authority-context-projector';
 export * from './authority-store';
+export * from './authority-compat-readonly';
