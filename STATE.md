@@ -1,132 +1,166 @@
 # STATE — COS Graph Engine
 
-Updated: 2026-08-25  
+Updated: 2026-08-28  
 Mode: **CANONICAL_AUTHORITY_RECONCILIATION**  
 Authority status: **SHADOW_ONLY**  
 Current phase: **01 / 09 — RECONCILIATION #34 + #35**  
 Active draft PR: **#40**  
 Automatic CI/CD: **OFF**  
-Merge authorization: **DENIED UNTIL RECONCILIATION + EVIDENCE**
+Merge authorization: **DENIED UNTIL HARDENING + EVIDENCE**
 
 ## North Star
 
 Bring COS Graph Engine to `10.0 Authority` in all 20 audited engineering verticals, then qualify it as the zero-cost graph compute/projection and agent-runtime substrate of AGENTIC_SYSTEMS_OS.
 
-Scoring law:
+Scoring law: `Authority = min(Build, Assurance)`.
 
-`Authority = min(Build, Assurance)`.
-
-Current means from the adversarial baseline:
+Current calibrated baseline remains:
 
 - Build: **7.6/10**;
 - Assurance: **2.6/10**;
 - Authority: **2.6/10**.
 
-Implementation in PR #40 may improve Build after review, but Assurance and Authority remain unchanged until execution evidence exists. See `SCORECARD_20D.md`.
+The current branch contains substantially more implementation than the baseline, but no score is promoted before static review and executed evidence.
 
 ## Current branch truth
 
-Active branch:
+Active branch: `hardening/canonical-authority-reconciliation`  
+Base: #33 / `hardening/w12-3-core-gap-closure` @ `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`.
 
-`hardening/canonical-authority-reconciliation`
+Divergent source evidence:
 
-Exact base:
+- #34 @ `af4973561b5f7d7a7415fa8f88a12a7d8d678a66`;
+- #35 @ `8b7e197f35e6fc114cd90ec0907db4c2f5b625f4`.
 
-`hardening/w12-3-core-gap-closure` @ `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`
+PR #40 is the single canonical reconciliation line. PR #36 remains paused and must never certify this candidate. PR #37 remains draft/rework. Audit PR #38 and issue #39 remain governance controls.
 
-Divergent source branches:
+## Phase 01 implementation state
 
-- PR #34 / `hardening/w12-4-authority-completion` @ `af4973561b5f7d7a7415fa8f88a12a7d8d678a66`;
-- PR #35 / `hardening/w12-4-authority-closure` @ `8b7e197f35e6fc114cd90ec0907db4c2f5b625f4`.
+### Completed control/governance
 
-Draft reconciliation PR:
+- source topology and #34/#35 capability inventory;
+- C01–C13 canonical ownership decisions;
+- 20D Build/Assurance/Authority scorecard;
+- semantic deletion ledger + Phase 01 replacement addendum;
+- machine-readable `AUTHORITY_SURFACE_MANIFEST.json`;
+- `API_BEHAVIOR_DIFF_PHASE01.md`;
+- `LOCKFILE_TRUTH_PHASE01.md`;
+- strict `tsconfig.authority.json` and `typecheck:authority` command;
+- isolated Todoist project and Drive synchronization contract.
 
-- PR #40 / `hardening/canonical-authority-reconciliation`;
-- currently mergeable but intentionally draft;
-- no remote verification run requested.
+### Canonical authority candidates implemented
 
-W13 PR #36 is based only on #35 and remains paused. PR #37 remains draft/rework because manual-only invocation must not remove verification breadth. Audit PR #38 and issue #39 govern the stop-the-line remediation.
+- strict tool runtime and false-success removal;
+- `AuthorityTelemetry`;
+- immutable EventBus delivery-failure observation;
+- semantic GitHub provider fixtures;
+- `AuthorityStateMachine`;
+- `AuthorityAgenticRegistry`;
+- `AuthorityGraphRAGIndex`;
+- `AuthorityContextPackCompiler`;
+- `AuthorityHub` outcome-sourced repository runtime;
+- `AuthorityHubQueryService`;
+- `AuthorityHubContextProjector`;
+- `AuthorityHubSnapshotManager` + in-memory/Postgres snapshot stores;
+- `AuthorityMemoryGateway` + `AuthorityMemoryCoordinator`;
+- append-only `InMemoryAuthorityMemoryStore` + `PostgresAuthorityMemoryStore`.
 
-## Completed in Phase 01
+### Authority contracts written, not executed
 
-### Control and governance
+- state machine;
+- agentic registry;
+- ContextPack;
+- Hub command/outcome/replay/recovery/query/context;
+- memory bitemporal/idempotency/non-leakage.
 
-- created canonical reconciliation branch directly from #33;
-- measured #34/#35 divergence and recorded exact source refs;
-- inventoried exclusive and overlapping capabilities;
-- selected canonical direction for capabilities C01–C13;
-- created semantic deletion ledger;
-- materialized 20D Build/Assurance/Authority scorecard;
-- materialized phase task graph and authority dependency graph;
-- created isolated Todoist control plane and synchronized Drive;
-- opened draft reconciliation PR #40.
+Root `test:authority:reconciliation` now includes all five contract groups. They remain unexecuted.
 
-### Low-conflict selected primitives
+## Important defects discovered and corrected during static implementation
 
-- strict tool runtime and false-success removal from #35;
-- `AuthorityTelemetry` from #34 with export wiring;
-- immutable EventBus delivery-failure observer stream from #35;
-- semantic GitHub webhook fixtures from #34.
+- #34/#35 sibling divergence and incomplete W13 lineage;
+- GraphRAG relation identity/sensitivity ordering;
+- wall-clock timestamps in replay/context identity;
+- Hub semantic state hash accidentally coupled to event cursor;
+- Hub outcome duplicate path lacking full logical-hash verification;
+- reserved Hub metadata overwrite risk;
+- state-machine identity validation on restore;
+- memory current-row history incapable of truthful `knownAt`;
+- late retry falsely classified as stale after newer revisions;
+- relation retry semantics depending on future endpoint state;
+- memory query leaking future successor timestamp via `systemUntil`;
+- relation sensitivity potentially leaking restricted endpoint state.
 
-### Canonical authority kernels now implemented in PR #40
+The canonical memory authority read path is therefore `AuthorityMemoryGateway`, not the lower-level `AuthorityMemoryService`.
 
-- `AuthorityStateMachine`: one serialized mutation queue, staged callbacks, expected-state/revision fencing, deterministic snapshots/restore checks, timer fencing and copy-safe state reads;
-- `AuthorityAgenticRegistry`: canonical identity, object/projection CAS, append-only transaction-time revisions, scope/sensitivity filtering, deterministic parallel relation identity and history validation;
-- `AuthorityGraphRAGIndex`: one atomic projection replacement path, expected version/hash CAS, deterministic relation identity, sensitivity derivation, temporal/system-knowledge filtering and deterministic snapshots;
-- `AuthorityContextPackCompiler`: accepts only an authority retriever, fences projection version and hash, requires explicit `asOf`/`knownAt`/`generatedAt`, enforces scope and sensitivity before rendering, produces deterministic evidence hashes and optional SHA-256 integrity seals;
-- additive authority contract harnesses for state-machine, agentic-registry and ContextPack behavior.
+## Current surface ownership
 
-These kernels are **implemented but not executed or verified**.
+See `docs/hardening/AUTHORITY_SURFACE_MANIFEST.json`.
 
-## Canonical architecture decisions
+Authority candidate owners:
 
-- strict #35 tool execution semantics are selected, but durable side-effect idempotency/fencing is still required;
-- `AuthorityGraphRAGIndex` is the single authority projection candidate;
-- `AuthorityContextPackCompiler` is the only authority-grade pack compiler candidate; legacy `ContextPackCompiler` and L11 GraphRAG remain shadow/compatibility paths pending explicit deprecation/migration documentation;
-- `AuthorityStateMachine` combines the transactional #35 core intent with #34 expected-state/revision semantics without two mutation queues;
-- `AuthorityAgenticRegistry` is the canonical topology/registry candidate and includes append-only system-time revisions and clone-safe metadata;
-- Hub must combine #34 command/outcome replay and queries with #35 snapshot/recovery/context capabilities;
-- neither historical memory adapter qualifies as final authority storage; append-only epistemic/system-time memory revisions remain required;
-- #34 AuthorityTelemetry and #35 EventBus delivery-failure observation remain selected;
-- W13 will be recreated only after the reconciled candidate is frozen.
+```text
+State             → AuthorityStateMachine
+Agentic topology  → AuthorityAgenticRegistry
+GraphRAG          → AuthorityGraphRAGIndex
+ContextPack       → AuthorityContextPackCompiler
+Hub runtime       → AuthorityHub
+Hub query/context → AuthorityHubQueryService / AuthorityHubContextProjector
+Hub recovery      → AuthorityHubSnapshotManager
+Memory            → AuthorityMemoryGateway
+Durable history   → IEventLog / PostgresEventLog candidate
+Observability     → AuthorityTelemetry
+```
 
-## Current blockers
+Legacy counterparts remain shadow/deprecated compatibility. They are not deleted in Phase 01.
 
-P0:
+## Remaining P0/P1 engineering after reconciliation
 
-- Hub command/outcome, query, snapshot, recovery and context paths are not yet unified;
-- memory authority still requires append-only system-time redesign;
-- mutable-reference bypass remains in legacy CAS/PropertyGraph/Memory surfaces;
-- side-effect idempotency/fencing is not yet durable;
-- W13 currently certifies incomplete lineage;
-- manual CI rework must preserve the full verification surface.
+The following are intentionally downstream hardening, not reasons to create more sibling reconciliation branches:
 
-P1:
+- deep immutability in legacy CAS/PropertyGraph/Memory surfaces;
+- canonical identity Unicode/provider normalization;
+- KnowledgeGraph transaction/saga boundaries;
+- durable side-effect operation ledger;
+- resource-level fencing + lease renewal/crash recovery;
+- durable goal aggregate and restart semantics;
+- deployment-level HTTP/FS isolation;
+- gold-query evaluation and near-miss wiring;
+- full Postgres/Supabase semantic fixtures;
+- package-lock regeneration and explicit `typescript`/`tsx` pinning from a clean environment;
+- legacy + authority test separation and full manual CI matrix.
 
-- legacy L11/ContextPack deprecation and migration contract;
-- identity normalization/serializer domain;
-- KnowledgeGraph transactional projection;
-- durable goal aggregate and side-effect saga;
-- package/export/API/lockfile reconciliation;
-- legacy + authority test separation;
-- complete deletion ledger and behavior-diff evidence.
+## Lockfile truth
 
-## Cost and execution posture
+`package-lock.json` is stale: root version is `0.1.0` and its workspace list stops at `packages/graph`, while current `package.json` is `2.1.0` and includes Hub/visualization/WASM. Do not hand-edit the lock. W13/Q0 will regenerate and review it from a clean registry-enabled environment.
 
-- incremental recurring infrastructure cost remains `EUR 0/month`;
-- GitHub Actions must be manual-only;
-- CD remains off;
-- no remote run is authorized during Phase 01;
-- Codex is optional for shell-heavy loops, not required for GitHub orchestration.
+## Process correction — W13 timing
 
-## Current next action
+Do **not** recreate W13 at the end of Phase 01. That would risk another qualification branch drifting while Phases 02–07 continue changing the candidate.
 
-Close Phase 01 in this order:
+Correct sequence:
 
-1. converge Hub around recorded command outcomes, deterministic replay, query contracts, snapshots, strict recovery and canonical context projection;
-2. redesign authority memory as append-only epistemic/system-time revisions with in-memory/Postgres semantic parity;
-3. mark legacy L11/ContextPack paths shadow/deprecated and document migration;
-4. reconcile package exports, TypeScript graphs, API behavior and deletion ledger;
-5. freeze the candidate and recreate W13 from PR #40 lineage.
+```text
+Phase 01 reconciliation freeze
+→ Phase 02 contracts/governance
+→ Phase 03 core correctness
+→ Phase 04 temporal/event/persistence
+→ Phase 05 security/concurrency/runtime
+→ Phase 06 Hub/memory/GraphRAG/observability hardening
+→ Phase 07 test truth/manual CI substrate
+→ freeze exact candidate SHA
+→ recreate W13 from that SHA
+→ Phase 08 evidence campaign
+→ Phase 09 20D qualification/merge
+```
 
-No Assurance score moves until the later evidence campaign executes.
+## Cost posture
+
+- recurring incremental infrastructure cost: `EUR 0/month`;
+- GitHub Actions manual-only;
+- CD/deploy/release off;
+- no remote qualification run during current reconciliation;
+- Codex optional, not mandatory.
+
+## Next exact action
+
+Finish Phase 01 governance closure, then begin Phase 02 on a **single linear descendant** of PR #40. Do not create a sibling branch. Phase 02 starts with ADR/compatibility index + rollback map + preservation of legacy tests as independent evidence.
