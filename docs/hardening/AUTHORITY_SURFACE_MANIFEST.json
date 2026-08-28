@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "phase": "05_SECURITY_CONCURRENCY_RUNTIME",
+  "schemaVersion": 2,
+  "phase": "05_SECURITY_CONCURRENCY_AGENT_RUNTIME",
   "verification": "IMPLEMENTED_UNVERIFIED",
   "authorityStatus": "SHADOW_ONLY",
   "rules": {
@@ -13,7 +13,7 @@
     "stateMachine": {
       "authorityCandidate": "@cos/graph:AuthorityStateMachine",
       "shadow": ["@cos/graph:StateMachine"],
-      "migration": "authority callers must use explicit definition revision and expected state/revision fencing"
+      "migration": "authority callers use explicit definition revision and expected state/revision fencing"
     },
     "agenticRegistry": {
       "authorityCandidate": "@cos/hub:AuthorityAgenticRegistry",
@@ -77,40 +77,78 @@
         "@cos/knowledge:PostgresAuthorityKnowledgeStore"
       ],
       "shadow": ["@cos/knowledge:KnowledgeGraph"],
-      "migration": "authority knowledge uses append-only system revisions, independent valid-time intervals and a rebuildable graph projection; projection failure is an explicit saga/degraded state"
+      "migration": "authority knowledge uses append-only system revisions, independent valid-time intervals and a rebuildable graph projection; projection failure is an explicit degraded saga state"
     },
     "sideEffectOperations": {
-      "authorityCandidate": "@cos/execution:SideEffectLedger + SideEffectCoordinator",
+      "authorityCandidate": "@cos/execution:AuthoritySideEffectRuntime",
       "components": [
-        "@cos/execution:InMemorySideEffectLedgerStore",
-        "@cos/execution:PostgresSideEffectLedgerStore"
+        "@cos/execution:InMemoryAuthoritySideEffectStore",
+        "@cos/execution:AuthoritySideEffectPostgresStore",
+        "@cos/execution:AuthorityExecutionRuntime"
       ],
       "stateModel": [
         "claimed",
         "prepared",
         "executing",
-        "succeeded",
+        "reconciliation_required",
+        "committed",
         "failed",
-        "uncertain",
+        "compensation_required",
         "compensating",
         "compensated"
       ],
-      "status": "CANDIDATE_REQUIRES_RESOURCE_BOUND_FENCING_AND_LEASE_RECOVERY",
-      "rule": "provider exceptions and crash windows after executing become uncertain; no exactly-once provider-effect claim is authorized"
+      "rule": "provider exceptions and crash windows after executing require provider/resource reconciliation; no exactly-once provider-effect claim is authorized"
+    },
+    "leasesAndFencing": {
+      "authorityCandidate": "@cos/execution:AuthorityLeaseService",
+      "components": [
+        "@cos/execution:InMemoryAuthorityLeaseStore",
+        "@cos/execution:AuthorityLeasePostgresStore"
+      ],
+      "rule": "monotonic fencing is validated at explicit prepare/begin/commit operation time; stale owners fail closed"
+    },
+    "policy": {
+      "authorityCandidate": "@cos/execution:AuthorityPolicyEngine",
+      "components": [
+        "@cos/execution:InMemoryAuthorityApprovalStore",
+        "@cos/execution:PolicyBoundAuthorityExecutionRuntime"
+      ],
+      "rule": "default deny, exact project/sensitivity scope and exact-operation approval; policy is evaluated at every mutation boundary"
+    },
+    "agentRun": {
+      "authorityCandidate": "@cos/execution:AuthorityAgentRunService",
+      "components": [
+        "@cos/execution:InMemoryAuthorityAgentRunStore",
+        "@cos/execution:AuthorityAgentRunPostgresStore"
+      ],
+      "rule": "append-only goal/plan/result revisions; completion requires accepted critical steps and exact evaluator/version evidence"
+    },
+    "httpIsolation": {
+      "authorityCandidate": "@cos/execution:AuthorityHttpEgressGuard",
+      "status": "DECISION_CONTRACT_REQUIRES_PINNED_TRANSPORT",
+      "rule": "host/method/port policy, public-address-only DNS pinning, TTL and redirect reauthorization; authority transport must consume pinned addresses directly"
+    },
+    "filesystemIsolation": {
+      "authorityCandidate": "@cos/execution:AuthorityFileSandbox",
+      "status": "DECISION_CONTRACT_REQUIRES_TRUSTED_HANDLE_BROKER",
+      "rule": "lexical defense plus broker-opened opaque handle, canonical root containment and explicit symlink policy; authority code must not reopen paths"
     },
     "toolExecution": {
-      "authorityCandidate": "@cos/execution:AuthorityCapabilityExecutor",
+      "authorityCandidate": "PENDING_CANONICAL_BINDING",
       "components": [
         "@cos/execution:CapabilityRouter",
         "@cos/execution:StrictToolRegistry",
-        "@cos/execution:SideEffectCoordinator"
+        "@cos/execution:PolicyBoundAuthorityExecutionRuntime",
+        "@cos/execution:AuthorityHttpEgressGuard",
+        "@cos/execution:AuthorityFileSandbox"
       ],
       "shadow": [
+        "@cos/execution:AuthorityCapabilityExecutor",
         "direct side-effecting CapabilityRouter calls",
         "legacy permissive tool execution"
       ],
-      "status": "CANDIDATE_REQUIRES_COMMIT_BOUNDARY_FENCE_VALIDATION",
-      "migration": "read-only capabilities may route directly; write/execute/admin authority operations must enter the durable side-effect ledger before provider execution"
+      "status": "P0_BINDING_GAP",
+      "migration": "read-only and side-effecting capabilities need one canonical facade; write/execute/admin operations enter policy, lease and durable side-effect history before provider execution"
     },
     "durableEvents": {
       "authorityCandidate": "@cos/runtime:IEventLog with PostgresEventLog for durable deployment",
@@ -125,9 +163,18 @@
     },
     "observability": {
       "authorityCandidate": "@cos/observability:AuthorityTelemetry",
-      "components": ["immutable EventBus delivery-failure observation"],
-      "rule": "observer failure cannot change protected operation outcome"
+      "components": [
+        "@cos/execution:AuthorityExecutionSignalStore",
+        "immutable EventBus delivery-failure observation"
+      ],
+      "rule": "observer failure cannot change protected operation outcome; policy/lease/isolation/agent-run signal integration remains incomplete"
     }
+  },
+  "lineage": {
+    "phase04Checkpoint": "checkpoint/phase-04-temporal-2e15b88",
+    "phase04Sha": "2e15b88388836b94b97a93753cb4db347e275e7e",
+    "canonicalPhase05PullRequest": 46,
+    "supersededDuplicatePullRequest": 47
   },
   "qualification": {
     "w13MustDescendFrom": "PHASE_07_FROZEN_EXACT_SHA",
