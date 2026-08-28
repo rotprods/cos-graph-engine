@@ -10,6 +10,8 @@ Normative decisions for the 10/10 Authority Program:
 | ADR-004 | No exactly-once side-effect claim without durable protocol | ACCEPTED_FOR_HARDENING |
 | ADR-005 | Legacy test evidence immutable; authority tests additive | ACCEPTED_FOR_HARDENING |
 | ADR-006 | Manual CI changes invocation cost, not verification breadth | ACCEPTED_FOR_HARDENING |
+| ADR-007 | Strict authority canonical serialization while retaining legacy deterministic hashes | ACCEPTED_FOR_HARDENING |
+| ADR-008 | Deterministic multiedge identity for authority bidirectional CSR | ACCEPTED_FOR_HARDENING |
 
 Files:
 
@@ -19,6 +21,8 @@ Files:
 - `adrs/ADR-004-SIDE-EFFECT-DELIVERY-SEMANTICS.md`
 - `adrs/ADR-005-TEST-EVIDENCE-PRESERVATION.md`
 - `adrs/ADR-006-MANUAL-CI-FULL-BREADTH.md`
+- `adrs/ADR-007-STRICT-CANONICAL-SERIALIZATION.md`
+- `adrs/ADR-008-AUTHORITY-CSR-EDGE-IDENTITY.md`
 
 ## Change rule
 
