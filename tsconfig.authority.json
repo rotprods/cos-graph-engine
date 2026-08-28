@@ -1,0 +1,39 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "useUnknownInCatchVariables": true
+  },
+  "include": [
+    "packages/core/src/identity.ts",
+    "packages/core/src/integrity.ts",
+    "packages/core/src/temporal.ts",
+    "packages/runtime/src/event-log.ts",
+    "packages/runtime/src/postgres-event-log.ts",
+    "packages/runtime/src/eventbus.ts",
+    "packages/execution/src/tool-runtime.ts",
+    "packages/observability/src/authority.ts",
+    "packages/graph/src/authority-state-machine.ts",
+    "packages/graph/src/authority-graphrag-index.ts",
+    "packages/graph/src/authority-context-pack.ts",
+    "packages/hub/src/authority-agentic-registry.ts",
+    "packages/hub/src/authority-hub.ts",
+    "packages/hub/src/authority-query.ts",
+    "packages/hub/src/authority-context-projector.ts",
+    "packages/hub/src/authority-store.ts",
+    "packages/memory/src/authority-memory.ts",
+    "packages/memory/src/authority-memory-coordinator.ts",
+    "packages/memory/src/authority-memory-gateway.ts",
+    "packages/memory/src/postgres-authority-memory.ts",
+    "scripts/test-authority-state-machine.ts",
+    "scripts/test-authority-agentic-registry.ts",
+    "scripts/test-authority-context-pack.ts",
+    "scripts/test-authority-hub.ts",
+    "scripts/test-authority-memory.ts"
+  ]
+}
