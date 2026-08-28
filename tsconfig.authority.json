@@ -24,6 +24,7 @@
     "packages/graph/src/authority-graphrag-index.ts",
     "packages/graph/src/authority-context-pack.ts",
     "packages/graph/src/authority-compat-readonly.ts",
+    "packages/graph/src/bidirectional-csr.ts",
     "packages/hub/src/authority-agentic-registry.ts",
     "packages/hub/src/authority-hub.ts",
     "packages/hub/src/authority-query.ts",
@@ -43,6 +44,8 @@
     "scripts/test-authority-memory.ts",
     "scripts/test-authority-compat-readonly.ts",
     "scripts/test-authority-concurrency-copysafe.ts",
-    "scripts/test-authority-property-graph.ts"
+    "scripts/test-authority-property-graph.ts",
+    "scripts/test-authority-identity.ts",
+    "scripts/test-authority-csr.ts"
   ]
 }
