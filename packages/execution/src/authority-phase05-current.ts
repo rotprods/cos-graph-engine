@@ -120,6 +120,23 @@ export {
   type AuthorityAgentRunTerminalInput,
 } from './authority-agent-run';
 
+export {
+  AuthorityHttpEgressGuard,
+  AuthorityFileSandbox,
+  type AuthorityHttpMethod,
+  type AuthorityResolvedAddress,
+  type AuthorityDnsResolver,
+  type AuthorityHttpEgressPolicy,
+  type AuthorityHttpEgressRequest,
+  type AuthorityPinnedHttpTarget,
+  type AuthorityFileOperation,
+  type AuthorityFileRootPolicy,
+  type AuthorityFileOpenRequest,
+  type AuthorityFileBrokerResolution,
+  type AuthorityFileSystemBroker,
+  type AuthorityPinnedFileTarget,
+} from './authority-isolation';
+
 // Reference-only single-process validator. Durable authority deployments should
 // use AuthorityLeaseService/AuthorityLeasePostgresStore at the resource boundary.
 export {
