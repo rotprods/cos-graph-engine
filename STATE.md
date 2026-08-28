@@ -1,9 +1,9 @@
 # STATE — COS Graph Engine
 
 Updated: 2026-08-28  
-Mode: **PHASE_04_STATIC_CLOSURE / PHASE_05_PREFLIGHT**  
+Mode: **PHASE_04_COMPLETE_STATIC / PHASE_05_ACTIVE_NEXT**  
 Authority status: **SHADOW_ONLY**  
-Current phase: **04 COMPLETE_STATIC → 05 NEXT**  
+Current phase: **04 COMPLETE_STATIC → 05 SECURITY / CONCURRENCY / AGENT RUNTIME**  
 Draft PR chain: **#40 → #43 → #44 → #45**  
 Automatic CI/CD: **OFF**  
 Merge authorization: **DENIED UNTIL HARDENING + EVIDENCE**
@@ -20,56 +20,62 @@ Calibrated baseline remains:
 - Assurance: **2.6/10**;
 - Authority: **2.6/10**.
 
-No score moved during Phases 01–04 because all contracts remain unexecuted.
+No score has moved during Phases 01–04 because their contracts remain unexecuted.
 
 ## Frozen checkpoints
 
 - Phase 01 — `checkpoint/phase-01-reconciled-76dfdc7` → `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
 - Phase 02 — `checkpoint/phase-02-contracts-06487e7` → `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
-- Phase 03 — `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44
-- Phase 04 — checkpoint branch created after synchronized closure; see `docs/hardening/PHASE_04_CLOSURE.md` and PR #45
+- Phase 03 — `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5b0182338dbcceb4` is NOT the code checkpoint; canonical Phase 03 code checkpoint remains `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` and its synchronized descendant/base for Phase 04 is `64dbdd85323d563ceb10af9b5b0182338dbcceb4` — PR #44
+- Phase 04 — `checkpoint/phase-04-temporal-event-bedfec6` → `bedfec6b8ea147c91ac7d50a888c38b0439d53ff` — PR #45
 
-## Phase 04 result
+## Phase 04 closure
 
-Status: `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`.
+Status: **COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED**.
 
-### Event truth
+Closure artifact: `docs/hardening/PHASE_04_CLOSURE.md`.
+
+### Durable event truth
 
 - one payload-bound logical-event contract for InMemory/Postgres EventLog;
-- retry identity excludes attempt-local event/trace/span IDs and recordedAt;
-- same key + different semantic event fails closed;
-- detached event storage/read surfaces;
-- shared cursor/limit/order validation;
-- transaction-aware fake Postgres parity fixture.
+- attempt-local event ID / trace / span / `recordedAt` do not redefine an accepted logical retry;
+- same key + different semantic content fails closed;
+- event-ID reuse under another key fails closed;
+- reads/writes are detached;
+- driver-neutral Postgres parity fixture exists.
 
-### Persistence wire
+### Canonical persistence wire
 
-- canonical JSON wire version 1;
-- optional object `undefined` omitted only at persistence boundary;
-- unsupported JS values/cycles/accessors/sparse arrays/non-finite numbers fail closed;
+- `CANONICAL_JSON_WIRE_VERSION = 1`;
+- persistence/signing uses explicit canonical JSON wire values;
+- optional object `undefined` is omitted only at the wire boundary;
+- undefined arrays/root values, sparse arrays, accessors, cycles, symbol keys, bigint, functions and non-plain objects fail closed;
 - NFC normalization and normalized-key collision rejection;
-- SHA-256 over exact canonical wire values.
+- SHA-256 covers the exact persisted wire value.
 
-### Knowledge truth
+### Knowledge authority
 
-- `AuthorityKnowledgeGateway` is the candidate authority owner;
-- immutable append-only system revisions with independent valid-time;
-- historical `knownAt` does not see future correction/closure;
-- provenance, epistemic type, confidence, project scope and sensitivity are first-class;
+- `AuthorityKnowledgeGateway` is the single knowledge authority candidate;
+- immutable append-only system revisions;
+- independent valid-time vs system-time semantics;
+- historical `knownAt` cannot see future corrections/closures;
+- provenance, epistemic type, confidence, scope and sensitivity are first-class;
 - PropertyGraph is rebuildable projection only;
-- projection failure becomes explicit degraded saga state and is repairable idempotently;
-- Postgres adapter uses advisory transaction locking, revision CAS and INSERT-only history.
+- projection failure is explicit degraded saga state and can be repaired idempotently;
+- Postgres adapter is advisory-lock + revision-CAS + INSERT-only history.
 
-### Recovery truth
+### Hub recovery
 
-- Hub registration/command/outcome/projection hashes are JSON-roundtrip stable;
+- Hub registration/command/outcome/projection hashes use canonical wire v1;
+- successful outcomes omit absent `error` before hashing/persistence;
+- `recordedAt` remains transaction-time evidence, not producer retry identity;
+- JSON/JSONB round trips preserve semantic hash;
 - snapshot envelopes carry schema + serialization version;
-- SHA-256 covers the exact JSONB wire payload;
-- empty projection + snapshot + event tail reconstructs semantic state;
-- corruption, schema/serialization mismatch, metadata tampering and event-log-behind-snapshot fail closed;
-- fake Postgres snapshot fixture models real JSON serialization behavior.
+- snapshot SHA-256 covers exactly what JSONB stores;
+- snapshot-only and snapshot+tail replay contracts are written;
+- corruption, schema/serialization mismatch, metadata tampering and event-log-behind-snapshot fail closed.
 
-## Current authority candidate ownership
+## Authority candidate ownership
 
 ```text
 State               → AuthorityStateMachine
@@ -84,42 +90,57 @@ Memory              → AuthorityMemoryGateway + append-only stores
 Knowledge           → AuthorityKnowledgeGateway + append-only stores
 Durable events      → IEventLog / PostgresEventLog candidate
 Canonical wire      → CANONICAL_JSON_WIRE_VERSION 1
-Observability       → AuthorityTelemetry
-Tools               → strict ToolRegistry path
 CSR hot graph       → BidirectionalCSRGraph candidate
+Observability       → AuthorityTelemetry
+Tools               → strict ToolRegistry candidate
 ```
 
 Legacy counterparts remain shadow/deprecated/read-only compatibility and may not write authority truth.
 
+## Static Phase 04 defect ledger
+
+Phase 04 discovered and addressed:
+
+1. InMemory/Postgres EventLog idempotency divergence;
+2. mutable EventLog read leakage;
+3. producer-event-ID/JSON representation coupling in Postgres retries;
+4. persisted/signed `undefined` optional-field ambiguity;
+5. Hub successful-outcome `error: undefined` hash drift;
+6. Hub global `projectId: undefined` JSONB round-trip drift;
+7. KnowledgeGraph valid/system-time conflation;
+8. knowledge-ledger vs graph-projection partial-failure ambiguity.
+
+No item is marked VERIFIED until execution.
+
 ## Phase 05 objective
 
-Make external side effects, concurrent workers and autonomous agent execution survive retries, stale ownership and process failure without false exactly-once claims.
+Make external side effects and autonomous concurrent execution safe across retries, stale ownership, crash windows and uncertain provider outcomes.
 
 Exact order:
 
 1. durable side-effect operation ledger;
-2. resource-bound monotonic fencing at commit boundary;
-3. lease acquire/renew/expire/reacquire/crash recovery;
-4. durable immutable goal/plan/result aggregate;
-5. principal/project/sensitivity policy enforcement across execution paths;
-6. deployment-layer HTTP/FS isolation contracts;
-7. near-miss evidence for denied/stale/duplicate/uncertain operations.
+2. resource commit-boundary monotonic fencing;
+3. lease acquire / renew / expire / reacquire / crash recovery;
+4. immutable durable goal-plan-result aggregate;
+5. principal / project / sensitivity policy enforcement on real execution paths;
+6. deployment HTTP/FS isolation contract;
+7. near-miss evidence for denied, stale, duplicate and uncertain operations.
 
 ## Phase 05 hard constraints
 
-- presence of an idempotency key is not proof of durable idempotency;
-- presence of a fencing token is not proof it was validated at resource commit;
-- do not call a side effect exactly-once unless the provider and operation protocol prove it;
-- unknown outcome after crash must be represented as `uncertain` and reconciled;
-- callback/state-machine rollback cannot undo an external provider mutation;
-- no alternate execution writer may bypass the operation ledger;
-- no automatic Actions or CD;
-- no Assurance movement without executed evidence.
+- idempotency-key presence is not durable idempotency;
+- fencing-token presence is not proof of commit-boundary validation;
+- do not claim exactly-once external effects unless provider + protocol prove it;
+- crash after provider effect but before local commit becomes `uncertain`, never guessed success/failure;
+- state-machine rollback cannot undo an external provider mutation;
+- all authority side effects must route through one operation-ledger owner;
+- no automatic Actions/CD;
+- no Assurance promotion without executed evidence.
 
 ## W13 timing
 
-PR #36 remains paused/non-authoritative. A new W13 is created only after Phase 07 freezes the exact complete qualification SHA.
+PR #36 remains paused/non-authoritative. A replacement W13 is created only after Phase 07 freezes the exact complete qualification SHA.
 
 ## Next exact action
 
-Freeze the synchronized Phase 04 ref, create the single descendant branch `hardening/phase-05-security-concurrency-runtime`, open a draft PR against Phase 04, and implement the durable side-effect ledger as the first guarantee.
+Create the single descendant branch `hardening/phase-05-security-concurrency-runtime` from the synchronized Phase 04 head and implement the durable side-effect ledger first.
