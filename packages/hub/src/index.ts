@@ -2,3 +2,7 @@ export * from './hub';
 export * from './webhook';
 export * from './agentic-registry';
 export * from './authority-agentic-registry';
+export * from './authority-hub';
+export * from './authority-query';
+export * from './authority-context-projector';
+export * from './authority-store';
