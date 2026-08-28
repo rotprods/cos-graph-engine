@@ -46,11 +46,21 @@ async function main(): Promise<void> {
     occurredAt: T0,
     recordedAt: T0,
   });
-  await hub.applyRepoEvent(globalRepo.id, 'init', {
+  const initGlobal = await hub.applyRepoEvent(globalRepo.id, 'init', {
     idempotencyKey: 'cmd:global:init', correlationId: 'corr-global-init',
     sourceRef: 'fixture://global/init', occurredAt: T1, recordedAt: T1,
     expectedState: 'PENDING', expectedRevision: 0,
   });
+  check(initGlobal.applied && initGlobal.revision === 1, 'initial Hub command records a canonical successful outcome');
+  const cursorBeforeRetry = await log.latestCursor();
+  const lateRetry = await hub.applyRepoEvent(globalRepo.id, 'init', {
+    idempotencyKey: 'cmd:global:init', correlationId: 'corr-global-init',
+    sourceRef: 'fixture://global/init', occurredAt: T1, recordedAt: T2,
+    expectedState: 'PENDING', expectedRevision: 0,
+  });
+  check(lateRetry.duplicate && lateRetry.outcomeEventId === initGlobal.outcomeEventId, 'same command retry converges when only recordedAt changes');
+  check((await log.latestCursor()).sequence === cursorBeforeRetry.sequence, 'late transport retry does not append duplicate durable events');
+
   await hub.applyRepoEvent(scopedRepo.id, 'init', {
     idempotencyKey: 'cmd:scoped:init', correlationId: 'corr-scoped-init',
     sourceRef: 'fixture://scoped/init', occurredAt: T1, recordedAt: T1,
@@ -100,7 +110,6 @@ async function main(): Promise<void> {
   check(exact.report.postSnapshotEvents === 0 && exact.report.exactSnapshotStateRecreated, 'snapshot-only restore recreates exact state');
   check(exact.hub.projectionHash() === envelope.semanticHash, 'snapshot-only restore matches sealed semantic hash');
 
-  // Tail replay: command/outcome hashes are now canonical-wire stable.
   const tail = await hub.applyRepoEvent(globalRepo.id, 'change', {
     idempotencyKey: 'cmd:global:change', correlationId: 'corr-global-change',
     sourceRef: 'fixture://global/change', occurredAt: T3, recordedAt: T3,
