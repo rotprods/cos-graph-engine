@@ -36,9 +36,8 @@ export class FakeAuthorityKnowledgePostgres implements PostgresExecutor {
 
   async transaction<T>(fn: (tx: PostgresTransaction) => Promise<T>): Promise<T> {
     const before = structuredClone(this.rows);
-    const tx: PostgresTransaction = { query: (sql, params) => this.queryInternal(sql, params) };
     try {
-      return await fn(tx);
+      return await fn({ query: this.query.bind(this) });
     } catch (error) {
       this.rows = before;
       throw error;
@@ -46,21 +45,15 @@ export class FakeAuthorityKnowledgePostgres implements PostgresExecutor {
   }
 
   async query<Row = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<PostgresQueryResult<Row>> {
-    return this.queryInternal<Row>(sql, params);
-  }
-
-  snapshot(): StoredRow[] {
-    return structuredClone(this.rows);
-  }
-
-  private async queryInternal<Row>(sql: string, params: unknown[] = []): Promise<PostgresQueryResult<Row>> {
     const normalized = sql.replace(/\s+/g, ' ').trim();
     this.statements.push(normalized);
 
     if (normalized.startsWith('CREATE SCHEMA') || normalized.includes('CREATE TABLE IF NOT EXISTS cos_knowledge.authority_revisions')) {
       return result<Row>([]);
     }
-    if (normalized.startsWith('SELECT pg_advisory_xact_lock')) return result<Row>([{ locked: true } as Row]);
+    if (normalized.startsWith('SELECT pg_advisory_xact_lock')) {
+      return result<Row>([{ locked: true }] as unknown as Row[]);
+    }
 
     if (normalized.startsWith('INSERT INTO cos_knowledge.authority_revisions')) {
       const row = rowFromParams(params);
@@ -70,12 +63,12 @@ export class FakeAuthorityKnowledgePostgres implements PostgresExecutor {
         throw new Error(`duplicate statement revision ${row.statement_id}/${row.revision}`);
       }
       this.rows.push(structuredClone(row));
-      return result<Row>([structuredClone(row) as Row]);
+      return result<Row>([structuredClone(row)] as unknown as Row[]);
     }
 
     if (normalized.includes('WHERE operation_key=$1')) {
       const key = String(params[0]);
-      return result<Row>(this.rows.filter(row => row.operation_key === key).map(row => structuredClone(row) as Row));
+      return result<Row>(this.rows.filter(row => row.operation_key === key).map(row => structuredClone(row)) as unknown as Row[]);
     }
 
     if (normalized.includes('WHERE statement_id=$1') && normalized.includes('ORDER BY revision DESC')) {
@@ -83,7 +76,7 @@ export class FakeAuthorityKnowledgePostgres implements PostgresExecutor {
       const rows = this.rows
         .filter(row => row.statement_id === statementId)
         .sort((a, b) => b.revision - a.revision || b.system_from.localeCompare(a.system_from));
-      return result<Row>(rows.slice(0, 1).map(row => structuredClone(row) as Row));
+      return result<Row>(rows.slice(0, 1).map(row => structuredClone(row)) as unknown as Row[]);
     }
 
     if (normalized.includes('WHERE statement_id=$1') && normalized.includes('ORDER BY revision ASC')) {
@@ -91,7 +84,7 @@ export class FakeAuthorityKnowledgePostgres implements PostgresExecutor {
       const rows = this.rows
         .filter(row => row.statement_id === statementId)
         .sort((a, b) => a.revision - b.revision || a.system_from.localeCompare(b.system_from));
-      return result<Row>(rows.map(row => structuredClone(row) as Row));
+      return result<Row>(rows.map(row => structuredClone(row)) as unknown as Row[]);
     }
 
     if (normalized.includes('WHERE project_id=$1')) {
@@ -102,10 +95,14 @@ export class FakeAuthorityKnowledgePostgres implements PostgresExecutor {
           || a.statement_id.localeCompare(b.statement_id)
           || a.revision - b.revision
           || a.revision_id.localeCompare(b.revision_id));
-      return result<Row>(rows.map(row => structuredClone(row) as Row));
+      return result<Row>(rows.map(row => structuredClone(row)) as unknown as Row[]);
     }
 
     throw new Error(`FakeAuthorityKnowledgePostgres does not implement SQL: ${normalized}`);
+  }
+
+  snapshot(): StoredRow[] {
+    return structuredClone(this.rows);
   }
 }
 
