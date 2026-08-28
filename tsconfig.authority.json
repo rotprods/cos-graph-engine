@@ -35,6 +35,7 @@
     "packages/memory/src/authority-memory-coordinator.ts",
     "packages/memory/src/authority-memory-gateway.ts",
     "packages/memory/src/postgres-authority-memory.ts",
+    "scripts/fixtures/fake-event-log-postgres.ts",
     "scripts/check-test-evidence.ts",
     "scripts/check-deletion-governance.ts",
     "scripts/test-authority-state-machine.ts",
@@ -46,6 +47,7 @@
     "scripts/test-authority-concurrency-copysafe.ts",
     "scripts/test-authority-property-graph.ts",
     "scripts/test-authority-identity.ts",
-    "scripts/test-authority-csr.ts"
+    "scripts/test-authority-csr.ts",
+    "scripts/test-authority-event-log-parity.ts"
   ]
 }
