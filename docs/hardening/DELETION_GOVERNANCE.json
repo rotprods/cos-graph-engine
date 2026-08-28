@@ -59,6 +59,26 @@
       "rollback": "Restore packages/graph/src/bidirectional-csr.ts from Phase 02 closure head 097df3dcba6b71d838525bf8caa07ebda3925e6a.",
       "evidence": ["scripts/test-authority-csr.ts","legacy CSRGraph remains available separately","Phase 07 strict typecheck + CSR/benchmark suites"],
       "adr": "docs/hardening/adrs/ADR-008-AUTHORITY-CSR-EDGE-IDENTITY.md"
+    },
+    {
+      "path": "packages/runtime/src/event-log.ts",
+      "ledgerId": "DEL-P04-001",
+      "status": "PROPOSED",
+      "reason": "Reference EventLog currently deduplicates by key without payload binding and leaks stored event references, diverging from Postgres semantics.",
+      "replacement": "Same file: shared canonical logical-event projection/hash, payload-bound idempotency, detached storage/read results, strict cursor/limit validation and explicit event-ID collision semantics.",
+      "rollback": "Restore packages/runtime/src/event-log.ts from Phase 03 closure head 64dbdd85323d563ceb10af9b5b0182338dbcceb4.",
+      "evidence": ["scripts/test-authority-event-log-parity.ts","Phase 07 runtime/authority suites","fake Postgres executor parity fixture"],
+      "adr": "docs/hardening/adrs/ADR-003-OUTCOME-SOURCED-REPLAY.md"
+    },
+    {
+      "path": "packages/runtime/src/postgres-event-log.ts",
+      "ledgerId": "DEL-P04-002",
+      "status": "PROPOSED",
+      "reason": "Postgres adapter currently binds retries to the producer event ID and compares payload with JSON.stringify, which differs from the desired logical-event contract and can be order-sensitive.",
+      "replacement": "Same file: shared logical-event canonicalization with InMemoryEventLog, ON CONFLICT handling for key/id races, detached canonical row mapping and identical cursor/idempotency behavior.",
+      "rollback": "Restore packages/runtime/src/postgres-event-log.ts from Phase 03 closure head 64dbdd85323d563ceb10af9b5b0182338dbcceb4.",
+      "evidence": ["scripts/test-authority-event-log-parity.ts","fake Postgres executor parity fixture","Phase 07 strict typecheck/runtime suite"],
+      "adr": "docs/hardening/adrs/ADR-003-OUTCOME-SOURCED-REPLAY.md"
     }
   ],
   "rules": [
