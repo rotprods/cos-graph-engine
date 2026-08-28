@@ -9,6 +9,8 @@ import type {
 } from '@cos/runtime';
 import {
   SIDE_EFFECT_LEDGER_SCHEMA_VERSION,
+  assertInitialSideEffectRevision,
+  assertSideEffectContinuity,
   assertSideEffectRevision,
   cloneSideEffectRevision,
   type ISideEffectLedgerStore,
@@ -32,6 +34,7 @@ export interface SideEffectRevisionRow {
   project_id: string;
   resource_uri: string;
   action_name: string;
+  request_payload: unknown;
   request_hash: string;
   source_ref: string;
   system_from: string | Date;
@@ -65,6 +68,7 @@ CREATE TABLE IF NOT EXISTS cos_execution.side_effect_operation_revisions (
   project_id TEXT NOT NULL,
   resource_uri TEXT NOT NULL,
   action_name TEXT NOT NULL,
+  request_payload JSONB NOT NULL,
   request_hash TEXT NOT NULL,
   source_ref TEXT NOT NULL,
   system_from TIMESTAMPTZ NOT NULL,
@@ -84,16 +88,18 @@ CREATE INDEX IF NOT EXISTS cos_side_effect_project_time_idx
   ON cos_execution.side_effect_operation_revisions(project_id, system_from, operation_id, revision);
 CREATE INDEX IF NOT EXISTS cos_side_effect_operation_revision_idx
   ON cos_execution.side_effect_operation_revisions(operation_id, revision DESC);
+CREATE INDEX IF NOT EXISTS cos_side_effect_operation_key_idx
+  ON cos_execution.side_effect_operation_revisions(project_id, principal_id, operation_key, revision DESC);
 CREATE INDEX IF NOT EXISTS cos_side_effect_state_idx
   ON cos_execution.side_effect_operation_revisions(state, system_from);
 `;
 
 /**
- * Append-only Postgres/Supabase candidate for the side-effect operation ledger.
+ * Append-only Postgres/Supabase candidate for the external-operation ledger.
  *
- * A transaction-scoped advisory lock serializes revisions per operation. No
- * historical row is updated. Provider exactly-once semantics are deliberately
- * outside this adapter's claim surface.
+ * Every append takes a transaction-scoped advisory lock for the deterministic
+ * operation ID, then validates the full state-machine continuity independently
+ * of the higher-level service. Historical rows are never updated or deleted.
  */
 export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
   constructor(private readonly db: PostgresExecutor) {}
@@ -110,7 +116,10 @@ export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
     assertExpectedRevision(expectedCurrentRevision);
 
     return this.db.transaction(async tx => {
-      await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0)) AS locked', [revision.operationId]);
+      await tx.query(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0)) AS locked',
+        [revision.operationId],
+      );
 
       const duplicate = await tx.query<SideEffectRevisionRow>(`
         SELECT * FROM cos_execution.side_effect_operation_revisions
@@ -118,7 +127,7 @@ export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
       `, [revision.transitionKey]);
       if (duplicate.rowCount) {
         const existing = rowToRevision(duplicate.rows[0]);
-        if (existing.contentHash !== revision.contentHash) {
+        if (existing.transitionIntentHash !== revision.transitionIntentHash) {
           throw new Error(`SIDE_EFFECT_TRANSITION_CONFLICT key=${revision.transitionKey}`);
         }
         return { revision: existing, appended: false };
@@ -129,6 +138,7 @@ export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
         WHERE operation_id=$1
         ORDER BY revision DESC
         LIMIT 1
+        FOR UPDATE
       `, [revision.operationId]);
       const current = currentResult.rowCount ? rowToRevision(currentResult.rows[0]) : null;
       const currentRevision = current?.revision ?? 0;
@@ -137,15 +147,8 @@ export class PostgresSideEffectLedgerStore implements ISideEffectLedgerStore {
           `STALE_SIDE_EFFECT_REVISION operation=${revision.operationId} expected=${expectedCurrentRevision} current=${currentRevision}`,
         );
       }
-      if (revision.revision !== currentRevision + 1) {
-        throw new Error(
-          `SIDE_EFFECT_REVISION_SEQUENCE operation=${revision.operationId} expected=${currentRevision + 1} incoming=${revision.revision}`,
-        );
-      }
-      if (current) assertDbContinuity(current, revision);
-      else if (revision.previousRevisionId !== null || revision.state !== 'claimed') {
-        throw new Error(`SIDE_EFFECT_INITIAL_REVISION_INVALID operation=${revision.operationId}`);
-      }
+      if (current) assertSideEffectContinuity(current, revision);
+      else assertInitialSideEffectRevision(revision);
 
       const inserted = await insertRevision(tx, revision);
       if (inserted.rowCount !== 1) {
@@ -200,13 +203,13 @@ async function insertRevision(
     INSERT INTO cos_execution.side_effect_operation_revisions (
       schema_version, serialization_version, revision_id, operation_id,
       transition_key, transition_intent_hash, operation_key, revision, state,
-      principal_id, project_id, resource_uri, action_name, request_hash,
-      source_ref, system_from, fencing_version, provider_reference,
+      principal_id, project_id, resource_uri, action_name, request_payload,
+      request_hash, source_ref, system_from, fencing_version, provider_reference,
       result_payload, error_payload, uncertainty_reason, compensation_reference,
       metadata, previous_revision_id, content_hash
     ) VALUES (
-      1,1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::timestamptz,
-      $15,$16,$17::jsonb,$18::jsonb,$19,$20,$21::jsonb,$22,$23
+      1,1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15::timestamptz,
+      $16,$17,$18::jsonb,$19::jsonb,$20,$21,$22::jsonb,$23,$24
     )
     RETURNING *
   `, [
@@ -221,6 +224,7 @@ async function insertRevision(
     revision.projectId,
     revision.resource,
     revision.action,
+    JSON.stringify(revision.request),
     revision.requestHash,
     revision.sourceRef,
     revision.systemFrom,
@@ -243,22 +247,18 @@ export function rowToRevision(row: SideEffectRevisionRow): SideEffectOperationRe
   if (Number(row.serialization_version) !== CANONICAL_JSON_WIRE_VERSION) {
     throw new Error(`Unsupported side-effect row serialization ${row.serialization_version}`);
   }
-  const revision = Number(row.revision);
-  if (!Number.isSafeInteger(revision) || revision < 1) {
-    throw new Error(`SIDE_EFFECT_ROW_REVISION_INVALID value=${String(row.revision)}`);
-  }
-  const fencingVersion = row.fencing_version === null ? null : Number(row.fencing_version);
-  if (fencingVersion !== null && (!Number.isSafeInteger(fencingVersion) || fencingVersion < 1)) {
-    throw new Error(`SIDE_EFFECT_ROW_FENCING_INVALID value=${String(row.fencing_version)}`);
-  }
-
+  const revisionNumber = safePositiveInteger(row.revision, 'revision');
+  const fencingVersion = row.fencing_version === null
+    ? null
+    : safePositiveInteger(row.fencing_version, 'fencing version');
+  const request = canonicalizeJsonValue(row.request_payload);
   const result = row.result_payload === null
     ? null
     : canonicalizeJsonValue(row.result_payload);
   const error = row.error_payload === null
     ? null
     : canonicalError(row.error_payload);
-  const metadata = canonicalObject(row.metadata ?? {}, 'side-effect row metadata');
+
   const mapped: SideEffectOperationRevision = {
     schemaVersion: SIDE_EFFECT_LEDGER_SCHEMA_VERSION,
     serializationVersion: CANONICAL_JSON_WIRE_VERSION,
@@ -267,12 +267,13 @@ export function rowToRevision(row: SideEffectRevisionRow): SideEffectOperationRe
     transitionKey: row.transition_key,
     transitionIntentHash: row.transition_intent_hash,
     operationKey: row.operation_key,
-    revision,
+    revision: revisionNumber,
     state: row.state as SideEffectOperationState,
     principalId: row.principal_id,
     projectId: row.project_id,
     resource: row.resource_uri,
     action: row.action_name,
+    request,
     requestHash: row.request_hash,
     sourceRef: row.source_ref,
     systemFrom: toIso(row.system_from),
@@ -282,7 +283,7 @@ export function rowToRevision(row: SideEffectRevisionRow): SideEffectOperationRe
     error,
     uncertaintyReason: row.uncertainty_reason,
     compensationReference: row.compensation_reference,
-    metadata,
+    metadata: canonicalObject(row.metadata ?? {}, 'side-effect row metadata'),
     previousRevisionId: row.previous_revision_id,
     contentHash: row.content_hash,
   };
@@ -318,30 +319,18 @@ function canonicalObject(value: unknown, label: string): Record<string, Canonica
   return canonical as Record<string, CanonicalJsonValue>;
 }
 
-function assertDbContinuity(
-  current: SideEffectOperationRevision,
-  next: SideEffectOperationRevision,
-): void {
-  if (next.previousRevisionId !== current.revisionId) {
-    throw new Error(`SIDE_EFFECT_PARENT_MISMATCH operation=${next.operationId}`);
-  }
-  const immutable: Array<keyof SideEffectOperationRevision> = [
-    'operationId', 'operationKey', 'principalId', 'projectId', 'resource', 'action', 'requestHash', 'sourceRef',
-  ];
-  for (const field of immutable) {
-    if (next[field] !== current[field]) {
-      throw new Error(`SIDE_EFFECT_IDENTITY_MUTATION field=${String(field)} operation=${next.operationId}`);
-    }
-  }
-  if (Date.parse(next.systemFrom) <= Date.parse(current.systemFrom)) {
-    throw new Error(`SIDE_EFFECT_SYSTEM_TIME_NOT_MONOTONIC operation=${next.operationId}`);
-  }
-}
-
 function assertExpectedRevision(value: number): void {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error('expectedCurrentRevision must be a non-negative safe integer');
   }
+}
+
+function safePositiveInteger(value: number | string, label: string): number {
+  const numeric = Number(value);
+  if (!Number.isSafeInteger(numeric) || numeric < 1) {
+    throw new Error(`Invalid side-effect row ${label}: ${String(value)}`);
+  }
+  return numeric;
 }
 
 function nonEmpty(value: string, label: string): string {
@@ -352,6 +341,8 @@ function nonEmpty(value: string, label: string): string {
 
 function toIso(value: string | Date): string {
   const parsed = value instanceof Date ? value.getTime() : Date.parse(value);
-  if (!Number.isFinite(parsed)) throw new Error(`Invalid side-effect row timestamp: ${String(value)}`);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`Invalid side-effect row timestamp: ${String(value)}`);
+  }
   return new Date(parsed).toISOString();
 }
