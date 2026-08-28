@@ -2,47 +2,14 @@
   "schemaVersion": 1,
   "baselineCommit": "76dfdc737c231b2637f122125f7acf98b735ff1f",
   "baselineRef": "checkpoint/phase-01-reconciled-76dfdc7",
-  "policy": {
-    "legacyEvidence": "immutable_without_explicit_waiver_and_adr",
-    "authorityEvidence": "additive_and_evolvable",
-    "assurance": "no_score_change_without_execution"
-  },
-  "legacyDiscovery": {
-    "include": ["tests/**/*.ts", "packages/**/tests/**/*.ts", "scripts/test-*.ts"],
-    "exclude": ["scripts/test-authority-*.ts", "scripts/w13-*.ts"],
-    "canonicalRunnerAtBaseline": "scripts/run-tests.ts"
-  },
-  "knownCoreSuites": [
-    "tests/core.test.ts",
-    "tests/runtime.test.ts",
-    "tests/memory.test.ts",
-    "tests/graph.test.ts",
-    "tests/integration.test.ts",
-    "tests/graph-levels-3-5.test.ts"
-  ],
-  "historicallyOrphanedEvidenceFromPR16": [
-    "scripts/test-level0-visual.ts",
-    "scripts/test-level2-state.ts",
-    "scripts/test-level4-call.ts",
-    "scripts/test-level5-cfg.ts",
-    "scripts/test-level6-dataflow.ts",
-    "scripts/test-query.ts",
-    "scripts/test-graphql.ts",
-    "scripts/test-convert.ts",
-    "scripts/test-security.ts",
-    "scripts/test-streaming.ts",
-    "scripts/test-plugin.ts",
-    "scripts/test-playground.ts",
-    "scripts/test-i18n.ts",
-    "scripts/test-gcn.ts",
-    "scripts/test-automl.ts",
-    "scripts/test-ml-integration.ts",
-    "scripts/test-persistence.ts"
-  ],
+  "policy": {"legacyEvidence":"immutable_without_explicit_waiver_and_adr","authorityEvidence":"additive_and_evolvable","assurance":"no_score_change_without_execution"},
+  "legacyDiscovery": {"include":["tests/**/*.ts","packages/**/tests/**/*.ts","scripts/test-*.ts"],"exclude":["scripts/test-authority-*.ts","scripts/w13-*.ts"],"canonicalRunnerAtBaseline":"scripts/run-tests.ts"},
+  "knownCoreSuites": ["tests/core.test.ts","tests/runtime.test.ts","tests/memory.test.ts","tests/graph.test.ts","tests/integration.test.ts","tests/graph-levels-3-5.test.ts"],
+  "historicallyOrphanedEvidenceFromPR16": ["scripts/test-level0-visual.ts","scripts/test-level2-state.ts","scripts/test-level4-call.ts","scripts/test-level5-cfg.ts","scripts/test-level6-dataflow.ts","scripts/test-query.ts","scripts/test-graphql.ts","scripts/test-convert.ts","scripts/test-security.ts","scripts/test-streaming.ts","scripts/test-plugin.ts","scripts/test-playground.ts","scripts/test-i18n.ts","scripts/test-gcn.ts","scripts/test-automl.ts","scripts/test-ml-integration.ts","scripts/test-persistence.ts"],
   "historicallyExcludedEvidence": [
-    { "path": "scripts/test-smb-integration.ts", "historicalReason": "open handles / process hang", "requiredDisposition": "must_run_or_have_current_explicit_blocker_in_phase_07" },
-    { "path": "scripts/test-levels-6-11.ts", "historicalReason": "depended on cognitive correctness fixes", "requiredDisposition": "must_run_or_have_current_explicit_blocker_in_phase_07" },
-    { "path": "scripts/test-levels-8-11.ts", "historicalReason": "depended on cognitive correctness fixes", "requiredDisposition": "must_run_or_have_current_explicit_blocker_in_phase_07" }
+    {"path":"scripts/test-smb-integration.ts","historicalReason":"open handles / process hang","requiredDisposition":"must_run_or_have_current_explicit_blocker_in_phase_07"},
+    {"path":"scripts/test-levels-6-11.ts","historicalReason":"depended on cognitive correctness fixes","requiredDisposition":"must_run_or_have_current_explicit_blocker_in_phase_07"},
+    {"path":"scripts/test-levels-8-11.ts","historicalReason":"depended on cognitive correctness fixes","requiredDisposition":"must_run_or_have_current_explicit_blocker_in_phase_07"}
   ],
   "authoritySuites": [
     "scripts/test-authority-state-machine.ts",
@@ -51,7 +18,8 @@
     "scripts/test-authority-hub.ts",
     "scripts/test-authority-memory.ts",
     "scripts/test-authority-compat-readonly.ts",
-    "scripts/test-authority-concurrency-copysafe.ts"
+    "scripts/test-authority-concurrency-copysafe.ts",
+    "scripts/test-authority-property-graph.ts"
   ],
   "authorityRunner": "npm run test:authority:reconciliation",
   "waiversFile": "docs/hardening/TEST_COMPATIBILITY_WAIVERS.json"
