@@ -68,12 +68,17 @@
     "scripts/test-authority-agentic-registry.ts",
     "scripts/test-authority-context-pack.ts",
     "scripts/test-authority-hub.ts",
+    "scripts/test-authority-hub-recovery-wire.ts",
     "scripts/test-authority-memory.ts",
     "scripts/test-authority-compat-readonly.ts",
     "scripts/test-authority-concurrency-copysafe.ts",
     "scripts/test-authority-property-graph.ts",
     "scripts/test-authority-identity.ts",
-    "scripts/test-authority-csr.ts"
+    "scripts/test-authority-csr.ts",
+    "scripts/test-authority-event-log-parity.ts",
+    "scripts/test-authority-canonical-wire.ts",
+    "scripts/test-authority-knowledge.ts",
+    "scripts/test-authority-knowledge-postgres.ts"
   ],
   "authorityRunner": "npm run test:authority:reconciliation",
   "waiversFile": "docs/hardening/TEST_COMPATIBILITY_WAIVERS.json"

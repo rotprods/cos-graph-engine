@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "phase": "01_CANONICAL_RECONCILIATION",
+  "phase": "04_TEMPORAL_EVENT_PERSISTENCE",
   "verification": "IMPLEMENTED_UNVERIFIED",
   "authorityStatus": "SHADOW_ONLY",
   "rules": {
@@ -52,7 +52,7 @@
         "@cos/hub:PostgresAuthorityHubSnapshotStore"
       ],
       "shadow": ["historical W12.4 snapshot/recovery implementations"],
-      "migration": "repository runtime recovery only; external agentic/memory domains retain separate recovery contracts"
+      "migration": "repository runtime recovery only; external agentic/memory/knowledge domains retain separate recovery contracts"
     },
     "memory": {
       "authorityCandidate": "@cos/memory:AuthorityMemoryGateway",
@@ -68,6 +68,17 @@
       ],
       "migration": "authority reads require asOf+knownAt and append-only revision history; systemUntil is derived, never back-written"
     },
+    "knowledge": {
+      "authorityCandidate": "@cos/knowledge:AuthorityKnowledgeGateway",
+      "components": [
+        "@cos/knowledge:AuthorityKnowledgeCoordinator",
+        "@cos/knowledge:AuthorityKnowledgeProjector",
+        "@cos/knowledge:InMemoryAuthorityKnowledgeStore",
+        "@cos/knowledge:PostgresAuthorityKnowledgeStore"
+      ],
+      "shadow": ["@cos/knowledge:KnowledgeGraph"],
+      "migration": "authority knowledge uses append-only system revisions, independent valid-time intervals and a rebuildable graph projection; projection failure is an explicit saga/degraded state"
+    },
     "toolExecution": {
       "authorityCandidate": "strict ToolRegistry/CapabilityRouter path",
       "status": "CANDIDATE_REQUIRES_DURABLE_SIDE_EFFECT_LEDGER",
@@ -78,7 +89,12 @@
       "authorityCandidate": "@cos/runtime:IEventLog with PostgresEventLog for durable deployment",
       "components": ["@cos/runtime:InMemoryEventLog", "@cos/runtime:PostgresEventLog"],
       "nonAuthority": ["@cos/runtime:EventBus"],
-      "migration": "EventBus is delivery/observation, never the accepted-history source of truth"
+      "migration": "EventBus is delivery/observation only; durable adapters share payload-bound logical-event equality and canonical JSON wire versioning"
+    },
+    "canonicalPersistenceWire": {
+      "authorityCandidate": "@cos/core:canonicalizeJsonValue",
+      "version": 1,
+      "rule": "optional undefined object properties are omitted before persistence; undefined array/root values and unsupported JS objects fail closed"
     },
     "observability": {
       "authorityCandidate": "@cos/observability:AuthorityTelemetry",
@@ -87,7 +103,7 @@
     }
   },
   "qualification": {
-    "w13MustDescendFrom": "hardening/canonical-authority-reconciliation",
+    "w13MustDescendFrom": "PHASE_07_FROZEN_EXACT_SHA",
     "automaticActions": false,
     "cd": false,
     "promotionRequiresAll20AuthorityScores": 10.0

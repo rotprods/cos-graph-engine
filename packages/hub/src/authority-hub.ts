@@ -1,6 +1,8 @@
 import {
+  CANONICAL_JSON_WIRE_VERSION,
+  canonicalHash128,
   canonicalIdentity,
-  stableHash128,
+  canonicalizeJsonValue,
   type EntityId,
 } from '@cos/core';
 import {
@@ -147,11 +149,9 @@ export interface AuthorityHubReplayReport {
  * Outcome-sourced authority repository runtime.
  *
  * Legacy `CosHub` remains shadow/compatibility until migration evidence exists.
- * This runtime serializes command→transition→outcome per repository, stores
- * command and outcome separately, restores the previous in-memory state if an
- * outcome append fails, payload-binds retries independently of EventLog adapter
- * behavior, and replays recorded snapshots/outcomes without re-running the
- * historical decision.
+ * Authority logical hashes are computed from the canonical JSON wire domain,
+ * never raw TypeScript optional-property shape. `recordedAt` is evidence of log
+ * acceptance, not part of producer retry identity.
  */
 export class AuthorityHub {
   private readonly repos = new Map<string, AuthorityHubRepository>();
@@ -177,12 +177,7 @@ export class AuthorityHub {
         metadata: normalized.metadata,
         sourceRef: normalized.sourceRef,
       };
-      const logicalHash = registrationLogicalHash(
-        payload,
-        normalized.actor,
-        normalized.occurredAt,
-        normalized.recordedAt,
-      );
+      const logicalHash = registrationLogicalHash(payload, normalized.actor, normalized.occurredAt);
       const eventIdentity = canonicalIdentity({
         scheme: 'agentic',
         authority: 'cos-hub',
@@ -258,7 +253,6 @@ export class AuthorityHub {
         normalized.actor,
         normalized.metadata,
         normalized.occurredAt,
-        normalized.recordedAt,
       );
       const commandIdentity = canonicalIdentity({
         scheme: 'agentic',
@@ -333,7 +327,7 @@ export class AuthorityHub {
         before,
         after,
         disposition,
-        error,
+        ...(error === undefined ? {} : { error }),
       };
 
       let outcome: DurableEvent;
@@ -387,7 +381,9 @@ export class AuthorityHub {
           else rejected += 1;
         }
       }
-      currentCursor = { sequence: batch[batch.length - 1].sequence };
+      const last = batch.at(-1);
+      if (!last) break;
+      currentCursor = { sequence: last.sequence };
     }
 
     if (pendingCommands.size > 0) {
@@ -453,7 +449,7 @@ export class AuthorityHub {
     payload: AuthorityRepoTransitionOutcomePayload,
   ): Promise<DurableEvent> {
     validateOutcomeSemantics(payload);
-    const logicalHash = outcomeLogicalHash(payload, context.recordedAt);
+    const logicalHash = outcomeLogicalHash(payload);
     const identity = canonicalIdentity({
       scheme: 'agentic',
       authority: 'cos-hub',
@@ -510,7 +506,7 @@ export class AuthorityHub {
       state: payload.after.state as RepoState,
       revision: payload.after.revision,
       stateHash: payload.after.stateHash,
-      error: payload.error,
+      ...(payload.error === undefined ? {} : { error: payload.error }),
     };
   }
 
@@ -541,11 +537,11 @@ export class AuthorityHub {
         owner: payload.owner,
         name: payload.name,
         fullName: payload.fullName,
-        projectId: payload.projectId ?? undefined,
+        ...(payload.projectId === null ? {} : { projectId: payload.projectId }),
         registeredAt: payload.registeredAt,
         metadata: payload.metadata,
       };
-      if (stableHash128(existingDefinition) !== stableHash128(eventDefinition)) {
+      if (authorityHubCanonicalHash(existingDefinition) !== authorityHubCanonicalHash(eventDefinition)) {
         throw new Error(`HUB_REPOSITORY_DEFINITION_CONFLICT id=${payload.repoId}`);
       }
       return existing;
@@ -561,7 +557,7 @@ export class AuthorityHub {
       owner: payload.owner,
       name: payload.name,
       fullName: payload.fullName,
-      projectId: payload.projectId ?? undefined,
+      ...(payload.projectId === null ? {} : { projectId: payload.projectId }),
       registeredAt: payload.registeredAt,
       metadata: payload.metadata,
       stateSnapshot: initial,
@@ -576,12 +572,12 @@ export class AuthorityHub {
       owner: definition.owner,
       name: definition.name,
       fullName: definition.fullName,
-      projectId: definition.projectId,
+      ...(definition.projectId === undefined ? {} : { projectId: definition.projectId }),
       state: definition.stateSnapshot.state as RepoState,
       stateRevision: definition.stateSnapshot.revision,
       stateHash: definition.stateSnapshot.stateHash,
       registeredAt: canonicalTime(definition.registeredAt, 'repository registeredAt'),
-      metadata: structuredClone(definition.metadata),
+      metadata: canonicalObject(definition.metadata, 'repository metadata'),
     };
     this.repos.set(repo.id, repo);
     this.repoByFullName.set(repo.fullName.toLowerCase(), repo.id);
@@ -625,9 +621,9 @@ export class AuthorityHub {
         owner: repo.owner,
         name: repo.name,
         fullName: repo.fullName,
-        projectId: repo.projectId,
+        ...(repo.projectId === undefined ? {} : { projectId: repo.projectId }),
         registeredAt: repo.registeredAt,
-        metadata: structuredClone(repo.metadata),
+        metadata: canonicalObject(repo.metadata, 'repository metadata'),
         stateSnapshot: machine.snapshot(),
       };
     }).sort((left, right) => left.id.localeCompare(right.id));
@@ -728,8 +724,7 @@ function normalizeRegistration(input: AuthorityRepositoryRegistration) {
   const owner = nonEmpty(input.owner, 'repository owner').toLowerCase();
   const name = nonEmpty(input.name, 'repository name');
   const projectId = optionalString(input.projectId);
-  const metadata = input.metadata ?? {};
-  assertCanonicalJson(metadata, 'repository metadata');
+  const metadata = canonicalObject(input.metadata ?? {}, 'repository metadata');
   const occurredAt = canonicalTime(input.occurredAt, 'registration occurredAt');
   const recordedAt = canonicalTime(input.recordedAt, 'registration recordedAt');
   assertRecordedAfterOccurred(occurredAt, recordedAt);
@@ -737,7 +732,7 @@ function normalizeRegistration(input: AuthorityRepositoryRegistration) {
     owner,
     name,
     projectId,
-    metadata: structuredClone(metadata),
+    metadata,
     idempotencyKey: nonEmpty(input.idempotencyKey, 'registration idempotencyKey'),
     correlationId: nonEmpty(input.correlationId, 'registration correlationId'),
     sourceRef: nonEmpty(input.sourceRef, 'registration sourceRef'),
@@ -755,7 +750,7 @@ function normalizeCommandContext(input: AuthorityRepoCommandContext) {
   const occurredAt = canonicalTime(input.occurredAt, 'command occurredAt');
   const recordedAt = canonicalTime(input.recordedAt, 'command recordedAt');
   assertRecordedAfterOccurred(occurredAt, recordedAt);
-  const metadata = { ...(input.metadata ?? {}) };
+  const metadata = canonicalScalarMetadata(input.metadata ?? {});
   for (const key of Object.keys(metadata)) {
     if (RESERVED_COMMAND_METADATA.has(key)) throw new Error(`Reserved Hub command metadata key: ${key}`);
   }
@@ -772,13 +767,8 @@ function normalizeCommandContext(input: AuthorityRepoCommandContext) {
   };
 }
 
-function registrationLogicalHash(
-  payload: unknown,
-  actor: string | undefined,
-  occurredAt: string,
-  recordedAt: string,
-): string {
-  return stableHash128({ type: REGISTRATION_EVENT, payload, actor: actor ?? null, occurredAt, recordedAt });
+function registrationLogicalHash(payload: unknown, actor: string | undefined, occurredAt: string): string {
+  return authorityHubCanonicalHash({ type: REGISTRATION_EVENT, payload, actor: actor ?? null, occurredAt });
 }
 
 function commandLogicalHashFor(
@@ -787,27 +777,25 @@ function commandLogicalHashFor(
   actor: string | undefined,
   metadata: Record<string, string | number | boolean | null>,
   occurredAt: string,
-  recordedAt: string,
 ): string {
-  return stableHash128({
+  return authorityHubCanonicalHash({
     type: `${COMMAND_PREFIX}${event}`,
     payload,
     actor: actor ?? null,
     metadata,
     occurredAt,
-    recordedAt,
   });
 }
 
-function outcomeLogicalHash(payload: AuthorityRepoTransitionOutcomePayload, recordedAt: string): string {
-  return stableHash128({ type: OUTCOME_EVENT, payload, recordedAt });
+function outcomeLogicalHash(payload: AuthorityRepoTransitionOutcomePayload): string {
+  return authorityHubCanonicalHash({ type: OUTCOME_EVENT, payload });
 }
 
 function assertRegistrationEventIntegrity(event: DurableEvent): void {
   if (event.type !== REGISTRATION_EVENT) throw new Error(`Expected ${REGISTRATION_EVENT}, received ${event.type}`);
   const payload = parseRegistrationPayload(event.payload);
   const actor = typeof event.metadata.actor === 'string' ? event.metadata.actor : undefined;
-  const expected = registrationLogicalHash(payload, actor, canonicalTime(event.timestamp, 'registration timestamp'), canonicalTime(event.recordedAt, 'registration recordedAt'));
+  const expected = registrationLogicalHash(payload, actor, canonicalTime(event.timestamp, 'registration timestamp'));
   assertEventLogicalHash(event, expected, 'HUB_REGISTRATION_LOGICAL_HASH_MISMATCH');
 }
 
@@ -829,7 +817,6 @@ function assertCommandEventIntegrity(event: DurableEvent): string {
     actor,
     metadata,
     canonicalTime(event.timestamp, 'command timestamp'),
-    canonicalTime(event.recordedAt, 'command recordedAt'),
   );
   assertEventLogicalHash(event, expected, 'HUB_COMMAND_LOGICAL_HASH_MISMATCH');
   return expected;
@@ -839,7 +826,7 @@ function assertOutcomeEventIntegrity(event: DurableEvent): AuthorityRepoTransiti
   if (event.type !== OUTCOME_EVENT) throw new Error(`Expected ${OUTCOME_EVENT}, received ${event.type}`);
   const payload = parseOutcomePayload(event.payload);
   validateOutcomeSemantics(payload);
-  const expected = outcomeLogicalHash(payload, canonicalTime(event.recordedAt, 'outcome recordedAt'));
+  const expected = outcomeLogicalHash(payload);
   assertEventLogicalHash(event, expected, 'HUB_OUTCOME_LOGICAL_HASH_MISMATCH');
   return payload;
 }
@@ -881,19 +868,17 @@ function parseRegistrationPayload(value: unknown): {
   if (fullName !== `${owner}/${name}`) throw new Error(`HUB_REGISTRATION_FULLNAME_MISMATCH ${fullName}`);
   const identity = repositoryIdentity(owner, name);
   if (identity.id !== repoId || identity.uri !== canonicalUri) throw new Error(`HUB_REGISTRATION_IDENTITY_MISMATCH ${fullName}`);
-  const metadata = payload.metadata && typeof payload.metadata === 'object'
-    ? payload.metadata as Record<string, unknown>
-    : {};
-  assertCanonicalJson(metadata, 'registration metadata');
   return {
     repoId,
     canonicalUri,
     owner,
     name,
     fullName,
-    projectId: payload.projectId === null || payload.projectId === undefined ? null : nonEmpty(String(payload.projectId), 'projectId'),
+    projectId: payload.projectId === null || payload.projectId === undefined
+      ? null
+      : nonEmpty(String(payload.projectId), 'projectId'),
     registeredAt: canonicalTime(String(payload.registeredAt ?? ''), 'registration registeredAt'),
-    metadata: structuredClone(metadata),
+    metadata: canonicalObject(payload.metadata ?? {}, 'registration metadata'),
     sourceRef: nonEmpty(String(payload.sourceRef ?? ''), 'registration sourceRef'),
   };
 }
@@ -936,7 +921,8 @@ function parseOutcomePayload(value: unknown): AuthorityRepoTransitionOutcomePayl
   if (payload.disposition !== 'applied' && payload.disposition !== 'rejected') {
     throw new Error(`Invalid Hub outcome disposition ${String(payload.disposition)}`);
   }
-  return structuredClone(payload);
+  const canonical = canonicalizeJsonValue(payload);
+  return structuredClone(canonical) as unknown as AuthorityRepoTransitionOutcomePayload;
 }
 
 function validateOutcomeSemantics(payload: AuthorityRepoTransitionOutcomePayload): void {
@@ -971,11 +957,11 @@ function assertRepositoryDefinition(definition: AuthorityHubSnapshotRepository):
     throw new Error(`HUB_REPOSITORY_IDENTITY_MISMATCH ${definition.fullName}`);
   }
   canonicalTime(definition.registeredAt, 'repository registeredAt');
-  assertCanonicalJson(definition.metadata, 'repository metadata');
+  canonicalObject(definition.metadata, 'repository metadata');
 }
 
 function semanticHubHash(repositories: AuthorityHubSnapshotRepository[]): string {
-  return stableHash128({
+  return authorityHubCanonicalHash({
     schemaVersion: 1,
     repositories: repositories.map(cloneSnapshotRepository).sort((a, b) => a.id.localeCompare(b.id)),
   });
@@ -993,22 +979,67 @@ function repositoryDefinition(repo: AuthorityHubRepository): Record<string, unkn
     owner: repo.owner,
     name: repo.name,
     fullName: repo.fullName,
-    projectId: repo.projectId,
+    ...(repo.projectId === undefined ? {} : { projectId: repo.projectId }),
     registeredAt: repo.registeredAt,
-    metadata: repo.metadata,
+    metadata: canonicalObject(repo.metadata, 'repository metadata'),
   };
 }
 
 function cloneRepository(repo: AuthorityHubRepository): AuthorityHubRepository {
-  return { ...repo, metadata: structuredClone(repo.metadata) };
+  return {
+    id: repo.id,
+    canonicalUri: repo.canonicalUri,
+    owner: repo.owner,
+    name: repo.name,
+    fullName: repo.fullName,
+    ...(repo.projectId === undefined ? {} : { projectId: repo.projectId }),
+    state: repo.state,
+    stateRevision: repo.stateRevision,
+    stateHash: repo.stateHash,
+    registeredAt: repo.registeredAt,
+    metadata: canonicalObject(repo.metadata, 'repository metadata'),
+  };
 }
 
 function cloneSnapshotRepository(repo: AuthorityHubSnapshotRepository): AuthorityHubSnapshotRepository {
   return {
-    ...repo,
-    metadata: structuredClone(repo.metadata),
+    id: repo.id,
+    canonicalUri: repo.canonicalUri,
+    owner: repo.owner,
+    name: repo.name,
+    fullName: repo.fullName,
+    ...(repo.projectId === undefined ? {} : { projectId: repo.projectId }),
+    registeredAt: repo.registeredAt,
+    metadata: canonicalObject(repo.metadata, 'repository metadata'),
     stateSnapshot: structuredClone(repo.stateSnapshot),
   };
+}
+
+function authorityHubCanonicalHash(value: unknown): string {
+  return canonicalHash128({
+    serializationVersion: CANONICAL_JSON_WIRE_VERSION,
+    value: canonicalizeJsonValue(value),
+  });
+}
+
+function canonicalObject(value: unknown, label: string): Record<string, unknown> {
+  const canonical = canonicalizeJsonValue(value);
+  if (!canonical || Array.isArray(canonical) || typeof canonical !== 'object') {
+    throw new Error(`${label} must be a canonical JSON object`);
+  }
+  return structuredClone(canonical) as Record<string, unknown>;
+}
+
+function canonicalScalarMetadata(
+  value: Record<string, string | number | boolean | null>,
+): Record<string, string | number | boolean | null> {
+  const canonical = canonicalObject(value, 'Hub command metadata');
+  const result: Record<string, string | number | boolean | null> = {};
+  for (const [key, item] of Object.entries(canonical)) {
+    if (item !== null && typeof item === 'object') throw new Error(`Hub command metadata.${key} must be scalar`);
+    result[key] = item as string | number | boolean | null;
+  }
+  return result;
 }
 
 function canonicalTime(value: string, label: string): string {
@@ -1034,40 +1065,16 @@ function assertRepoEvent(value: RepoEvent): void {
 }
 
 function nonEmpty(value: string, label: string): string {
-  const normalized = value.trim();
+  const normalized = value.normalize('NFC').trim();
   if (!normalized) throw new Error(`${label} must not be empty`);
   return normalized;
 }
 
 function optionalString(value?: string): string | undefined {
-  const normalized = value?.trim();
+  const normalized = value?.normalize('NFC').trim();
   return normalized || undefined;
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function assertCanonicalJson(value: unknown, path: string, seen = new Set<object>()): void {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error(`${path} contains a non-finite number`);
-    return;
-  }
-  if (typeof value !== 'object') throw new Error(`${path} contains unsupported ${typeof value}`);
-  if (seen.has(value as object)) throw new Error(`${path} contains a cycle`);
-  seen.add(value as object);
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => assertCanonicalJson(item, `${path}[${index}]`, seen));
-    seen.delete(value as object);
-    return;
-  }
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
-    throw new Error(`${path} contains a non-plain object`);
-  }
-  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    assertCanonicalJson(item, `${path}.${key}`, seen);
-  }
-  seen.delete(value as object);
 }

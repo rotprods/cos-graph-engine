@@ -11,6 +11,7 @@
   },
   "include": [
     "packages/core/src/identity.ts",
+    "packages/core/src/canonical-json.ts",
     "packages/core/src/integrity.ts",
     "packages/core/src/temporal.ts",
     "packages/runtime/src/event-log.ts",
@@ -18,6 +19,8 @@
     "packages/runtime/src/eventbus.ts",
     "packages/runtime/src/concurrency.ts",
     "packages/knowledge/src/property-graph.ts",
+    "packages/knowledge/src/authority-knowledge.ts",
+    "packages/knowledge/src/postgres-authority-knowledge.ts",
     "packages/execution/src/tool-runtime.ts",
     "packages/observability/src/authority.ts",
     "packages/graph/src/authority-state-machine.ts",
@@ -35,17 +38,25 @@
     "packages/memory/src/authority-memory-coordinator.ts",
     "packages/memory/src/authority-memory-gateway.ts",
     "packages/memory/src/postgres-authority-memory.ts",
+    "scripts/fixtures/fake-event-log-postgres.ts",
+    "scripts/fixtures/fake-authority-knowledge-postgres.ts",
+    "scripts/fixtures/fake-authority-hub-snapshot-postgres.ts",
     "scripts/check-test-evidence.ts",
     "scripts/check-deletion-governance.ts",
     "scripts/test-authority-state-machine.ts",
     "scripts/test-authority-agentic-registry.ts",
     "scripts/test-authority-context-pack.ts",
     "scripts/test-authority-hub.ts",
+    "scripts/test-authority-hub-recovery-wire.ts",
     "scripts/test-authority-memory.ts",
     "scripts/test-authority-compat-readonly.ts",
     "scripts/test-authority-concurrency-copysafe.ts",
     "scripts/test-authority-property-graph.ts",
     "scripts/test-authority-identity.ts",
-    "scripts/test-authority-csr.ts"
+    "scripts/test-authority-csr.ts",
+    "scripts/test-authority-event-log-parity.ts",
+    "scripts/test-authority-canonical-wire.ts",
+    "scripts/test-authority-knowledge.ts",
+    "scripts/test-authority-knowledge-postgres.ts"
   ]
 }
