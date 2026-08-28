@@ -21,19 +21,24 @@
     "packages/graph/src/authority-state-machine.ts",
     "packages/graph/src/authority-graphrag-index.ts",
     "packages/graph/src/authority-context-pack.ts",
+    "packages/graph/src/authority-compat-readonly.ts",
     "packages/hub/src/authority-agentic-registry.ts",
     "packages/hub/src/authority-hub.ts",
     "packages/hub/src/authority-query.ts",
     "packages/hub/src/authority-context-projector.ts",
     "packages/hub/src/authority-store.ts",
+    "packages/hub/src/authority-compat-readonly.ts",
     "packages/memory/src/authority-memory.ts",
     "packages/memory/src/authority-memory-coordinator.ts",
     "packages/memory/src/authority-memory-gateway.ts",
     "packages/memory/src/postgres-authority-memory.ts",
+    "scripts/check-test-evidence.ts",
+    "scripts/check-deletion-governance.ts",
     "scripts/test-authority-state-machine.ts",
     "scripts/test-authority-agentic-registry.ts",
     "scripts/test-authority-context-pack.ts",
     "scripts/test-authority-hub.ts",
-    "scripts/test-authority-memory.ts"
+    "scripts/test-authority-memory.ts",
+    "scripts/test-authority-compat-readonly.ts"
   ]
 }
