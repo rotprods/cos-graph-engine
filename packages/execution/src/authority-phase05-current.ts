@@ -121,6 +121,12 @@ export {
 } from './authority-agent-run';
 
 export {
+  AuthorityAgentRunPostgresStore,
+  AUTHORITY_AGENT_RUN_POSTGRES_DDL,
+  type AuthorityAgentRunRevisionRow,
+} from './authority-agent-run-store-postgres';
+
+export {
   AuthorityHttpEgressGuard,
   AuthorityFileSandbox,
   type AuthorityHttpMethod,
