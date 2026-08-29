@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.phase05.integrations.json",
+  "include": [
+    "packages/execution/src/authority-node-file-handle-executor.ts",
+    "packages/execution/src/authority-phase05-platform.ts",
+    "scripts/test-authority-node-file-handle-executor.ts"
+  ]
+}
