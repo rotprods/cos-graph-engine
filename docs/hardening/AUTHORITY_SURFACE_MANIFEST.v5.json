@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 5,
+  "phase": "05_SECURITY_CONCURRENCY_AGENT_RUNTIME",
+  "authorityStatus": "SHADOW_ONLY",
+  "verification": "WRITTEN_UNEXECUTED",
+  "singleOwnerRule": true,
+  "surfaces": {
+    "capabilityExecution": {
+      "owner": "AuthorityCapabilityRuntime",
+      "module": "packages/execution/src/authority-capability-runtime.ts",
+      "publicHardeningSurface": "packages/execution/src/authority-phase05-current.ts",
+      "legacyDirectToolsAllowed": false,
+      "packageRootPromoted": false
+    },
+    "providerInputBinding": {
+      "owner": "AuthorityPreflightTool.bindAuthorityInput",
+      "module": "packages/execution/src/authority-provider-tools.ts",
+      "trustedTime": "read request at / mutation beginAt",
+      "providerIdempotencyBoundByFacade": true
+    },
+    "providerReconciliation": {
+      "owner": "AuthorityProviderReconciler",
+      "module": "packages/execution/src/authority-provider-reconciliation.ts",
+      "retryPlanner": "AuthorityLeaseRetryPlanner",
+      "genericJsonInspector": "AuthorityJsonIdempotencyInspector",
+      "originalMutationMayRunDuringInspection": false
+    },
+    "httpIsolation": {
+      "decisionOwner": "AuthorityHttpEgressGuard",
+      "transportOwner": "NodePinnedHttpsTransport",
+      "transportModule": "packages/execution/src/authority-node-pinned-http-transport.ts",
+      "dnsReresolutionAllowed": false,
+      "automaticRedirectAllowed": false,
+      "internalRetryAllowed": false,
+      "sniHostPreserved": true,
+      "evidenceExecuted": false
+    },
+    "filesystemIsolation": {
+      "decisionOwner": "AuthorityFileSandbox",
+      "handleExecutorOwner": "AuthorityNodeFileHandleExecutorV2",
+      "executorModule": "packages/execution/src/authority-node-file-handle-executor-v2.ts",
+      "pathReopenAllowed": false,
+      "atomicBrokerOwner": null,
+      "atomicBrokerStatus": "P0_OPEN"
+    },
+    "sideEffectTruth": {
+      "owner": "AuthoritySideEffectRuntime",
+      "inMemoryStore": "InMemoryAuthoritySideEffectStore",
+      "postgresStore": "AuthoritySideEffectPostgresStore",
+      "exactlyOnceClaimAllowed": false
+    },
+    "leasesAndFencing": {
+      "owner": "AuthorityLeaseService",
+      "inMemoryStore": "InMemoryAuthorityLeaseStore",
+      "postgresStore": "AuthorityLeasePostgresStore",
+      "fenceAcceptanceScope": "local operation commit; provider/resource proof remains provider-specific"
+    },
+    "policy": {
+      "owner": "AuthorityPolicyEngine",
+      "executionFacade": "PolicyBoundAuthorityExecutionRuntime",
+      "default": "deny",
+      "approvalScope": "exact operation and bounded time"
+    },
+    "agentRunTruth": {
+      "owner": "AuthorityAgentRunService",
+      "inMemoryStore": "InMemoryAuthorityAgentRunStore",
+      "postgresStore": "AuthorityAgentRunPostgresStore",
+      "postCommitRepairQueueStatus": "P0_OPEN"
+    },
+    "capabilityEvidence": {
+      "owner": "ObservedAuthorityCapabilityRuntimeV2",
+      "module": "packages/execution/src/authority-capability-evidence-v2.ts",
+      "inMemoryStore": "InMemoryAuthorityCapabilitySignalStoreV2",
+      "postgresStore": "AuthorityCapabilitySignalPostgresStoreV2",
+      "signalSchemaVersion": 2,
+      "rawProviderPayloadAllowed": false,
+      "observerFailureMayChangeProtectedOutcome": false,
+      "authorityTelemetryAdapterStatus": "P0_OPEN"
+    }
+  },
+  "selectedAdditiveImports": [
+    "packages/execution/src/authority-phase05-current.ts",
+    "packages/execution/src/authority-phase05-evidence-v2.ts",
+    "packages/execution/src/authority-phase05-evidence-v2-postgres.ts",
+    "packages/execution/src/authority-phase05-provider-integrations.ts",
+    "packages/execution/src/authority-phase05-platform-v2.ts"
+  ],
+  "supersededDraftPolicy": {
+    "status": "UNPROMOTED_PENDING_DELETION_GOVERNANCE",
+    "source": "docs/hardening/PHASE_05_EVIDENCE_MANIFEST.v5.json",
+    "mayBecomeAlternateWriter": false
+  },
+  "promotionGate": {
+    "phase07CompatibilityReviewRequired": true,
+    "cleanTypecheckRequired": true,
+    "legacyAndAuthorityTestsRequired": true,
+    "securityAndContentionEvidenceRequired": true,
+    "independentReviewRequired": true,
+    "automaticActions": false,
+    "cd": false
+  }
+}
