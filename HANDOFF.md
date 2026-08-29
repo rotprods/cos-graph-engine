@@ -2,7 +2,7 @@
 
 ## Recovery point
 
-Phases 01–04 are statically complete. Phase 05 is actively implementing the security/concurrency/agent-runtime authority path.
+Phases 01–04 are statically complete. Phase 05 has a canonical policy/fencing/isolation capability facade but remains incomplete and unexecuted.
 
 COS remains:
 
@@ -44,11 +44,19 @@ Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #3
 18. `docs/hardening/DELETION_GOVERNANCE.json`
 19. `AGENTS.md`
 
-## Current Phase 05 code owners
+## Current Phase 05 authority owners
 
-Additive authority barrel:
+Additive barrel:
 
 `packages/execution/src/authority-phase05-current.ts`
+
+### Capability execution
+
+- `AuthorityCapabilityRuntime` — canonical facade candidate;
+- private `CapabilityRouter` + `StrictToolRegistry`;
+- `AuthorityPinnedHttpTool`;
+- `AuthorityFileHandleTool`;
+- `createAuthorityProviderRegistry`.
 
 ### Side effects
 
@@ -88,21 +96,45 @@ Additive authority barrel:
 
 ## Implemented static guarantees
 
+### Canonical capability path
+
+```text
+request
+→ authority provider preflight
+→ policy
+→ durable operation claim
+→ lease + fencing
+→ prepare
+→ begin
+→ strict provider tool
+→ commit OR reconciliation_required
+→ agent-run step evidence
+→ lease release / repair evidence
+```
+
+- legacy direct tools are removed from the authority registry;
+- read/mutation tool modes are explicit;
+- provider idempotency is bound into durable operation input;
+- preflight runs before `executing`;
+- committed retries return durable truth without another provider call;
+- provider exceptions after begin become `reconciliation_required`;
+- optional agent-run evidence is appended only after accepted commit;
+- post-commit evidence/lease-release failure cannot rewrite provider truth.
+
 ### External-effect truth
 
 - append-only operation history;
-- payload-bound claim and transition idempotency;
-- explicit uncertain/reconciliation and compensation semantics;
-- provider exception after execution never becomes blind retry;
+- payload-bound claim/transition idempotency;
+- uncertain/reconciliation and compensation semantics;
+- explicit provider-outcome-unknown transition;
 - in-memory/Postgres stores;
-- fencing validation before accepted commit.
+- fencing validation before accepted local commit.
 
 ### Lease/concurrency
 
 - bounded acquire/renew/release/expire/reacquire;
 - monotonic fencing;
-- explicit-time evaluation;
-- stale owner/token/revision rejection;
+- explicit-time stale owner/token/revision rejection;
 - in-memory/Postgres stores.
 
 ### Policy
@@ -110,7 +142,7 @@ Additive authority barrel:
 - default deny;
 - project/sensitivity/principal isolation;
 - exact-operation approvals;
-- independent authorization at claim/prepare/execute/commit;
+- authorization at claim/prepare/execute/commit;
 - no protected mutation on denial.
 
 ### Durable run aggregate
@@ -126,68 +158,45 @@ Additive authority barrel:
 - DNS answer pinning, special-use address rejection, redirect reauthorization and TTL;
 - canonical root containment, traversal defense, symlink policy and broker-opened opaque handles;
 - decision tamper detection;
-- explicit rule that normal fetch/path reopen is not authority-equivalent.
+- normal fetch/path reopen is explicitly non-equivalent.
 
-### Evidence
-
-- deterministic execution signals;
-- stale fencing near-miss evidence;
-- observer failure isolation.
-
-All of these remain `WRITTEN_UNEXECUTED`.
+All remain `WRITTEN_UNEXECUTED`.
 
 ## Next exact implementation slice
 
-### P05.8 — canonical capability path
+### P05.10 — provider reconciliation and trusted execution boundary
 
-Build one additive facade; do not mutate the package root yet.
+1. define provider-native reconciliation adapters for HTTP and filesystem:
+   - inspect by provider idempotency/resource identity;
+   - return `applied | not_applied | partial` with immutable evidence;
+   - never infer `not_applied` from transport exception alone;
+2. bind isolation validation to a trusted facade clock/timeline rather than accepting only tool-supplied `evaluatedAt`;
+3. specify and implement deployment ports:
+   - pinned-address HTTP transport preserving original TLS SNI/Host;
+   - platform handle broker/executor with no path reopen;
+4. extend capability contracts for:
+   - stale owner/token;
+   - provider-not-applied retry preparation;
+   - partial application and compensation;
+   - evidence-repair after provider commit;
+5. emit failure-isolated signals for policy deny, isolation deny, lease conflict/expiry, provider uncertainty, compensation and agent-run evidence repair;
+6. bridge terminal signals to `AuthorityTelemetry` without making telemetry an execution dependency.
 
-Required sequence for side-effecting capabilities:
+## Remaining Phase 05 after P05.10
 
-```text
-request
-→ capability resolution
-→ input/isolation preparation
-→ policy claim authorization
-→ durable operation claim
-→ active lease + fencing validation
-→ policy execute authorization
-→ begin executing
-→ pinned provider/handle execution
-→ commit or explicit reconciliation/compensation
-→ agent-run step evidence
-→ signal + telemetry observation
-```
-
-Read-only capabilities still require policy/scope and isolation where applicable, but do not create a side-effect operation.
-
-Implementation rules:
-
-1. use `CapabilityRouter`/`StrictToolRegistry` for the real tool call;
-2. do not use the older `AuthorityCapabilityExecutor` as the final owner;
-3. the HTTP adapter must consume `AuthorityPinnedHttpTarget` directly, not call normal `fetch(url)`;
-4. the filesystem adapter must consume `AuthorityPinnedFileTarget.handleToken`, not reopen `canonicalTargetUri`;
-5. provider exceptions after begin become reconciliation-required;
-6. provider-native idempotency/reconciliation evidence closes retries;
-7. direct side-effecting router execution must be blocked in authority mode;
-8. contracts must cover allow, deny, stale lease, expired decision, provider success, provider unknown, partial application and compensation.
-
-## Remaining Phase 05 after P05.8
-
-- wire policy/lease/isolation/agent-run outcomes to canonical signal + `AuthorityTelemetry` paths;
 - resolve superseded Phase 05 prototypes/barrels/tests/fixtures under deletion governance;
-- update compatibility/rollback docs;
-- static review the strict TypeScript graph;
+- update compatibility and rollback documentation;
+- statically inspect the strict TypeScript graph;
 - freeze one exact Phase 05 checkpoint.
 
 ## Hard safety rules
 
 - no exactly-once provider-effect claim;
 - no blind retry after execution begins;
-- no path/URL re-resolution after authority isolation decision;
+- no path/URL re-resolution after isolation decision;
 - idempotency-key presence is not durable idempotency;
-- fencing-token presence is not resource acceptance proof;
-- policy and isolation must intercept the real execution path;
+- fencing-token presence is not provider/resource acceptance proof;
+- policy and isolation must intercept the real path;
 - no alternate authority writer;
 - no legacy test rewrite without waiver + ADR;
 - material deletion requires deletion-governance entry;
