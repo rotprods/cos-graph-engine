@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "status": "WRITTEN_UNEXECUTED",
+  "authorityStatus": "SHADOW_ONLY",
+  "baseHead": "22191dd12080bec79ae86817cf38c610b11a8f1b",
+  "branch": "hardening/phase-05e-normalized-adapter-contracts",
+  "normalizationRule": "tests import authority-phase05-clean or selected modules directly; no production compatibility alias",
+  "addedContracts": [
+    "agent-run Postgres",
+    "provider lease retry planner",
+    "capability signal store V2",
+    "capability signal Postgres",
+    "repair Postgres",
+    "JSON idempotency inspector",
+    "FileHandle executor V2"
+  ],
+  "remainingContracts": [
+    "capability runtime end-to-end",
+    "provider reconciliation applied/not-applied/partial/unknown",
+    "capability repair runtime",
+    "side-effect runtime replacement without legacy fencing prototype",
+    "side-effect Postgres replacement without legacy fencing prototype",
+    "pinned HTTPS controlled TLS fixture"
+  ],
+  "strictTypecheck": "npx tsc -p tsconfig.phase05.clean.json --noEmit",
+  "proofBoundary": {
+    "typecheckExecuted": false,
+    "testsExecuted": false,
+    "realPostgres": false,
+    "tlsFixture": false,
+    "nativeHandleBroker": false
+  }
+}
