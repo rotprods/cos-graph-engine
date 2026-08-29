@@ -2,18 +2,25 @@
 
 ## Recovery point
 
-Phases 01–04 are statically complete. COS remains `SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`.
+Phases 01–04 are statically complete. Phase 05 is actively implementing the security/concurrency/agent-runtime authority path.
 
-### Frozen lineage
+COS remains:
 
-- Phase 01: `checkpoint/phase-01-reconciled-76dfdc7` → `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
-- Phase 02: `checkpoint/phase-02-contracts-06487e7` → `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
-- Phase 03: `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44
-- Phase 04: `checkpoint/phase-04-temporal-event-bedfec6` → `bedfec6b8ea147c91ac7d50a888c38b0439d53ff` — PR #45
+`SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`
 
-The Phase 04 branch continued after the code checkpoint only for rolling control-plane synchronization. Do not move the checkpoint ref.
+No merge, automatic Action, deployment, release, production database or Supabase mutation has occurred.
 
-Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #37 remains draft/rework. No merge, automatic Action, deployment or production data mutation has occurred.
+## Canonical lineage
+
+- Phase 01: `checkpoint/phase-01-reconciled-76dfdc7` @ `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40;
+- Phase 02: `checkpoint/phase-02-contracts-06487e7` @ `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43;
+- Phase 03: `checkpoint/phase-03-core-ad6a93c` @ `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44;
+- Phase 04 base: `checkpoint/phase-04-temporal-2e15b88` @ `2e15b88388836b94b97a93753cb4db347e275e7e` — PR #45;
+- Phase 05: `hardening/phase-05-security-concurrency-runtime` — canonical draft PR #46.
+
+PR #47 is closed without merge as a duplicate PR view of the Phase 05 head. Do not reopen it as an authority path. The head branch is preserved through PR #46.
+
+Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #37 remains draft/rework.
 
 ## Read first
 
@@ -27,124 +34,177 @@ Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #3
 8. `docs/hardening/PHASE_02_CLOSURE.md`
 9. `docs/hardening/PHASE_03_CLOSURE.md`
 10. `docs/hardening/PHASE_04_CLOSURE.md`
-11. `docs/hardening/ADR_INDEX.md`
-12. `docs/hardening/COMPATIBILITY_MATRIX.md`
-13. `docs/hardening/ROLLBACK_MAP.md`
-14. `docs/hardening/TEST_EVIDENCE_MANIFEST.json`
-15. `docs/hardening/DELETION_GOVERNANCE.json`
-16. `docs/hardening/AUTHORITY_SURFACE_MANIFEST.json`
-17. `AGENTS.md`
+11. `docs/hardening/PHASE_05_EVIDENCE_MANIFEST.v2.json`
+12. `docs/hardening/AUTHORITY_SURFACE_MANIFEST.json`
+13. `docs/hardening/ADR_INDEX.md`
+14. `docs/hardening/adrs/ADR-009-AUTHORITY-ISOLATION-BOUNDARIES.md`
+15. `docs/hardening/COMPATIBILITY_MATRIX.md`
+16. `docs/hardening/ROLLBACK_MAP.md`
+17. `docs/hardening/TEST_EVIDENCE_MANIFEST.json`
+18. `docs/hardening/DELETION_GOVERNANCE.json`
+19. `AGENTS.md`
 
-## Phase 04 completed-static guarantees
+## Current Phase 05 code owners
 
-### Durable event contract
-- InMemory/Postgres share one payload-bound logical-event projection/hash.
-- Same logical retry converges despite attempt-local ID/trace/span/recordedAt changes.
-- Conflicting key reuse and event-ID reuse fail closed.
-- Accepted events/read results are detached.
-- Fake Postgres covers transaction/conflict parity.
+Additive authority barrel:
 
-### Canonical persistence wire
-- canonical JSON wire v1 is explicit;
-- optional object `undefined` is omitted only at the wire boundary;
-- invalid/ambiguous JS values fail closed;
-- NFC normalization and normalized-key collision rejection;
-- SHA-256 covers the exact persisted wire value.
+`packages/execution/src/authority-phase05-current.ts`
 
-### Knowledge authority
-- `AuthorityKnowledgeGateway` + append-only stores own candidate truth;
-- valid time and system time are independent;
-- late correction/closure cannot leak into earlier `knownAt`;
-- PropertyGraph is a rebuildable projection;
-- projection failure becomes explicit degraded saga evidence and is retry-repairable;
-- Postgres candidate uses advisory lock + revision CAS + INSERT-only history.
+### Side effects
 
-### Hub recovery
-- Hub logical/projection hashes are canonical-wire stable;
-- transaction-time retry may arrive later without redefining logical command identity;
-- snapshot envelope has schema + serialization version;
-- SHA-256 covers exact JSONB wire payload;
-- runtime hydration preserves semantic/integrity hashes;
-- snapshot + command/outcome tail rebuilds empty projection;
-- corruption/version/tamper/log-behind failures are explicit.
+- `AuthoritySideEffectRuntime`;
+- `InMemoryAuthoritySideEffectStore`;
+- `AuthoritySideEffectPostgresStore`;
+- `AuthorityExecutionRuntime`.
 
-All contracts remain unexecuted. Assurance did not move.
+### Leases/fencing
 
-## Next phase — Phase 05 Security / Concurrency / Agent Runtime
+- `AuthorityLeaseService`;
+- `InMemoryAuthorityLeaseStore`;
+- `AuthorityLeasePostgresStore`.
 
-Create exactly one descendant branch:
+### Policy
 
-`hardening/phase-05-security-concurrency-runtime`
+- `AuthorityPolicyEngine`;
+- `InMemoryAuthorityApprovalStore`;
+- `PolicyBoundAuthorityExecutionRuntime`.
 
-from the **synchronized current Phase 04 branch head**, while retaining `checkpoint/phase-04-temporal-event-bedfec6` as the immutable implementation rollback point.
+### Agent runs
 
-### Exact implementation order
+- `AuthorityAgentRunService`;
+- `InMemoryAuthorityAgentRunStore`;
+- `AuthorityAgentRunPostgresStore`.
 
-1. Durable side-effect ledger
-   - canonical operation identity from principal/project/resource/capability/request hash;
-   - immutable attempts and outcomes;
-   - explicit `uncertain` crash window;
-   - accepted retry convergence and conflict rejection;
-   - in-memory + Postgres/Supabase candidates.
-2. Resource fencing
-   - monotonic resource fence;
-   - validate at protected resource commit boundary;
-   - stale worker rejection + near-miss evidence.
-3. Lease lifecycle
-   - acquire/renew/release/expire/reacquire;
-   - bounded TTL and deterministic clock;
-   - crash/orphan recovery.
-4. Durable goal aggregate
-   - immutable goal/plan/step/result history;
-   - restart without repeating accepted side effects;
-   - explicit compensation/waiver for partial completion.
-5. Policy enforcement
-   - principal/project/sensitivity context;
-   - real server/retrieval/memory/tool/workflow/destructive boundaries;
-   - unknown field/operator/action fails closed;
-   - durable approvals.
-6. Deployment isolation
-   - HTTP/DNS/egress + filesystem sandbox contract;
-   - rebinding/private-network/symlink/TOCTOU cases.
-7. Near-miss evidence
-   - duplicate/stale/lease/policy/uncertain/compensation signals;
-   - observer failure cannot change protected outcome.
+### Isolation
+
+- `AuthorityHttpEgressGuard`;
+- `AuthorityFileSandbox`.
+
+### Evidence
+
+- `AuthorityExecutionObserver`;
+- `AuthorityExecutionSignalStore`;
+- `AuthorityTelemetry` remains the cross-package observability owner.
+
+## Implemented static guarantees
+
+### External-effect truth
+
+- append-only operation history;
+- payload-bound claim and transition idempotency;
+- explicit uncertain/reconciliation and compensation semantics;
+- provider exception after execution never becomes blind retry;
+- in-memory/Postgres stores;
+- fencing validation before accepted commit.
+
+### Lease/concurrency
+
+- bounded acquire/renew/release/expire/reacquire;
+- monotonic fencing;
+- explicit-time evaluation;
+- stale owner/token/revision rejection;
+- in-memory/Postgres stores.
+
+### Policy
+
+- default deny;
+- project/sensitivity/principal isolation;
+- exact-operation approvals;
+- independent authorization at claim/prepare/execute/commit;
+- no protected mutation on denial.
+
+### Durable run aggregate
+
+- append-only goal/plan/step/result/criterion revisions;
+- DAG/dependency/attempt rules;
+- exact evaluator evidence;
+- side-effect step evidence requirements;
+- in-memory/Postgres stores and restart/corruption contracts.
+
+### Deployment isolation contracts
+
+- DNS answer pinning, special-use address rejection, redirect reauthorization and TTL;
+- canonical root containment, traversal defense, symlink policy and broker-opened opaque handles;
+- decision tamper detection;
+- explicit rule that normal fetch/path reopen is not authority-equivalent.
+
+### Evidence
+
+- deterministic execution signals;
+- stale fencing near-miss evidence;
+- observer failure isolation.
+
+All of these remain `WRITTEN_UNEXECUTED`.
+
+## Next exact implementation slice
+
+### P05.8 — canonical capability path
+
+Build one additive facade; do not mutate the package root yet.
+
+Required sequence for side-effecting capabilities:
+
+```text
+request
+→ capability resolution
+→ input/isolation preparation
+→ policy claim authorization
+→ durable operation claim
+→ active lease + fencing validation
+→ policy execute authorization
+→ begin executing
+→ pinned provider/handle execution
+→ commit or explicit reconciliation/compensation
+→ agent-run step evidence
+→ signal + telemetry observation
+```
+
+Read-only capabilities still require policy/scope and isolation where applicable, but do not create a side-effect operation.
+
+Implementation rules:
+
+1. use `CapabilityRouter`/`StrictToolRegistry` for the real tool call;
+2. do not use the older `AuthorityCapabilityExecutor` as the final owner;
+3. the HTTP adapter must consume `AuthorityPinnedHttpTarget` directly, not call normal `fetch(url)`;
+4. the filesystem adapter must consume `AuthorityPinnedFileTarget.handleToken`, not reopen `canonicalTargetUri`;
+5. provider exceptions after begin become reconciliation-required;
+6. provider-native idempotency/reconciliation evidence closes retries;
+7. direct side-effecting router execution must be blocked in authority mode;
+8. contracts must cover allow, deny, stale lease, expired decision, provider success, provider unknown, partial application and compensation.
+
+## Remaining Phase 05 after P05.8
+
+- wire policy/lease/isolation/agent-run outcomes to canonical signal + `AuthorityTelemetry` paths;
+- resolve superseded Phase 05 prototypes/barrels/tests/fixtures under deletion governance;
+- update compatibility/rollback docs;
+- static review the strict TypeScript graph;
+- freeze one exact Phase 05 checkpoint.
 
 ## Hard safety rules
 
-- do not claim exactly-once provider effects;
+- no exactly-once provider-effect claim;
+- no blind retry after execution begins;
+- no path/URL re-resolution after authority isolation decision;
 - idempotency-key presence is not durable idempotency;
-- fencing-token presence is not commit-boundary validation;
-- do not auto-retry when provider outcome is unknown;
-- state-machine rollback cannot undo external side effects;
-- no alternate authority tool/runtime path may bypass the operation ledger;
-- no legacy test rewrite without waiver+ADR;
+- fencing-token presence is not resource acceptance proof;
+- policy and isolation must intercept the real execution path;
+- no alternate authority writer;
+- no legacy test rewrite without waiver + ADR;
 - material deletion requires deletion-governance entry;
 - no automatic Actions/CD;
 - no Assurance score movement before execution.
 
-## Branch law
+## Static verification commands prepared, not run
 
 ```text
-Phase01 → Phase02 → Phase03 → Phase04 → Phase05 → Phase06 → Phase07
-                                                                  ↓
-                                                     exact qualification SHA
-                                                                  ↓
-                                                               new W13
+npm run typecheck:phase05
+npm run test:authority:phase05
 ```
-
-## Cost / verification
-
-- recurring incremental infrastructure cost: `EUR 0/month`;
-- Actions manual-only;
-- CD/deploy/release OFF;
-- Codex optional only for shell-heavy work;
-- GitHub/Drive/Todoist remain the cross-plane control system.
 
 ## Rollback
 
-- Phase04 implementation: `checkpoint/phase-04-temporal-event-bedfec6`;
-- Phase03: `checkpoint/phase-03-core-ad6a93c`;
-- Phase02: `checkpoint/phase-02-contracts-06487e7`;
-- Phase01: `checkpoint/phase-01-reconciled-76dfdc7`;
+- Phase 05 rollback base: `checkpoint/phase-04-temporal-2e15b88`;
+- Phase 03: `checkpoint/phase-03-core-ad6a93c`;
+- Phase 02: `checkpoint/phase-02-contracts-06487e7`;
+- Phase 01: `checkpoint/phase-01-reconciled-76dfdc7`;
 - pre-reconciliation: #33 `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`.
