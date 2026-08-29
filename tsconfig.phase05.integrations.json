@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.phase05.deployment.json",
+  "include": [
+    "packages/execution/src/authority-json-idempotency-inspector.ts",
+    "packages/execution/src/authority-phase05-provider-integrations.ts",
+    "scripts/test-authority-json-idempotency-inspector-current.ts"
+  ]
+}
