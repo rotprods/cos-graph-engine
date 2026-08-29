@@ -18,14 +18,22 @@ import { StrictToolRegistry } from './strict-tool-registry';
 
 export type AuthorityProviderToolMode = 'read' | 'mutation';
 
+export interface AuthorityProviderExecutionBinding {
+  /** Trusted operation time supplied by the authority facade. */
+  evaluatedAt: string;
+  /** Required for mutation tools. */
+  providerIdempotencyKey?: string;
+}
+
 /**
  * Tool marker consumed by the canonical capability facade. Side-effecting tools
- * without this preflight contract are rejected before any operation enters the
- * `executing` state.
+ * without this binding/preflight contract are rejected before any operation
+ * enters the `executing` state.
  */
 export interface AuthorityPreflightTool extends ITool {
   readonly authorityProviderTool: true;
   readonly authorityMode: AuthorityProviderToolMode;
+  bindAuthorityInput(input: unknown, binding: AuthorityProviderExecutionBinding): unknown;
   preflight(input: unknown, context: CellContext): Promise<void>;
 }
 
@@ -33,20 +41,26 @@ export function isAuthorityPreflightTool(tool: ITool): tool is AuthorityPrefligh
   const candidate = tool as Partial<AuthorityPreflightTool>;
   return candidate.authorityProviderTool === true
     && (candidate.authorityMode === 'read' || candidate.authorityMode === 'mutation')
+    && typeof candidate.bindAuthorityInput === 'function'
     && typeof candidate.preflight === 'function';
 }
 
 export interface AuthorityPinnedHttpToolInput {
   target: AuthorityPinnedHttpTarget;
-  evaluatedAt: string;
+  /** Overwritten by bindAuthorityInput; callers cannot select authority time. */
+  evaluatedAt?: string;
   headers?: Record<string, string>;
   body?: string;
   timeoutMs?: number;
-  /** Required for mutation mode and forwarded unchanged to the pinned transport. */
+  /** Overwritten/bound by the authority facade for mutation mode. */
   providerIdempotencyKey?: string;
 }
 
-export interface AuthorityPinnedHttpTransportRequest extends AuthorityPinnedHttpToolInput {
+export interface AuthorityBoundPinnedHttpToolInput extends AuthorityPinnedHttpToolInput {
+  evaluatedAt: string;
+}
+
+export interface AuthorityPinnedHttpTransportRequest extends AuthorityBoundPinnedHttpToolInput {
   context: CellContext;
 }
 
@@ -63,7 +77,7 @@ export interface AuthorityFileHandleToolInput {
   target: AuthorityPinnedFileTarget;
   /** Provider/tool-specific operation payload. The executor receives no path. */
   payload?: unknown;
-  /** Required for mutation mode and forwarded unchanged to the handle executor. */
+  /** Overwritten/bound by the authority facade for mutation mode. */
   providerIdempotencyKey?: string;
 }
 
@@ -105,8 +119,25 @@ export class AuthorityPinnedHttpTool implements AuthorityPreflightTool {
     );
   }
 
+  bindAuthorityInput(
+    raw: unknown,
+    binding: AuthorityProviderExecutionBinding,
+  ): AuthorityBoundPinnedHttpToolInput {
+    const input = normalizeHttpInput(raw, false);
+    const evaluatedAt = canonicalTime(binding.evaluatedAt, 'trusted HTTP evaluatedAt');
+    const providerIdempotencyKey = bindIdempotency(
+      input.providerIdempotencyKey,
+      binding.providerIdempotencyKey,
+    );
+    return {
+      ...input,
+      evaluatedAt,
+      ...(providerIdempotencyKey === undefined ? {} : { providerIdempotencyKey }),
+    };
+  }
+
   async preflight(raw: unknown, _context: CellContext): Promise<void> {
-    const input = normalizeHttpInput(raw);
+    const input = normalizeHttpInput(raw, true);
     this.guard.assertPinned(input.target, input.evaluatedAt);
     const readMethod = input.target.method === 'GET' || input.target.method === 'HEAD';
     if (this.authorityMode === 'read' && !readMethod) {
@@ -124,7 +155,7 @@ export class AuthorityPinnedHttpTool implements AuthorityPreflightTool {
     const started = Date.now();
     try {
       await this.preflight(raw, context);
-      const input = normalizeHttpInput(raw);
+      const input = normalizeHttpInput(raw, true);
       const output = await this.transport.execute({
         ...input,
         context: cloneContext(context),
@@ -163,6 +194,24 @@ export class AuthorityFileHandleTool implements AuthorityPreflightTool {
         ? 'Read through a trusted broker-opened authority file handle'
         : 'Mutate through a trusted broker-opened authority file handle and provider idempotency key',
     );
+  }
+
+  bindAuthorityInput(
+    raw: unknown,
+    binding: AuthorityProviderExecutionBinding,
+  ): AuthorityFileHandleToolInput {
+    // Validating the timestamp here keeps all provider tools under one trusted
+    // facade-time contract even though a broker-opened handle has no TTL today.
+    canonicalTime(binding.evaluatedAt, 'trusted filesystem evaluatedAt');
+    const input = normalizeFileInput(raw);
+    const providerIdempotencyKey = bindIdempotency(
+      input.providerIdempotencyKey,
+      binding.providerIdempotencyKey,
+    );
+    return {
+      ...input,
+      ...(providerIdempotencyKey === undefined ? {} : { providerIdempotencyKey }),
+    };
   }
 
   async preflight(raw: unknown, _context: CellContext): Promise<void> {
@@ -257,11 +306,21 @@ function definition(
   };
 }
 
-function normalizeHttpInput(raw: unknown): AuthorityPinnedHttpToolInput {
+function normalizeHttpInput(raw: unknown, requireEvaluatedAt: true): AuthorityBoundPinnedHttpToolInput;
+function normalizeHttpInput(raw: unknown, requireEvaluatedAt: false): AuthorityPinnedHttpToolInput;
+function normalizeHttpInput(
+  raw: unknown,
+  requireEvaluatedAt: boolean,
+): AuthorityPinnedHttpToolInput | AuthorityBoundPinnedHttpToolInput {
   if (!raw || typeof raw !== 'object') throw new Error('authority HTTP input must be an object');
   const input = raw as Partial<AuthorityPinnedHttpToolInput>;
   if (!input.target || typeof input.target !== 'object') throw new Error('authority HTTP target is required');
-  const evaluatedAt = canonicalTime(String(input.evaluatedAt ?? ''), 'HTTP evaluatedAt');
+  const evaluatedAt = input.evaluatedAt === undefined
+    ? undefined
+    : canonicalTime(input.evaluatedAt, 'HTTP evaluatedAt');
+  if (requireEvaluatedAt && evaluatedAt === undefined) {
+    throw new Error('AUTHORITY_HTTP_TRUSTED_EVALUATION_TIME_REQUIRED');
+  }
   const headers = normalizeHeaders(input.headers ?? {});
   const timeoutMs = input.timeoutMs ?? 30_000;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 300_000) {
@@ -274,14 +333,15 @@ function normalizeHttpInput(raw: unknown): AuthorityPinnedHttpToolInput {
     throw new Error('authority HTTP body exceeds 10 MB');
   }
   const providerIdempotencyKey = optional(input.providerIdempotencyKey);
-  return {
+  const normalized: AuthorityPinnedHttpToolInput = {
     target: structuredClone(input.target),
-    evaluatedAt,
+    ...(evaluatedAt === undefined ? {} : { evaluatedAt }),
     headers,
     ...(input.body === undefined ? {} : { body: input.body }),
     timeoutMs,
     ...(providerIdempotencyKey === undefined ? {} : { providerIdempotencyKey }),
   };
+  return normalized as AuthorityPinnedHttpToolInput | AuthorityBoundPinnedHttpToolInput;
 }
 
 function normalizeFileInput(raw: unknown): AuthorityFileHandleToolInput {
@@ -294,6 +354,18 @@ function normalizeFileInput(raw: unknown): AuthorityFileHandleToolInput {
     ...(input.payload === undefined ? {} : { payload: structuredClone(input.payload) }),
     ...(providerIdempotencyKey === undefined ? {} : { providerIdempotencyKey }),
   };
+}
+
+function bindIdempotency(
+  inputKey: string | undefined,
+  trustedKey: string | undefined,
+): string | undefined {
+  const supplied = optional(inputKey);
+  const bound = optional(trustedKey);
+  if (supplied !== undefined && bound !== undefined && supplied !== bound) {
+    throw new Error('AUTHORITY_PROVIDER_IDEMPOTENCY_CONFLICT');
+  }
+  return bound ?? supplied;
 }
 
 function normalizeHeaders(input: Record<string, string>): Record<string, string> {
