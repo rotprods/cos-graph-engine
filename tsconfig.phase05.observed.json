@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.phase05.full.json",
+  "include": [
+    "packages/execution/src/authority-capability-evidence.ts",
+    "packages/execution/src/authority-phase05-observed.ts",
+    "scripts/test-authority-capability-evidence.ts"
+  ]
+}
