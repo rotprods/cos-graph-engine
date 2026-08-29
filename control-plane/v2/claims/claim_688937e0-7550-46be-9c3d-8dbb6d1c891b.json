@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "claimId": "claim_688937e0-7550-46be-9c3d-8dbb6d1c891b",
+  "sessionId": "ses_43c3d959-9e6f-4f4a-8466-8df96163d4c8",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-pro",
+  "workstreamId": "ws_cos_graph_refactor_v2",
+  "objectiveId": "obj_cos_v2_architecture_recompile",
+  "createdAt": "2026-08-30T17:30:00.000Z",
+  "expiresAt": "2026-08-31T17:30:00.000Z",
+  "status": "ACTIVE",
+  "supersedes": "claim_24f132dd-8804-4066-b6c8-5b06aa36461c",
+  "exclusiveResourceScopes": [
+    "control-plane/v2/model/**",
+    "control-plane/v2/schemas/**",
+    "control-plane/v2/generated/**",
+    "scripts/validate-v2-control-plane.mjs",
+    "scripts/compile-v2-control-plane.mjs"
+  ],
+  "sharedResourceScopes": [
+    "control-plane/v2/events/**",
+    "control-plane/v2/state/**",
+    "README_FIRST.md",
+    "STATE.md",
+    "TASKS.md",
+    "HANDOFF.md",
+    "GRAPH.md",
+    "ARCHITECTURE.md",
+    "LEXICON.md",
+    "SECURITY.md",
+    "RECOVERY.md",
+    "TEST_STRATEGY.md",
+    "MIGRATION.md"
+  ],
+  "semanticScopes": [
+    "architecture V2",
+    "temporal hypergraph",
+    "gap and decision ledgers",
+    "test/recovery/security architecture",
+    "implementation compiler"
+  ],
+  "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "sourceRevision": "1bc137eb6e635f55db293b402f561e420dc83c4f"
+}
