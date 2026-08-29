@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "phase": "05_SECURITY_CONCURRENCY_AGENT_RUNTIME",
+  "status": "IMPLEMENTED_UNVERIFIED",
+  "authorityStatus": "SHADOW_ONLY",
+  "lineage": {
+    "baseRef": "checkpoint/phase-04-temporal-2e15b88",
+    "baseSha": "2e15b88388836b94b97a93753cb4db347e275e7e",
+    "sourceArchivePullRequest": 46,
+    "sourceArchiveHead": "ea5023caab7741aa72d7b9cfdfbcdab28e47f6fe",
+    "cleanBranch": "hardening/phase-05-clean-selected"
+  },
+  "commitPlan": [
+    "A: side-effect, leases, policy and reconciliation core",
+    "B: agent-run, isolation and capability runtime",
+    "C: evidence V2, signal stores, durable repair and governance"
+  ],
+  "selectionRules": {
+    "oneCandidatePerCapability": true,
+    "copyOnlyDependencyClosure": true,
+    "noV1AndV2Coexistence": true,
+    "noPackageRootPromotion": true,
+    "noAssuranceWithoutExecution": true
+  },
+  "selectedSurface": "packages/execution/src/authority-phase05-clean.ts",
+  "deliberatelyExcludedArchiveDrafts": [
+    "authority-capability-evidence.ts",
+    "authority-capability-signal-store.ts",
+    "authority-node-file-handle-executor.ts",
+    "authority-capability-executor.ts",
+    "authority-side-effect-coordinator.ts",
+    "authority-leases.ts",
+    "side-effect-ledger.ts",
+    "durable-side-effect-ledger.ts",
+    "postgres-side-effect-ledger.ts",
+    "postgres-durable-side-effect-ledger.ts",
+    "postgres-authority-side-effect.ts",
+    "authority.ts",
+    "all version-stacking barrels and draft tsconfigs"
+  ],
+  "proofBoundary": {
+    "cleanInstall": false,
+    "typecheck": false,
+    "tests": false,
+    "realPostgres": false,
+    "contention": false,
+    "crashWindow": false,
+    "tlsFixture": false,
+    "nativeHandleBroker": false,
+    "securityReview": false
+  }
+}
