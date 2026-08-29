@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "ledgerId": "ledger_cos_v2_operations",
+  "projectId": "COS_GRAPH_ENGINE",
+  "authority": "GITHUB_EXACT_COMMIT",
+  "appendOnly": true,
+  "segments": [
+    {
+      "path": "control-plane/v2/events/events.ndjson",
+      "firstSequence": 1,
+      "lastSequence": 1,
+      "eventCount": 1,
+      "status": "SEALED_BOOTSTRAP"
+    },
+    {
+      "path": "control-plane/v2/events/segments/000002.ndjson",
+      "firstSequence": 2,
+      "lastSequence": 3,
+      "eventCount": 2,
+      "status": "SEALED"
+    }
+  ],
+  "eventWatermark": 3,
+  "projectionRevision": 2,
+  "latestSessionId": "ses_43c3d959-9e6f-4f4a-8466-8df96163d4c8",
+  "latestClaimId": "claim_688937e0-7550-46be-9c3d-8dbb6d1c891b",
+  "sourceRevision": "1bc137eb6e635f55db293b402f561e420dc83c4f",
+  "rules": [
+    "sealed segments are never rewritten",
+    "event sequence is globally contiguous",
+    "event IDs are globally unique",
+    "projections are disposable and rebuildable",
+    "a projection cannot outrank its source events"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "projectionId": "cos_v2_execution_frontier",
+  "sourceRevision": "1bc137eb6e635f55db293b402f561e420dc83c4f",
+  "eventWatermark": 3,
+  "authority": "PROJECTION",
+  "generatedAt": "2026-08-30T17:30:00.000Z",
+  "tasks": [
+    {
+      "taskId": "T0006",
+      "lane": "A",
+      "objective": "Bind and rerun the V2 control-plane validator/compiler on an exact immutable head",
+      "state": "EXECUTABLE",
+      "dependencies": ["T0004", "T0005"],
+      "exclusiveScopes": ["control-plane/v2/**", "scripts/*v2-control-plane-v2.mjs"]
+    },
+    {
+      "taskId": "T0501",
+      "lane": "B",
+      "objective": "Recompute and verify provider evidence before accepting observed outcomes",
+      "state": "EXECUTABLE_ON_SEPARATE_CLAIM",
+      "dependencies": [],
+      "exclusiveScopes": ["packages/execution/src/authority-observed-outcome-recorder.ts", "additive provider-evidence tests"]
+    }
+  ],
+  "nextAfterT0006": ["T0007", "T0008"],
+  "constraints": [
+    "Lane B must use a new session, claim and branch from exact PR #54 head",
+    "No runtime mutation is permitted on PR #55",
+    "No merge, automatic Action, deployment or score promotion"
+  ]
+}

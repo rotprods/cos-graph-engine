@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "projectionId": "cos_v2_root_sync_status",
+  "generatedAt": "2026-08-30T17:30:00.000Z",
+  "sourceRevision": "1bc137eb6e635f55db293b402f561e420dc83c4f",
+  "authority": "PROJECTION",
+  "canonicalV2Documents": [
+    "ARCHITECTURE.md",
+    "LEXICON.md",
+    "SECURITY.md",
+    "RECOVERY.md",
+    "TEST_STRATEGY.md",
+    "MIGRATION.md",
+    "control-plane/v2/continuity/README_FIRST.md",
+    "control-plane/v2/continuity/STATE.md",
+    "control-plane/v2/continuity/TASKS.md",
+    "control-plane/v2/continuity/HANDOFF.md",
+    "control-plane/v2/continuity/GRAPH.md",
+    "control-plane/v2/continuity/AGENTS_V2.md"
+  ],
+  "rootProjectionStatus": {
+    "README_FIRST.md": "STALE_PENDING_REGENERATION",
+    "STATE.md": "STALE_PENDING_REGENERATION",
+    "TASKS.md": "STALE_PENDING_REGENERATION",
+    "HANDOFF.md": "STALE_PENDING_REGENERATION",
+    "GRAPH.md": "STALE_PENDING_REGENERATION",
+    "AGENTS.md": "HISTORICAL_LEDGER_PRESERVED_CANONICAL_POINTER_PENDING"
+  },
+  "rule": "Until root projections are regenerated, agents must enter through control-plane/v2/continuity/README_FIRST.md."
+}

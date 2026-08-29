@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "cos_v2_model_supplements",
+  "revision": 1,
+  "generatedAt": "2026-08-30T17:30:00.000Z",
+  "authority": "PROJECTION",
+  "sourceRevision": "1bc137eb6e635f55db293b402f561e420dc83c4f",
+  "supplements": {
+    "historicalRegression": "control-plane/v2/model/history.json",
+    "bugEscapeGraph": "control-plane/v2/model/bug-escape-graph.json",
+    "ontologyExtensions": "control-plane/v2/model/ontology.extensions.json",
+    "securityModel": "SECURITY.md",
+    "recoveryModel": "RECOVERY.md",
+    "testArchitecture": "TEST_STRATEGY.md",
+    "migrationPlan": "MIGRATION.md",
+    "lexicon": "LEXICON.md",
+    "architecture": "ARCHITECTURE.md"
+  },
+  "rule": "Supplemental projections may expand analysis but may not override selected executable model sources or exact runtime authority."
+}

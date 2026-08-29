@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cos.local/schemas/control-plane-v2.schema.json",
+  "title": "COS V2 Control Plane",
+  "type": "object",
+  "$defs": {
+    "identifier": {"type":"string","minLength":1,"pattern":"^[A-Za-z0-9][A-Za-z0-9._:/#-]*$"},
+    "isoDateTime": {"type":"string","format":"date-time"},
+    "status": {"enum":["PROPOSED","IMPLEMENTED","EXECUTED","VERIFIED","EMPIRICALLY_QUALIFIED","BLOCKED","DEGRADED_EXTERNAL","SUPERSEDED","NOT_APPLICABLE","ACTIVE","COMPLETE_STATIC_UNVERIFIED","ACTIVE_IMPLEMENTED_UNVERIFIED","PARTIAL_IMPLEMENTED_UNVERIFIED","IMPLEMENTED_UNVERIFIED"]},
+    "authority": {"enum":["UNTRUSTED_DATA","REFERENCE_ONLY","PROJECTION","SHADOW_ONLY","IMPLEMENTED_UNVERIFIED","VERIFIED_CANDIDATE","AUTHORITY_READY","CANONICAL_AUTHORITY"]},
+    "node": {
+      "type":"object",
+      "required":["id","type","label","status","authority","owner"],
+      "properties": {
+        "id":{"$ref":"#/$defs/identifier"},"type":{"$ref":"#/$defs/identifier"},"label":{"type":"string","minLength":1},"status":{"$ref":"#/$defs/status"},"authority":{"$ref":"#/$defs/authority"},"owner":{"$ref":"#/$defs/identifier"},"dimensions":{"type":"array","items":{"pattern":"^L(?:[0-9]|1[0-9])$"}}
+      },
+      "additionalProperties": true
+    },
+    "edge": {
+      "type":"object",
+      "required":["id","type","from","to","authority","confidence","criticality"],
+      "properties": {"id":{"$ref":"#/$defs/identifier"},"type":{"$ref":"#/$defs/identifier"},"from":{"$ref":"#/$defs/identifier"},"to":{"$ref":"#/$defs/identifier"},"authority":{"$ref":"#/$defs/authority"},"confidence":{"enum":["HIGH","MEDIUM","LOW","UNKNOWN"]},"criticality":{"enum":["LOW","MEDIUM","HIGH","CRITICAL"]}},
+      "additionalProperties": true
+    },
+    "task": {
+      "type":"object",
+      "required":["id","objective","why","inputs","outputs","dependencies","affectedNodes","affectedEdges","affectedFiles","ownerType","risk","implementationSteps","tests","adversarialTests","securityTests","evidenceRequired","rollback","definitionOfDone","status"],
+      "properties":{"id":{"pattern":"^T[0-9]{4}$"},"dependencies":{"type":"array","items":{"pattern":"^T[0-9]{4}$"}},"status":{"$ref":"#/$defs/status"}},
+      "additionalProperties": true
+    }
+  },
+  "oneOf": [
+    {"required":["ontologyId","nodeTypes","edgeTypes","invariants"]},
+    {"required":["graphId","nodes","edges","hyperedges"]},
+    {"required":["matrixId","gaps"]},
+    {"required":["ledgerId","decisions"]},
+    {"required":["programId","phases","tasks"]},
+    {"required":["checkpointModelId","checkpoints"]}
+  ]
+}

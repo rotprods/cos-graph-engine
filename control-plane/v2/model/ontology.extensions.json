@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "extensionId": "cos_v2_ontology_edges_r1",
+  "extends": "control-plane/v2/model/ontology.json",
+  "edgeTypes": [
+    {
+      "id": "GOVERNED_BY",
+      "definition": "The target governance object constrains lifecycle or promotion of the source entity.",
+      "directional": true,
+      "causal": false,
+      "temporal": true
+    },
+    {
+      "id": "RECOVERY_OF",
+      "definition": "The source recovery procedure reconstructs or restores the target state/projection.",
+      "directional": true,
+      "causal": true,
+      "temporal": true
+    }
+  ],
+  "status": "IMPLEMENTED",
+  "authority": "PROJECTION"
+}

@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "graphId": "cos_v2_bug_escape_graph",
+  "revision": 1,
+  "generatedAt": "2026-08-30T17:30:00.000Z",
+  "authority": "PROJECTION",
+  "sourceRevision": "1bc137eb6e635f55db293b402f561e420dc83c4f",
+  "escapes": [
+    {
+      "bugId": "BUG001",
+      "title": "Tool reports success while embedding an error in output",
+      "rootCause": "Tool implementations self-certified contradictory result envelopes",
+      "brokenInvariant": "success=true must contain no structured or embedded error",
+      "whyTestsMissed": "Tests exercised happy-path output but not contradictory envelopes",
+      "regressionTest": "TST-TOOL-FALSE-SUCCESS",
+      "adjacentFailureFamily": ["success with error field", "failure without structured error", "invalid cost/latency/metadata"],
+      "generalizedCampaign": "property-generate malformed ToolResult envelopes and require StrictToolRegistry rejection",
+      "status": "IMPLEMENTED_UNVERIFIED"
+    },
+    {
+      "bugId": "BUG002",
+      "title": "CAS value mutated through a returned nested reference",
+      "rootCause": "Read methods copied wrappers but retained mutable payload references",
+      "brokenInvariant": "all authority reads are detached or immutable",
+      "whyTestsMissed": "Tests checked expectedVersion but did not mutate nested return values",
+      "regressionTest": "TST-CAS-DEEP-COPY",
+      "adjacentFailureFamily": ["PropertyGraph node mutation", "Memory metadata mutation", "AgentRun result mutation", "snapshot post-hash mutation"],
+      "generalizedCampaign": "deep mutation corpus over every public read/query/history API",
+      "status": "IMPLEMENTED_UNVERIFIED"
+    },
+    {
+      "bugId": "BUG003",
+      "title": "Current-row temporal memory represented as bi-temporal history",
+      "rootCause": "recordedAt was stored while historical revisions were overwritten",
+      "brokenInvariant": "knownAt queries must see only facts recorded by that system time",
+      "whyTestsMissed": "Tests queried latest state and did not compare historical knowledge cutoffs",
+      "regressionTest": "TST-MEMORY-BITEMPORAL",
+      "adjacentFailureFamily": ["future validUntil leakage", "retroactive provenance replacement", "lost contradictions", "system-time rewrite"],
+      "generalizedCampaign": "append/supersede/contradict across validAt and knownAt matrix in memory and Postgres",
+      "status": "IMPLEMENTED_UNVERIFIED"
+    },
+    {
+      "bugId": "BUG004",
+      "title": "PR closed was interpreted as deployment success",
+      "rootCause": "Webhook projection collapsed command and outcome semantics",
+      "brokenInvariant": "observed command, accepted transition and external outcome are distinct events",
+      "whyTestsMissed": "Fixtures covered event names but not semantic lifecycle truth",
+      "regressionTest": "TST-HUB-COMMAND-OUTCOME",
+      "adjacentFailureFamily": ["PR closed without merge", "deployment created but failed", "workflow completed with neutral/cancelled conclusion"],
+      "generalizedCampaign": "semantic provider fixture matrix for commands and outcomes",
+      "status": "IMPLEMENTED_UNVERIFIED"
+    },
+    {
+      "bugId": "BUG005",
+      "title": "Historical command replay could be re-decided under new state-machine rules",
+      "rootCause": "Replay re-executed commands instead of applying recorded accepted/rejected outcomes",
+      "brokenInvariant": "replay reproduces recorded historical outcomes and never reinterprets the past",
+      "whyTestsMissed": "Replay tests used unchanged rules",
+      "regressionTest": "TST-HUB-OUTCOME-REPLAY",
+      "adjacentFailureFamily": ["policy-version drift", "guard behavior change", "new default transition"],
+      "generalizedCampaign": "change reducer/state-machine rules after recording outcomes and require identical replay state",
+      "status": "IMPLEMENTED_UNVERIFIED"
+    },
+    {
+      "bugId": "BUG006",
+      "title": "Automatic CI was disabled by deleting much of the verification matrix",
+      "rootCause": "Cost-control objective was implemented as workflow simplification rather than trigger separation",
+      "brokenInvariant": "manual-only execution must preserve verification breadth",
+      "whyTestsMissed": "No workflow self-contract compared old and new suite coverage",
+      "regressionTest": "TST-CI-MATRIX-BREADTH",
+      "adjacentFailureFamily": ["orphaned suites", "suppressed failures", "missing WASM/Docker/coverage/benchmark gates"],
+      "generalizedCampaign": "manifest every required suite and prove workflow references all of them",
+      "status": "OPEN"
+    },
+    {
+      "bugId": "BUG007",
+      "title": "W13 certified only one of two divergent sibling branches",
+      "rootCause": "Mental lineage model treated PR #35 as continuation/superset of PR #34",
+      "brokenInvariant": "qualification lineage must contain every selected capability and exact source provenance",
+      "whyTestsMissed": "No graph-level ancestor/capability completeness check existed",
+      "regressionTest": "TST-W13-PARENT",
+      "adjacentFailureFamily": ["stacked PR based on moving branch", "missing sibling capability", "qualification after rebase"],
+      "generalizedCampaign": "lineage DAG + capability manifest completeness validator",
+      "status": "SUPERSEDED"
+    },
+    {
+      "bugId": "BUG008",
+      "title": "Provider evidence hash was accepted without independent recomputation",
+      "rootCause": "Wrapper checked presence and bound fields but delegated evidence integrity to the provider adapter",
+      "brokenInvariant": "authority accepts provider evidence only after canonical content hash verification and operation binding",
+      "whyTestsMissed": "Contracts used honest fixtures with matching evidenceHash",
+      "regressionTest": "TST-PROVIDER-EVIDENCE-TAMPER",
+      "adjacentFailureFamily": ["hash from another operation", "reordered/noncanonical data", "missing provider identity", "replayed stale observation"],
+      "generalizedCampaign": "tamper, swap and replay provider evidence across operations and timestamps",
+      "status": "OPEN_P0"
+    },
+    {
+      "bugId": "BUG009",
+      "title": "Post-commit evidence or lease-release failure existed only in process memory",
+      "rootCause": "Protected provider truth and secondary repair duties were not separate durable aggregates",
+      "brokenInvariant": "accepted provider truth is immutable while every failed secondary duty becomes durable repair work",
+      "whyTestsMissed": "Success tests ended before process restart",
+      "regressionTest": "TST-REPAIR-RESTART",
+      "adjacentFailureFamily": ["signal sink down", "telemetry down", "agent evidence append failure", "lease release failure"],
+      "generalizedCampaign": "crash after provider commit at every subsequent boundary and resume repair worker",
+      "status": "IMPLEMENTED_UNVERIFIED"
+    },
+    {
+      "bugId": "BUG010",
+      "title": "Documentation routed successors to stale branches and next actions",
+      "rootCause": "Multiple manually maintained continuity documents had no shared source revision or compiler",
+      "brokenInvariant": "all current documents identify the same exact branch, head, blockers and frontier",
+      "whyTestsMissed": "Documentation had no executable drift test",
+      "regressionTest": "TST-CP-DOC-DRIFT",
+      "adjacentFailureFamily": ["stale scorecard", "stale ContextPack", "old claim", "wrong PR base"],
+      "generalizedCampaign": "mutate one document pointer and require control-plane validation failure",
+      "status": "OPEN"
+    }
+  ],
+  "law": "Every escaped bug must retain a permanent regression test and at least one generalized adjacent-failure campaign."
+}
