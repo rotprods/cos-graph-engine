@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-29T21:37:49Z",
+  "authority": "LIVE_GITHUB",
+  "projectId": "COS_GRAPH_ENGINE",
+  "repository": "rotprods/cos-graph-engine",
+  "defaultBranch": "main",
+  "mainSha": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+  "mainProtected": true,
+  "mainRequiredStatusContexts": [],
+  "currentWorkBranch": "refactor/v2-hypergraph-control-plane",
+  "currentBaseRef": "hardening/phase-05f-observed-outcome-recovery",
+  "currentBaseSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "latestCleanRuntimePr": 54,
+  "latestCleanRuntimeHead": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "cleanPhase05Stack": [
+    {
+      "pr": 49,
+      "phase": "05A",
+      "head": "3e79488a3ca5013812ab3f64d18b2a55b8050333",
+      "status": "DRAFT_IMPLEMENTED_UNVERIFIED"
+    },
+    {
+      "pr": 50,
+      "phase": "05B",
+      "head": "45a565ac945363ab45f0f6b1ddb6a2795843084d",
+      "status": "DRAFT_IMPLEMENTED_UNVERIFIED"
+    },
+    {
+      "pr": 51,
+      "phase": "05C",
+      "head": "a4122eb80ad319a0cbf6497b2cc618c2f99d27a9",
+      "status": "DRAFT_IMPLEMENTED_UNVERIFIED"
+    },
+    {
+      "pr": 52,
+      "phase": "05D",
+      "head": "22191dd12080bec79ae86817cf38c610b11a8f1b",
+      "status": "DRAFT_WRITTEN_UNEXECUTED"
+    },
+    {
+      "pr": 53,
+      "phase": "05E",
+      "head": "50e809fee99f50a34f0e82b92af02e0ea11552ac",
+      "status": "DRAFT_WRITTEN_UNEXECUTED"
+    },
+    {
+      "pr": 54,
+      "phase": "05F",
+      "head": "789edef87549d4f173de03f73e54f5b6193c2e98",
+      "status": "DRAFT_IMPLEMENTED_UNVERIFIED"
+    }
+  ],
+  "archivalOrNonQualificationObjects": [
+    34,
+    35,
+    36,
+    37,
+    38,
+    40,
+    43,
+    44,
+    45,
+    46
+  ],
+  "projectState": "BLOCKED_FOR_AUTHORITY_PROMOTION",
+  "authorityStatus": "SHADOW_ONLY",
+  "proofStatus": "IMPLEMENTED_UNVERIFIED",
+  "automaticCiCd": false,
+  "eventWatermark": 1,
+  "projectionRevision": 1,
+  "contextPackRevision": 1,
+  "contractVersions": {
+    "phase05CleanroomManifest": 2,
+    "v2ControlPlane": 1,
+    "scoreModel": 1,
+    "canonicalJsonWire": 1
+  },
+  "activeBarriers": [
+    "root control documents are stale relative to PRs #53/#54",
+    "no durable operational event ledger existed before this session",
+    "no active-agent or active-claim registry existed before this session",
+    "clean Phase 05 strict typecheck and contracts have not executed",
+    "controlled TLS fixture has not executed",
+    "trusted atomic filesystem broker is not implemented/verified",
+    "provider-specific inspectors are incomplete",
+    "W13 lineage is obsolete and must be recreated from a frozen final candidate"
+  ],
+  "activeAgents": {
+    "status": "UNKNOWN",
+    "reason": "no durable active-agent registry existed"
+  },
+  "activeClaims": {
+    "status": "ONE_RECORDED_IN_THIS_BRANCH",
+    "claimId": "claim_24f132dd-8804-4066-b6c8-5b06aa36461c"
+  },
+  "staleSurfaces": [
+    "README_FIRST.md",
+    "AGENTS.md canonical-current section",
+    "STATE.md",
+    "TASKS.md",
+    "HANDOFF.md",
+    "GRAPH.md",
+    "docs/hardening/PHASE_05_CLEANROOM_MANIFEST.json.currentHead"
+  ],
+  "confidence": "HIGH_CONFIDENCE_FOR_REPOSITORY_TOPOLOGY_MEDIUM_FOR_AGENT_COORDINATION",
+  "sourceRefs": [
+    "github://rotprods/cos-graph-engine/commit/3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+    "github://rotprods/cos-graph-engine/commit/789edef87549d4f173de03f73e54f5b6193c2e98",
+    "github://rotprods/cos-graph-engine/pull/54",
+    "github://rotprods/cos-graph-engine/issues/39",
+    "todoist://project/6hMP59rWj7f5xH7M"
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-29T21:37:49Z",
+  "sourceRevision": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "claims": [
+    {
+      "schemaVersion": 1,
+      "claimId": "claim_24f132dd-8804-4066-b6c8-5b06aa36461c",
+      "sessionId": "ses_b3bead3c-97e0-460c-b413-fd0d14fab81d",
+      "projectId": "COS_GRAPH_ENGINE",
+      "agentId": "agent_openai_chatgpt_gpt-5.6-pro",
+      "workstreamId": "ws_cos_graph_refactor_v2",
+      "objectiveId": "obj_cos_v2_architecture_recompile",
+      "createdAt": "2026-08-29T21:37:49Z",
+      "expiresAt": "2026-08-30T21:37:49Z",
+      "status": "ACTIVE",
+      "exclusiveResourceScopes": [
+        "control-plane/v2/**"
+      ],
+      "sharedResourceScopes": [
+        "README_FIRST.md",
+        "STATE.md",
+        "TASKS.md",
+        "HANDOFF.md",
+        "GRAPH.md",
+        "AGENTS.md canonical section"
+      ],
+      "semanticScopes": [
+        "architecture V2",
+        "control-plane schema",
+        "project hypergraph",
+        "continuity and recovery"
+      ],
+      "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+      "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+      "sourceRevision": "789edef87549d4f173de03f73e54f5b6193c2e98"
+    }
+  ],
+  "unknownExternalClaims": true,
+  "unknownReason": "No durable claim registry existed before this session; GitHub PR overlap was inspected but cannot prove all parallel agents."
+}
