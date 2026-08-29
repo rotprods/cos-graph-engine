@@ -13,6 +13,7 @@ export {
 
 export {
   AuthoritySideEffectRuntime,
+  type MarkProviderOutcomeUnknownInput,
   type ProviderReconciliationResult,
   type ProviderSideEffectReconciler,
   type RecoverInterruptedSideEffectInput,
@@ -142,6 +143,36 @@ export {
   type AuthorityFileSystemBroker,
   type AuthorityPinnedFileTarget,
 } from './authority-isolation';
+
+export {
+  AuthorityPinnedHttpTool,
+  AuthorityFileHandleTool,
+  createAuthorityProviderRegistry,
+  isAuthorityPreflightTool,
+  type AuthorityProviderToolMode,
+  type AuthorityPreflightTool,
+  type AuthorityPinnedHttpToolInput,
+  type AuthorityPinnedHttpTransportRequest,
+  type AuthorityPinnedHttpTransport,
+  type AuthorityFileHandleToolInput,
+  type AuthorityFileHandleExecutionRequest,
+  type AuthorityFileHandleExecutor,
+  type AuthorityProviderToolOptions,
+} from './authority-provider-tools';
+
+export {
+  AuthorityCapabilityRuntime,
+  type AuthorityAgentStepEvidenceRequest,
+  type AuthorityReadCapabilityRequest,
+  type AuthoritySideEffectTimeline,
+  type AuthoritySideEffectCapabilityRequest,
+  type AuthorityAgentEvidenceStatus,
+  type AuthorityLeaseReleaseStatus,
+  type AuthorityReadCapabilityResult,
+  type AuthoritySideEffectCapabilityStatus,
+  type AuthoritySideEffectCapabilityResult,
+  type AuthorityCapabilityRuntimeDependencies,
+} from './authority-capability-runtime';
 
 // Reference-only single-process validator. Durable authority deployments should
 // use AuthorityLeaseService/AuthorityLeasePostgresStore at the resource boundary.
