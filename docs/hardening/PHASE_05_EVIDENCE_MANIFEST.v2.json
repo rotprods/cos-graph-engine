@@ -1,0 +1,261 @@
+{
+  "schemaVersion": 2,
+  "manifestRevision": 4,
+  "phase": "05_SECURITY_CONCURRENCY_AGENT_RUNTIME",
+  "authorityStatus": "SHADOW_ONLY",
+  "proofStatus": "WRITTEN_UNEXECUTED",
+  "parentCheckpoint": {
+    "ref": "checkpoint/phase-04-temporal-2e15b88",
+    "sha": "2e15b88388836b94b97a93753cb4db347e275e7e"
+  },
+  "branch": "hardening/phase-05-security-concurrency-runtime",
+  "canonicalDraftPullRequest": 46,
+  "supersededDuplicatePullRequest": {
+    "number": 47,
+    "state": "closed_without_merge",
+    "reason": "same head branch with a moving Phase 04 base and nonexistent checkpoint metadata"
+  },
+  "authoritySurface": "packages/execution/src/authority-phase05-current.ts",
+  "strictTypecheck": "npm run typecheck:phase05",
+  "aggregateContractCommand": "npm run test:authority:phase05",
+  "candidateModules": [
+    "packages/execution/src/strict-tool-registry.ts",
+    "packages/execution/src/capability-router.ts",
+    "packages/execution/src/authority-side-effect.ts",
+    "packages/execution/src/authority-side-effect-runtime.ts",
+    "packages/execution/src/authority-side-effect-store-postgres.ts",
+    "packages/execution/src/authority-lease.ts",
+    "packages/execution/src/authority-lease-store-postgres.ts",
+    "packages/execution/src/authority-execution-runtime.ts",
+    "packages/execution/src/authority-execution-evidence.ts",
+    "packages/execution/src/authority-execution-signal-store.ts",
+    "packages/execution/src/authority-policy.ts",
+    "packages/execution/src/authority-policy-bound-runtime.ts",
+    "packages/execution/src/authority-agent-run.ts",
+    "packages/execution/src/authority-agent-run-store-postgres.ts",
+    "packages/execution/src/authority-isolation.ts",
+    "packages/execution/src/authority-provider-tools.ts",
+    "packages/execution/src/authority-capability-runtime.ts"
+  ],
+  "authorityContracts": [
+    {
+      "path": "scripts/test-authority-side-effect-runtime.ts",
+      "command": "npm run test:authority:side-effect-runtime",
+      "guarantees": [
+        "payload-bound operation claim idempotency",
+        "interrupted execution becomes reconciliation_required",
+        "provider-applied outcome commits without re-execution",
+        "provider-not-applied outcome prepares a new fenced attempt",
+        "partial application requires a compensation plan",
+        "stale fencing token cannot commit",
+        "terminal accepted result survives runtime restart"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-side-effect-postgres.ts",
+      "command": "npm run test:authority:side-effect-postgres",
+      "guarantees": [
+        "append-only Postgres operation and revision history",
+        "non-aborting ON CONFLICT classification",
+        "runtime restart reconstruction",
+        "historical row immutability",
+        "content-hash corruption rejection"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-lease.ts",
+      "command": "npm run test:authority:lease",
+      "guarantees": [
+        "bounded explicit-time lease expiry",
+        "renewal preserves current fencing token",
+        "expiry and release reacquisition increment fencing token",
+        "stale lease and resource revision rejection",
+        "copy-safe append-only lease history"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-lease-postgres.ts",
+      "command": "npm run test:authority:lease-postgres",
+      "guarantees": [
+        "append-only Postgres lease history",
+        "resource advisory-lock serialization",
+        "restart reconstruction",
+        "non-aborting conflict classification",
+        "content-hash corruption rejection"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-execution-runtime.ts",
+      "command": "npm run test:authority:execution-runtime",
+      "guarantees": [
+        "prepare begin and commit validate lease at explicit operation time",
+        "expired or superseded worker cannot commit",
+        "lease identity owner and token checked before prepare",
+        "live operation and resource histories remain append-only"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-execution-evidence.ts",
+      "command": "npm run test:authority:execution-evidence",
+      "guarantees": [
+        "accepted operation signals are deterministic and content-hashed",
+        "stale fencing rejection becomes near-miss evidence",
+        "near-miss evidence does not invent root cause",
+        "observer failure cannot alter protected operation outcome",
+        "signal reads are detached"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-policy.ts",
+      "command": "npm run test:authority:policy",
+      "guarantees": [
+        "default deny for unknown actions",
+        "hard project-scope and sensitivity-clearance gates",
+        "explicit deny dominates allow",
+        "require_approval dominates broad allow",
+        "approval grant is exact-operation scoped and expires fail closed",
+        "deterministic decision identity and hash"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-policy-bound-runtime.ts",
+      "command": "npm run test:authority:policy-bound-runtime",
+      "guarantees": [
+        "policy intercepts claim prepare execute and commit independently",
+        "later policy decisions bind canonical operation attributes",
+        "denied mutations append no operation revision",
+        "principal mismatch and cross-project access fail closed",
+        "accepted revisions retain policy decision evidence"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-agent-run.ts",
+      "command": "npm run test:authority:agent-run",
+      "guarantees": [
+        "durable create and conflict-safe operation identity",
+        "acyclic plan and dependency enforcement",
+        "side-effecting accepted step requires committed operation evidence",
+        "step retries retain failed and accepted attempts",
+        "required criteria use exact evaluator ID and version",
+        "completion cannot be inferred from positive text",
+        "completed run survives service restart with detached history"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-agent-run-postgres.ts",
+      "command": "npm run test:authority:agent-run-postgres",
+      "guarantees": [
+        "append-only Postgres run revisions",
+        "project-scoped operation-key idempotency",
+        "transaction advisory-lock serialization",
+        "restart reconstruction from immutable rows",
+        "no UPDATE DELETE or TRUNCATE in the authority store",
+        "detached history and content-hash corruption rejection"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-isolation.ts",
+      "command": "npm run test:authority:isolation",
+      "guarantees": [
+        "HTTPS host method and port allowlists",
+        "DNS answer pinning with deterministic address order",
+        "private loopback link-local mapped and special-purpose address rejection",
+        "mixed public/private DNS response rejection",
+        "redirect reauthorization and bounded decision TTL",
+        "trusted broker handle contract for filesystem access",
+        "encoded traversal root-prefix escape and symlink rejection",
+        "decision and opaque-handle tamper detection"
+      ]
+    },
+    {
+      "path": "scripts/test-authority-capability-runtime.ts",
+      "command": "npm run test:authority:capability-runtime",
+      "guarantees": [
+        "legacy direct tools are absent from the authority registry",
+        "provider isolation preflight occurs before durable claim and execution",
+        "read capabilities require policy and read-mode tools",
+        "side effects enter policy operation lease fence and provider-idempotency boundaries",
+        "provider success commits once and links accepted agent-run evidence",
+        "committed retries return durable truth without a second provider call",
+        "provider exceptions after begin become reconciliation_required",
+        "uncertain retries never execute the provider blindly",
+        "expired isolation decisions and policy denials create no provider call or operation mutation"
+      ]
+    }
+  ],
+  "explicitlyNonAuthorityDrafts": [
+    {
+      "path": "packages/execution/src/postgres-authority-side-effect.ts",
+      "reason": "prototype may classify a uniqueness error inside an already-aborted PostgreSQL transaction",
+      "replacement": "packages/execution/src/authority-side-effect-store-postgres.ts"
+    },
+    {
+      "path": "packages/execution/src/authority-side-effect-coordinator.ts#AuthoritySideEffectCoordinator",
+      "reason": "first orchestration draft records interruption and provider reconciliation at one timestamp",
+      "replacement": "packages/execution/src/authority-side-effect-runtime.ts"
+    },
+    {
+      "path": "packages/execution/src/authority-execution-evidence.ts#InMemoryAuthorityExecutionSignalSink",
+      "reason": "first sink implementation uses an unsafe Array.from mapping callback shape",
+      "replacement": "packages/execution/src/authority-execution-signal-store.ts"
+    },
+    {
+      "path": "packages/execution/src/authority-capability-executor.ts",
+      "reason": "early executor does not own the selected strict provider preflight policy lease durable-operation and agent-run evidence path",
+      "replacement": "packages/execution/src/authority-capability-runtime.ts"
+    },
+    {
+      "path": "packages/execution/src/authority.ts",
+      "reason": "early incomplete authority barrel",
+      "replacement": "packages/execution/src/authority-phase05-current.ts"
+    },
+    {
+      "path": "packages/execution/src/authority-phase05.ts",
+      "reason": "earlier Phase 05 barrel predates policy evidence Postgres lease agent-run isolation and canonical capability candidates",
+      "replacement": "packages/execution/src/authority-phase05-current.ts"
+    },
+    {
+      "path": "tsconfig.phase05.json",
+      "reason": "earlier strict graph predates the current Phase 05 surface",
+      "replacement": "tsconfig.phase05.full.json"
+    },
+    {
+      "path": "scripts/test-authority-side-effect.ts",
+      "reason": "early draft contract does not represent the selected crash-reconciliation runtime",
+      "replacement": "scripts/test-authority-side-effect-runtime.ts"
+    },
+    {
+      "path": "scripts/test-authority-capability-executor.ts",
+      "reason": "early contract targets the superseded authority capability executor",
+      "replacement": "scripts/test-authority-capability-runtime.ts"
+    },
+    {
+      "path": "scripts/fixtures/fake-authority-side-effect-postgres.ts",
+      "reason": "fixture targets the superseded Postgres prototype",
+      "replacement": "scripts/fixtures/fake-authority-side-effect-store-postgres.ts"
+    }
+  ],
+  "remainingPhase05Gaps": [
+    "implement provider-native idempotency and reconciliation adapters for pinned HTTP and broker-handle filesystem execution",
+    "bind isolation evaluation time to a trusted runtime clock rather than accepting only provider-input evaluatedAt",
+    "run integration evidence proving the HTTP transport connects only to pinned addresses with correct TLS SNI and Host handling",
+    "run integration evidence proving filesystem execution consumes the broker-opened handle and never reopens a path",
+    "connect policy lease isolation provider uncertainty lease-release repair and agent-run outcomes to canonical signals and AuthorityTelemetry",
+    "resolve or delete superseded draft files under Phase 02 deletion governance",
+    "promote the narrow surface and prevent alternate package-root side-effect paths through the Phase 07 API and compatibility gate"
+  ],
+  "deploymentBoundary": {
+    "http": "the guard authorizes and pins addresses but an authority transport must consume those addresses directly with correct TLS SNI and Host handling; ordinary fetch(url) is insufficient",
+    "filesystem": "the sandbox accepts only handles atomically opened by a trusted broker using openat dirfd or an equivalent primitive; reopening a returned path is insufficient"
+  },
+  "assuranceRules": [
+    "Presence in this manifest does not mean the contract passed.",
+    "No D01-D20 Assurance score changes until clean-checkout execution evidence exists.",
+    "A provider effect is not exactly-once unless provider or resource reconciliation evidence closes every crash window.",
+    "A fencing token must be validated at the resource commit boundary using an explicit evaluation time.",
+    "A run cannot complete while a critical step or required acceptance criterion is unresolved.",
+    "Isolation decision objects do not replace a trusted pinned transport or handle broker.",
+    "Cross-store agent evidence failure after provider commit is a repairable degraded state and cannot rewrite provider truth.",
+    "No production database Supabase project deployment or automatic GitHub Action is used by these static contracts."
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.phase05.full.json",
+  "include": [
+    "packages/execution/src/authority-capability-evidence-v2.ts",
+    "packages/execution/src/authority-capability-signal-store-v2.ts",
+    "packages/execution/src/authority-phase05-evidence-v2.ts",
+    "scripts/test-authority-capability-evidence-v2.ts",
+    "scripts/test-authority-capability-signal-store-v2.ts"
+  ]
+}

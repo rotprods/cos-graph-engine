@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 5,
+  "phase": "05_SECURITY_CONCURRENCY_AGENT_RUNTIME",
+  "branch": "hardening/phase-05-security-concurrency-runtime",
+  "pullRequest": 46,
+  "baseRef": "checkpoint/phase-04-temporal-2e15b88",
+  "baseSha": "2e15b88388836b94b97a93753cb4db347e275e7e",
+  "authorityStatus": "SHADOW_ONLY",
+  "verification": "WRITTEN_UNEXECUTED",
+  "scores": {
+    "buildBaseline": 7.6,
+    "assuranceBaseline": 2.6,
+    "authorityBaseline": 2.6,
+    "promotionAllowed": false
+  },
+  "selectedAuthorityCandidates": {
+    "capabilityFacade": "packages/execution/src/authority-capability-runtime.ts",
+    "providerTools": "packages/execution/src/authority-provider-tools.ts",
+    "providerReconciliation": "packages/execution/src/authority-provider-reconciliation.ts",
+    "providerRetryPlanning": "packages/execution/src/authority-provider-lease-retry-planner.ts",
+    "jsonIdempotencyInspector": "packages/execution/src/authority-json-idempotency-inspector.ts",
+    "pinnedHttpsTransport": "packages/execution/src/authority-node-pinned-http-transport.ts",
+    "opaqueFileHandleExecutor": "packages/execution/src/authority-node-file-handle-executor-v2.ts",
+    "capabilityEvidence": "packages/execution/src/authority-capability-evidence-v2.ts",
+    "capabilitySignalStoreInMemory": "packages/execution/src/authority-capability-signal-store-v2.ts",
+    "capabilitySignalStorePostgres": "packages/execution/src/authority-capability-signal-store-postgres.ts",
+    "sideEffectRuntime": "packages/execution/src/authority-side-effect-runtime.ts",
+    "sideEffectStorePostgres": "packages/execution/src/authority-side-effect-store-postgres.ts",
+    "leaseRuntime": "packages/execution/src/authority-lease.ts",
+    "leaseStorePostgres": "packages/execution/src/authority-lease-store-postgres.ts",
+    "policyRuntime": "packages/execution/src/authority-policy-bound-runtime.ts",
+    "agentRunRuntime": "packages/execution/src/authority-agent-run.ts",
+    "agentRunStorePostgres": "packages/execution/src/authority-agent-run-store-postgres.ts"
+  },
+  "selectedAdditiveSurfaces": [
+    "packages/execution/src/authority-phase05-current.ts",
+    "packages/execution/src/authority-phase05-evidence-v2.ts",
+    "packages/execution/src/authority-phase05-evidence-v2-postgres.ts",
+    "packages/execution/src/authority-phase05-provider-integrations.ts",
+    "packages/execution/src/authority-phase05-platform-v2.ts"
+  ],
+  "implementedGuarantees": [
+    "caller-supplied provider evaluatedAt is overwritten by authority read-at or mutation beginAt",
+    "provider idempotency identity is bound into durable operation input",
+    "legacy filesystem/http/search tools are absent from the authority registry",
+    "provider exception after begin becomes reconciliation_required and is never blindly retried",
+    "provider inspection is read-only and maps applied/not_applied/partial/unknown without replaying mutation",
+    "not_applied requires authoritative absence, a strictly newer fence and a rotated provider attempt key",
+    "lease retry planning never releases an active lease implicitly",
+    "Node pinned HTTPS transport connects only to an authorized address and preserves original SNI/Host semantics",
+    "Node pinned HTTPS transport performs zero DNS resolution, redirect following, pooling or internal retries",
+    "opaque file-handle executor never reopens a path and serializes operations per handle",
+    "capability evidence v2 cannot replace protected results/errors when signal construction, sink or telemetry fails",
+    "capability signals use deterministic IDs/content hashes and omit raw provider input/result",
+    "in-memory and Postgres capability signal stores are append-only and payload-bound"
+  ],
+  "contractsWritten": [
+    "scripts/test-authority-capability-runtime.ts",
+    "scripts/test-authority-provider-reconciliation.ts",
+    "scripts/test-authority-provider-lease-retry-planner.ts",
+    "scripts/test-authority-json-idempotency-inspector-current.ts",
+    "scripts/test-authority-node-file-handle-executor-v2.ts",
+    "scripts/test-authority-capability-evidence-v2.ts",
+    "scripts/test-authority-capability-signal-store-v2.ts",
+    "scripts/test-authority-capability-signal-postgres.ts"
+  ],
+  "strictGraphsWritten": [
+    "tsconfig.phase05.full.json",
+    "tsconfig.phase05.evidence-v2.json",
+    "tsconfig.phase05.evidence-v2-postgres.json",
+    "tsconfig.phase05.integrations.json",
+    "tsconfig.phase05.platform.json"
+  ],
+  "supersededUnpromotedDrafts": [
+    "packages/execution/src/authority-capability-evidence.ts",
+    "packages/execution/src/authority-capability-signal-store.ts",
+    "packages/execution/src/authority-node-file-handle-executor.ts",
+    "packages/execution/src/authority-phase05-observed.ts",
+    "packages/execution/src/authority-phase05-evidence-current.ts",
+    "packages/execution/src/authority-phase05-platform.ts",
+    "scripts/test-authority-capability-evidence.ts",
+    "scripts/test-authority-capability-signal-store.ts",
+    "scripts/test-authority-capability-signal-store-current.ts",
+    "scripts/test-authority-json-idempotency-inspector.ts",
+    "scripts/test-authority-node-file-handle-executor.ts"
+  ],
+  "remainingP0": [
+    "implement a trusted atomic filesystem broker using openat/dirfd or equivalent; the current Node executor consumes only a broker-opened handle",
+    "execute and prove the pinned HTTPS transport against controlled TLS fixtures, including no second DNS resolution and certificate validation against original hostname",
+    "implement provider-specific status target factories and parsers for the actual external providers used by COS",
+    "make post-commit agent-evidence repair durable instead of status-only",
+    "bridge capability evidence v2 to the selected AuthorityTelemetry implementation without reverse package dependency",
+    "prove package-root callers cannot bypass the authority facade after Phase 07 promotion"
+  ],
+  "remainingP1": [
+    "move superseded drafts into deletion governance and remove/archive them",
+    "update compatibility and rollback maps for the selected v2 surfaces",
+    "run strict TypeScript graphs and repair all compile errors",
+    "run contention, crash-window, reconciliation, SSRF, TLS and handle-broker evidence",
+    "freeze one exact Phase 05 checkpoint only after one owner exists per capability"
+  ],
+  "forbiddenClaims": [
+    "VERIFIED",
+    "AUTHORITY_READY",
+    "exactly-once provider effects",
+    "production safe",
+    "10/10",
+    "passing tests"
+  ],
+  "costPolicy": {
+    "automaticActions": false,
+    "cd": false,
+    "deployment": false,
+    "incrementalRecurringCostEur": 0
+  }
+}

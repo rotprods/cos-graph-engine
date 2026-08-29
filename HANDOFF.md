@@ -2,16 +2,25 @@
 
 ## Recovery point
 
-Phases 01–04 are statically complete. COS remains `SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`.
+Phases 01–04 are statically complete. Phase 05 has a canonical policy/fencing/isolation capability facade but remains incomplete and unexecuted.
 
-### Frozen/checkpointed lineage
+COS remains:
 
-- Phase 01: `checkpoint/phase-01-reconciled-76dfdc7` → `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
-- Phase 02: `checkpoint/phase-02-contracts-06487e7` → `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
-- Phase 03: `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44
-- Phase 04: PR #45; synchronized checkpoint branch created after closure documents
+`SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`
 
-Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #37 remains draft/rework. No merge, automatic Action, deployment or production data mutation has occurred.
+No merge, automatic Action, deployment, release, production database or Supabase mutation has occurred.
+
+## Canonical lineage
+
+- Phase 01: `checkpoint/phase-01-reconciled-76dfdc7` @ `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40;
+- Phase 02: `checkpoint/phase-02-contracts-06487e7` @ `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43;
+- Phase 03: `checkpoint/phase-03-core-ad6a93c` @ `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44;
+- Phase 04 base: `checkpoint/phase-04-temporal-2e15b88` @ `2e15b88388836b94b97a93753cb4db347e275e7e` — PR #45;
+- Phase 05: `hardening/phase-05-security-concurrency-runtime` — canonical draft PR #46.
+
+PR #47 is closed without merge as a duplicate PR view of the Phase 05 head. Do not reopen it as an authority path. The head branch is preserved through PR #46.
+
+Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #37 remains draft/rework.
 
 ## Read first
 
@@ -25,130 +34,186 @@ Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #3
 8. `docs/hardening/PHASE_02_CLOSURE.md`
 9. `docs/hardening/PHASE_03_CLOSURE.md`
 10. `docs/hardening/PHASE_04_CLOSURE.md`
-11. `docs/hardening/ADR_INDEX.md`
-12. `docs/hardening/COMPATIBILITY_MATRIX.md`
-13. `docs/hardening/ROLLBACK_MAP.md`
-14. `docs/hardening/TEST_EVIDENCE_MANIFEST.json`
-15. `docs/hardening/DELETION_GOVERNANCE.json`
-16. `docs/hardening/AUTHORITY_SURFACE_MANIFEST.json`
-17. `AGENTS.md`
+11. `docs/hardening/PHASE_05_EVIDENCE_MANIFEST.v2.json`
+12. `docs/hardening/AUTHORITY_SURFACE_MANIFEST.json`
+13. `docs/hardening/ADR_INDEX.md`
+14. `docs/hardening/adrs/ADR-009-AUTHORITY-ISOLATION-BOUNDARIES.md`
+15. `docs/hardening/COMPATIBILITY_MATRIX.md`
+16. `docs/hardening/ROLLBACK_MAP.md`
+17. `docs/hardening/TEST_EVIDENCE_MANIFEST.json`
+18. `docs/hardening/DELETION_GOVERNANCE.json`
+19. `AGENTS.md`
 
-## Phase 04 completed-static guarantees
+## Current Phase 05 authority owners
 
-### Durable event contract
+Additive barrel:
 
-- InMemory/Postgres adapters share one logical-event projection/hash;
-- equal logical retries converge even when attempt-local IDs differ;
-- conflicting reuse of an idempotency key fails closed;
-- accepted events and reads are detached;
-- cursor/limit/order behavior is aligned;
-- fake Postgres fixture covers transaction and conflict paths.
+`packages/execution/src/authority-phase05-current.ts`
 
-### Canonical persistence wire
+### Capability execution
 
-- canonical JSON wire version 1 is explicit;
-- optional object `undefined` is omitted only at the wire boundary;
-- ambiguous JS values, cycles, accessors, sparse arrays and non-finite numbers fail closed;
-- NFC normalization and normalized-key collision rejection are enforced;
-- SHA-256 hashes exact canonical persisted values.
+- `AuthorityCapabilityRuntime` — canonical facade candidate;
+- private `CapabilityRouter` + `StrictToolRegistry`;
+- `AuthorityPinnedHttpTool`;
+- `AuthorityFileHandleTool`;
+- `createAuthorityProviderRegistry`.
 
-### Knowledge authority
+### Side effects
 
-- AuthorityKnowledgeGateway + append-only stores own the candidate truth path;
-- valid time and system time are independent;
-- future corrections do not leak into historical knownAt;
-- domain closure is a new revision, not historical mutation;
-- PropertyGraph is a derived projection;
-- projection failure is explicit degraded saga evidence and can be repaired idempotently;
-- Postgres candidate uses advisory transaction lock, revision CAS and INSERT-only history.
+- `AuthoritySideEffectRuntime`;
+- `InMemoryAuthoritySideEffectStore`;
+- `AuthoritySideEffectPostgresStore`;
+- `AuthorityExecutionRuntime`.
 
-### Hub recovery
+### Leases/fencing
 
-- command/outcome/projection hashes survive JSON/JSONB roundtrip;
-- snapshot envelope has schema + serialization version;
-- SHA-256 covers the actual wire payload;
-- runtime hydration does not change semantic/integrity hash;
-- snapshot + tail replay rebuilds an empty projection;
-- corruption/schema/serialization/metadata/event-log-behind failures are explicit.
+- `AuthorityLeaseService`;
+- `InMemoryAuthorityLeaseStore`;
+- `AuthorityLeasePostgresStore`.
 
-All contracts remain unexecuted. Assurance did not move.
+### Policy
 
-## Next phase — Phase 05 Security / Concurrency / Agent Runtime
+- `AuthorityPolicyEngine`;
+- `InMemoryAuthorityApprovalStore`;
+- `PolicyBoundAuthorityExecutionRuntime`.
 
-Create exactly one descendant branch:
+### Agent runs
 
-`hardening/phase-05-security-concurrency-runtime`
+- `AuthorityAgentRunService`;
+- `InMemoryAuthorityAgentRunStore`;
+- `AuthorityAgentRunPostgresStore`.
 
-from the synchronized Phase 04 checkpoint.
+### Isolation
 
-### Exact implementation order
+- `AuthorityHttpEgressGuard`;
+- `AuthorityFileSandbox`.
 
-1. Durable side-effect ledger
-   - define operation identity from principal/project/resource/action/request hash;
-   - states: claimed, prepared, executing, succeeded, failed, uncertain, compensating, compensated;
-   - append/store attempts and accepted terminal evidence;
-   - same key/same request converges, conflict fails closed;
-   - crash window after provider mutation becomes uncertain, not automatic success/retry.
-2. Resource fencing
-   - monotonic token per resource;
-   - validate at resource commit boundary;
-   - reject stale workers and emit near-miss evidence.
-3. Lease lifecycle
-   - acquire/renew/release/expire/reacquire;
-   - deterministic clock;
-   - orphan/crash recovery;
-   - bounded TTL, no indefinite locks.
-4. Durable goal aggregate
-   - immutable goal/plan/step/result history;
-   - resume without repeating accepted external effects;
-   - compensation/waiver for partial completion.
-5. Policy
-   - principal/project/sensitivity context;
-   - enforce at all execution/destructive boundaries;
-   - unknown actions/operators/fields fail closed;
-   - durable approvals.
-6. Deployment isolation
-   - DNS/egress/HTTP and filesystem sandbox contracts;
-   - SSRF rebinding, private network, symlink and TOCTOU cases.
-7. Near-miss evidence
-   - duplicate/stale/lease/policy/uncertain/compensation signals;
-   - observer failure cannot change protected outcome.
+### Evidence
+
+- `AuthorityExecutionObserver`;
+- `AuthorityExecutionSignalStore`;
+- `AuthorityTelemetry` remains the cross-package observability owner.
+
+## Implemented static guarantees
+
+### Canonical capability path
+
+```text
+request
+→ authority provider preflight
+→ policy
+→ durable operation claim
+→ lease + fencing
+→ prepare
+→ begin
+→ strict provider tool
+→ commit OR reconciliation_required
+→ agent-run step evidence
+→ lease release / repair evidence
+```
+
+- legacy direct tools are removed from the authority registry;
+- read/mutation tool modes are explicit;
+- provider idempotency is bound into durable operation input;
+- preflight runs before `executing`;
+- committed retries return durable truth without another provider call;
+- provider exceptions after begin become `reconciliation_required`;
+- optional agent-run evidence is appended only after accepted commit;
+- post-commit evidence/lease-release failure cannot rewrite provider truth.
+
+### External-effect truth
+
+- append-only operation history;
+- payload-bound claim/transition idempotency;
+- uncertain/reconciliation and compensation semantics;
+- explicit provider-outcome-unknown transition;
+- in-memory/Postgres stores;
+- fencing validation before accepted local commit.
+
+### Lease/concurrency
+
+- bounded acquire/renew/release/expire/reacquire;
+- monotonic fencing;
+- explicit-time stale owner/token/revision rejection;
+- in-memory/Postgres stores.
+
+### Policy
+
+- default deny;
+- project/sensitivity/principal isolation;
+- exact-operation approvals;
+- authorization at claim/prepare/execute/commit;
+- no protected mutation on denial.
+
+### Durable run aggregate
+
+- append-only goal/plan/step/result/criterion revisions;
+- DAG/dependency/attempt rules;
+- exact evaluator evidence;
+- side-effect step evidence requirements;
+- in-memory/Postgres stores and restart/corruption contracts.
+
+### Deployment isolation contracts
+
+- DNS answer pinning, special-use address rejection, redirect reauthorization and TTL;
+- canonical root containment, traversal defense, symlink policy and broker-opened opaque handles;
+- decision tamper detection;
+- normal fetch/path reopen is explicitly non-equivalent.
+
+All remain `WRITTEN_UNEXECUTED`.
+
+## Next exact implementation slice
+
+### P05.10 — provider reconciliation and trusted execution boundary
+
+1. define provider-native reconciliation adapters for HTTP and filesystem:
+   - inspect by provider idempotency/resource identity;
+   - return `applied | not_applied | partial` with immutable evidence;
+   - never infer `not_applied` from transport exception alone;
+2. bind isolation validation to a trusted facade clock/timeline rather than accepting only tool-supplied `evaluatedAt`;
+3. specify and implement deployment ports:
+   - pinned-address HTTP transport preserving original TLS SNI/Host;
+   - platform handle broker/executor with no path reopen;
+4. extend capability contracts for:
+   - stale owner/token;
+   - provider-not-applied retry preparation;
+   - partial application and compensation;
+   - evidence-repair after provider commit;
+5. emit failure-isolated signals for policy deny, isolation deny, lease conflict/expiry, provider uncertainty, compensation and agent-run evidence repair;
+6. bridge terminal signals to `AuthorityTelemetry` without making telemetry an execution dependency.
+
+## Remaining Phase 05 after P05.10
+
+- resolve superseded Phase 05 prototypes/barrels/tests/fixtures under deletion governance;
+- update compatibility and rollback documentation;
+- statically inspect the strict TypeScript graph;
+- freeze one exact Phase 05 checkpoint.
 
 ## Hard safety rules
 
-- do not claim exactly-once provider effects;
+- no exactly-once provider-effect claim;
+- no blind retry after execution begins;
+- no path/URL re-resolution after isolation decision;
 - idempotency-key presence is not durable idempotency;
-- fencing-token presence is not commit-boundary validation;
-- do not auto-retry an operation whose provider outcome is unknown;
-- state-machine rollback cannot undo an external side effect;
-- no alternate tool/runtime path may bypass the operation ledger;
-- no legacy test rewrite without waiver+ADR;
+- fencing-token presence is not provider/resource acceptance proof;
+- policy and isolation must intercept the real path;
+- no alternate authority writer;
+- no legacy test rewrite without waiver + ADR;
 - material deletion requires deletion-governance entry;
-- no automatic Actions or CD;
+- no automatic Actions/CD;
 - no Assurance score movement before execution.
 
-## Branch law
+## Static verification commands prepared, not run
 
 ```text
-Phase01 → Phase02 → Phase03 → Phase04 → Phase05 → Phase06 → Phase07
-                                                                  ↓
-                                                     exact qualification SHA
-                                                                  ↓
-                                                               new W13
+npm run typecheck:phase05
+npm run test:authority:phase05
 ```
-
-## Cost / verification
-
-- recurring incremental infrastructure cost: `EUR 0/month`;
-- Actions manual-only;
-- CD/deploy/release OFF;
-- Codex optional only for shell-heavy work;
-- GitHub/Drive/Todoist remain the cross-plane control system.
 
 ## Rollback
 
-- Phase04: use the final `checkpoint/phase-04-*` branch created from the synchronized closure head;
-- Phase03: `checkpoint/phase-03-core-ad6a93c`;
-- Phase02: `checkpoint/phase-02-contracts-06487e7`;
-- Phase01: `checkpoint/phase-01-reconciled-76dfdc7`;
+- Phase 05 rollback base: `checkpoint/phase-04-temporal-2e15b88`;
+- Phase 03: `checkpoint/phase-03-core-ad6a93c`;
+- Phase 02: `checkpoint/phase-02-contracts-06487e7`;
+- Phase 01: `checkpoint/phase-01-reconciled-76dfdc7`;
 - pre-reconciliation: #33 `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`.

@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.authority.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "useUnknownInCatchVariables": true
+  },
+  "files": [
+    "packages/execution/src/authority-side-effect.ts",
+    "packages/execution/src/authority-side-effect-runtime.ts",
+    "packages/execution/src/authority-side-effect-store-postgres.ts",
+    "packages/execution/src/authority-side-effect-coordinator.ts",
+    "packages/execution/src/authority-lease.ts",
+    "packages/execution/src/authority-execution-runtime.ts",
+    "packages/execution/src/authority-phase05.ts",
+    "scripts/fixtures/fake-authority-side-effect-store-postgres.ts",
+    "scripts/test-authority-side-effect-runtime.ts",
+    "scripts/test-authority-side-effect-postgres.ts",
+    "scripts/test-authority-lease.ts",
+    "scripts/test-authority-execution-runtime.ts"
+  ]
+}

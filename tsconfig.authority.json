@@ -22,6 +22,11 @@
     "packages/knowledge/src/authority-knowledge.ts",
     "packages/knowledge/src/postgres-authority-knowledge.ts",
     "packages/execution/src/tool-runtime.ts",
+    "packages/execution/src/strict-tool-registry.ts",
+    "packages/execution/src/capability-router.ts",
+    "packages/execution/src/side-effect-ledger.ts",
+    "packages/execution/src/postgres-side-effect-ledger.ts",
+    "packages/execution/src/authority-capability-executor.ts",
     "packages/observability/src/authority.ts",
     "packages/graph/src/authority-state-machine.ts",
     "packages/graph/src/authority-graphrag-index.ts",
@@ -41,6 +46,7 @@
     "scripts/fixtures/fake-event-log-postgres.ts",
     "scripts/fixtures/fake-authority-knowledge-postgres.ts",
     "scripts/fixtures/fake-authority-hub-snapshot-postgres.ts",
+    "scripts/fixtures/fake-side-effect-ledger-postgres.ts",
     "scripts/check-test-evidence.ts",
     "scripts/check-deletion-governance.ts",
     "scripts/test-authority-state-machine.ts",
@@ -57,6 +63,8 @@
     "scripts/test-authority-event-log-parity.ts",
     "scripts/test-authority-canonical-wire.ts",
     "scripts/test-authority-knowledge.ts",
-    "scripts/test-authority-knowledge-postgres.ts"
+    "scripts/test-authority-knowledge-postgres.ts",
+    "scripts/test-authority-side-effect-ledger.ts",
+    "scripts/test-authority-capability-executor.ts"
   ]
 }

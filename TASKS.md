@@ -3,134 +3,149 @@
 ## Program status
 
 - North Star: `20/20 verticals at Authority 10.0`
-- Current phase: `04 COMPLETE_STATIC → 05 NEXT`
-- Checkpoints: Phase01 `76dfdc7`, Phase02 `06487e7`, Phase03 `ad6a93c`, Phase04 pending synchronized checkpoint ref
-- Draft PR chain: `#40 → #43 → #44 → #45`
-- Authority: `SHADOW_ONLY`
+- Current phase: `05 — SECURITY / CONCURRENCY / AGENT RUNTIME`
+- Canonical Phase 05 PR: `#46`
+- Phase 05 branch: `hardening/phase-05-security-concurrency-runtime`
+- Phase 04 base: `checkpoint/phase-04-temporal-2e15b88`
+- Authority: `SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`
 - Automatic CI/CD: `OFF`
 - Todoist project: `COS GRAPH ENGINE · 10/10 AUTHORITY PROGRAM` (`6hMP59rWj7f5xH7M`)
 
-## Phase 00 — North Star & control plane — COMPLETE
-- [x] Evidence-backed North Star, 20D audit, Todoist/Drive/GitHub control plane and Build/Assurance/Authority scoring.
+## Phases 00–04 — COMPLETE_STATIC
 
-## Phase 01 — Canonical reconciliation — COMPLETE_STATIC
-- [x] Reconcile #34/#35 from #33, select one authority owner per capability, freeze `checkpoint/phase-01-reconciled-76dfdc7`.
+- [x] North Star/control plane and 20D score model.
+- [x] Canonical #34/#35 reconciliation.
+- [x] Contracts, compatibility, ADR and deletion governance.
+- [x] Core graph/identity/CAS/CSR correctness candidates.
+- [x] Temporal/Event/Persistence candidates and frozen Phase 04 checkpoint.
 
-## Phase 02 — Contracts / compatibility / deletion governance — COMPLETE_STATIC
-- [x] Legacy evidence law, additive authority evidence, ADRs, compatibility matrix, rollback map, API policy, deletion governance and read-only migration projections.
-- [x] Freeze `checkpoint/phase-02-contracts-06487e7`.
+All remain `IMPLEMENTED_UNVERIFIED`; Assurance unchanged.
 
-## Phase 03 — Core correctness — COMPLETE_STATIC
-- [x] Copy-safe CAS/idempotency.
-- [x] PropertyGraph read/index/traversal correctness.
-- [x] Strict canonical serialization and provider-aware identity.
-- [x] Deterministic multiedge forward/reverse CSR.
-- [x] Additive authority contracts, ADR-007/008 and rollback/deletion governance.
-- [x] Freeze `checkpoint/phase-03-core-ad6a93c`.
+## Phase 05 — Security / Concurrency / Agent Runtime — ACTIVE
 
-## Phase 04 — Temporal / Event / Persistence — COMPLETE_STATIC
+### Governance / lineage
 
-### P04.1 EventLog semantic parity
-- [x] Shared payload-bound logical-event contract for InMemory/Postgres.
-- [x] Same logical retry converges across changing attempt IDs.
-- [x] Same key + different semantic event fails closed.
-- [x] Copy-safe append/get/getByKey/readFrom.
-- [x] Shared cursor/limit/order validation.
-- [x] Fake-Postgres parity contract.
+- [x] Use one canonical Phase 05 PR (#46) from frozen Phase 04 checkpoint.
+- [x] Close duplicate PR #47 without merge or branch deletion.
+- [x] Create canonical additive Phase 05 barrel.
+- [x] Create strict Phase 05 typecheck graph and aggregate contract command.
+- [x] Reconcile Phase 05 evidence and authority ownership manifests.
+- [x] Add ADR-009 for pinned HTTP transport and broker-handle filesystem boundaries.
 
-### P04.2 Canonical persisted payloads
-- [x] Canonical JSON wire v1.
-- [x] Optional object `undefined` omission only at wire boundary.
-- [x] Explicit serialization/integrity versioning.
-- [x] JSON/JSONB roundtrip-stable hashes.
-- [x] Additive canonical-wire contract.
+### P05.1 — Durable side-effect ledger
 
-### P04.3 Knowledge transaction/saga
-- [x] Authority ledger separated from rebuildable PropertyGraph projection.
-- [x] Projection failure represented as explicit degraded saga evidence.
-- [x] Retry repairs projection without duplicating accepted truth.
-- [x] Failure-injection contract.
+- [x] Append-only side-effect operation revisions.
+- [x] Payload-bound claim and transition idempotency.
+- [x] Explicit uncertain/reconciliation and compensation states.
+- [x] Explicit provider-outcome-unknown transition without blind retry.
+- [x] In-memory authority store.
+- [x] Postgres/Supabase-compatible append-only store.
+- [x] Provider reconciliation runtime candidate.
+- [x] Additive in-memory/Postgres/crash-window contracts written.
+- [ ] Add provider-native adapters that inspect actual provider/resource outcomes.
 
-### P04.4 Temporal semantics beyond memory
-- [x] Append-only valid/system-time authority knowledge revisions.
-- [x] No future correction/closure leakage into historical knownAt.
-- [x] Provenance/epistemic/confidence/scope/sensitivity first-class.
-- [x] Domain closure distinct from transaction-time supersession.
+### P05.2 — Resource-bound fencing
 
-### P04.5 Postgres/Supabase semantic fixtures
-- [x] Driver-neutral fake EventLog executor.
-- [x] Driver-neutral fake authority Knowledge executor.
-- [x] Driver-neutral fake Hub snapshot executor.
-- [x] Transaction/CAS/JSON-roundtrip assertions without production DB mutation.
+- [x] Monotonic fencing tokens.
+- [x] Validate lease ID, owner and token before prepare.
+- [x] Validate current fencing token before begin/commit.
+- [x] Explicit-time stale/expiry rejection.
+- [x] Additive stale-fence contracts written.
+- [ ] Prove actual provider/resource commit consumes the fence or provider-native idempotency contract.
 
-### P04.6 Replay / restore contracts
-- [x] Corrupted snapshot failure.
-- [x] Schema and serialization mismatch failure.
-- [x] Empty projection snapshot + tail restore.
-- [x] Deterministic final semantic hash.
-- [x] Command/outcome tail replay without re-deciding history.
-- [x] Event-log-behind-snapshot failure.
+### P05.3 — Lease lifecycle and recovery
 
-- [x] Update authority ownership/deletion/evidence manifests.
-- [x] Publish `docs/hardening/PHASE_04_CLOSURE.md`.
-- [ ] Create final synchronized Phase 04 checkpoint branch.
+- [x] Acquire/renew/release/expire/reacquire with bounded TTL.
+- [x] Deterministic explicit clock.
+- [x] Monotonic token after expiry/release reacquisition.
+- [x] In-memory and Postgres lease stores.
+- [x] Restart/corruption/advisory-lock contracts written.
+- [ ] Integrate lease orphan/reconciliation evidence with the canonical signal path.
 
-**Checkpoint:** `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`. Assurance remains unchanged.
+### P05.4 — Durable agent aggregate
 
-## Phase 05 — Security / Concurrency / Agent Runtime — NEXT
+- [x] Append-only goal/plan/step/result/criterion revisions.
+- [x] DAG, dependency and attempt ordering.
+- [x] Exact evaluator ID/version acceptance evidence.
+- [x] Side-effecting accepted step requires committed operation evidence.
+- [x] In-memory run store and restart contract.
+- [x] `AuthorityAgentRunPostgresStore` candidate.
+- [x] Postgres fixture for operation idempotency, immutable rows, restart and corruption.
+- [x] Canonical capability facade can append accepted provider receipts into run-step evidence after commit.
+- [ ] Add explicit repair queue/contract when post-commit cross-store agent evidence cannot be appended.
 
-### P05.1 Durable side-effect ledger
-- [ ] Define operation states: `claimed → prepared → executing → succeeded|failed|uncertain|compensating|compensated`.
-- [ ] Bind operation identity to principal, project, resource, action and canonical request hash.
-- [ ] Persist accepted result/error/provider reference and attempt evidence.
-- [ ] Same operation key + same request converges; conflict fails closed.
-- [ ] Crash after provider mutation but before result commit becomes `uncertain`, never silently retried as new work.
-- [ ] Add in-memory reference store + Postgres/Supabase candidate + additive contracts.
+### P05.5 — Policy enforcement
 
-### P05.2 Resource-bound fencing
-- [ ] Issue monotonic fencing tokens per resource.
-- [ ] Validate token at the actual resource commit boundary.
-- [ ] Reject stale owner even if it retains a formerly valid lease token.
-- [ ] Record stale-write near miss.
+- [x] Default deny.
+- [x] Principal, project and sensitivity gates.
+- [x] Deny/approval precedence.
+- [x] Exact-operation time-bounded approvals.
+- [x] Claim/prepare/execute/commit policy facade.
+- [x] Policy-decision evidence persisted in operation metadata.
+- [x] Real `CapabilityRouter`/`StrictToolRegistry` path bound to the policy runtime through `AuthorityCapabilityRuntime`.
+- [ ] Prove package-root callers cannot bypass the authority facade after Phase 07 promotion.
 
-### P05.3 Lease lifecycle and recovery
-- [ ] Acquire/renew/release/expire/reacquire with bounded TTL.
-- [ ] Deterministic clock injection.
-- [ ] Crash recovery and orphan-owner reconciliation.
-- [ ] No indefinite lock or silent lease stealing.
+### P05.6 — HTTP / filesystem isolation
 
-### P05.4 Durable agent aggregate
-- [ ] Immutable goal/plan/step/result snapshots.
-- [ ] Persist transition/outcome trace and acceptance evidence.
-- [ ] Resume after restart without replaying already accepted side effects.
-- [ ] Explicit compensation/waiver for partial failure.
+- [x] HTTP host/protocol/method/port policy.
+- [x] DNS resolution and public-address pinning.
+- [x] Private/special-use/mixed answer rejection.
+- [x] Decision TTL and redirect reauthorization.
+- [x] Filesystem root/operation/traversal defense.
+- [x] Trusted broker-opened opaque handle contract.
+- [x] Root-prefix escape and symlink control.
+- [x] Authority pinned-HTTP and broker-handle tool adapters.
+- [x] Additive SSRF/DNS/file-handle negative contract written.
+- [ ] Bind isolation evaluation time to a trusted runtime clock.
+- [ ] Implement/test real pinned HTTP transport with TLS SNI/Host preservation and no second DNS resolution.
+- [ ] Implement/test real platform filesystem broker using openat/dirfd or equivalent.
 
-### P05.5 Policy enforcement
-- [ ] Principal/project/sensitivity model.
-- [ ] Policy applied at server, retrieval, memory, tool, workflow and destructive boundaries.
-- [ ] Unknown field/operator/action fails closed.
-- [ ] Approval state is durable and non-forgeable.
+### P05.7 — Near-miss / execution evidence
 
-### P05.6 HTTP/FS deployment isolation
-- [ ] URL/path guard plus DNS/egress and filesystem sandbox contract.
-- [ ] SSRF rebinding, private network, symlink and TOCTOU threat cases.
-- [ ] Document which layer owns each defense.
+- [x] Deterministic content-hashed execution signals.
+- [x] Stale fencing rejection evidence.
+- [x] Observation failure isolation.
+- [x] Detached signal store candidate.
+- [ ] Wire policy deny, lease conflict/expiry, isolation denial, uncertain provider outcome, lease-release repair and agent-run terminal outcomes.
+- [ ] Bridge canonical signals to `AuthorityTelemetry` without making telemetry a SPOF.
 
-### P05.7 Near-miss evidence
-- [ ] Duplicate operation, stale fencing, lease conflict/expiry, policy deny, uncertain provider outcome and compensation failure emit immutable evidence.
-- [ ] Observation failure cannot change protected operation outcome.
+### P05.8 — Canonical capability path
 
-**Phase 05 checkpoint:** stale, duplicate, unauthorized or crash-recovered workers cannot create uncontrolled external effects or falsely report exactly-once completion.
+- [x] Implement one additive facade owning read-only and side-effecting capability execution.
+- [x] Make `CapabilityRouter` and `StrictToolRegistry` private to the facade.
+- [x] Remove legacy `filesystem`, `http_client` and `search` tools from the authority registry.
+- [x] Require authority provider preflight before execution begins.
+- [x] Side-effecting path: preflight → policy → operation claim → lease/fence → prepare → begin → provider → commit/reconciliation → agent-run evidence.
+- [x] Return durable committed result without second provider call on retry.
+- [x] Convert provider exception after begin to `reconciliation_required`.
+- [x] Expired isolation decision and policy denial occur before provider execution/operation mutation.
+- [x] Preserve legacy paths as shadow until Phase 07.
+- [x] Add end-to-end fake-provider contracts for allow, deny, success, expiry and unknown outcome.
+- [ ] Add canonical facade contracts for stale owner/token, provider-not-applied reconciliation, partial application and compensation.
+- [ ] Add provider-specific reconciliation implementations.
+
+### P05.9 — Surface closure
+
+- [ ] Resolve/archive superseded Phase 05 prototypes, barrels, tsconfigs, tests and fixtures under deletion governance.
+- [ ] Complete compatibility and rollback deltas.
+- [ ] Static review of strict TypeScript graph.
+- [ ] Freeze one exact Phase 05 checkpoint.
+
+**Phase 05 checkpoint:** stale, duplicate, unauthorized or crash-recovered workers cannot create uncontrolled external effects; one authority capability path owns the transition from request to evidence.
 
 ## Phase 06 — Hub / Memory / GraphRAG / Observability
-- [x] Candidate GraphRAG/context/memory/Hub paths implemented.
+
+- [x] Candidate GraphRAG/context/memory/Hub/knowledge paths implemented.
 - [ ] Complete AuthorityTelemetry integration, gold-query set and cross-project leakage evidence.
 
 ## Phase 07 — Test Truth / Manual CI
-- [ ] Manual full matrix, clean lockfile/toolchain pin, legacy/orphan/authority suites, failure-red proof, exact qualification SHA and new W13.
+
+- [ ] Manual full matrix, clean lockfile/toolchain pin, legacy/orphan/authority suites, failure-red proof and exact qualification SHA.
 
 ## Phase 08 — Evidence Campaign
+
 - [ ] Security, contention, replay, restore, failure injection, scientific benchmarks, cold-agent resume and evidence manifest.
 
 ## Phase 09 — Authority Qualification / Merge
-- [ ] Final 20D re-audit, independent review, evidence-based scores, expected-SHA merge, separate deployment decision and promotion only at D01–D20=10.0.
+
+- [ ] Final 20D re-audit, independent review, evidence-based scores, expected-SHA merge and promotion only at D01–D20=10.0.

@@ -12,6 +12,7 @@ Normative decisions for the 10/10 Authority Program:
 | ADR-006 | Manual CI changes invocation cost, not verification breadth | ACCEPTED_FOR_HARDENING |
 | ADR-007 | Strict authority canonical serialization while retaining legacy deterministic hashes | ACCEPTED_FOR_HARDENING |
 | ADR-008 | Deterministic multiedge identity for authority bidirectional CSR | ACCEPTED_FOR_HARDENING |
+| ADR-009 | HTTP authority requires pinned transport; filesystem authority requires an atomically opened handle broker | ACCEPTED_FOR_HARDENING |
 
 Files:
 
@@ -23,6 +24,7 @@ Files:
 - `adrs/ADR-006-MANUAL-CI-FULL-BREADTH.md`
 - `adrs/ADR-007-STRICT-CANONICAL-SERIALIZATION.md`
 - `adrs/ADR-008-AUTHORITY-CSR-EDGE-IDENTITY.md`
+- `adrs/ADR-009-AUTHORITY-ISOLATION-BOUNDARIES.md`
 
 ## Change rule
 

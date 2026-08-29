@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.phase05.evidence-v2.json",
+  "include": [
+    "packages/execution/src/authority-capability-signal-store-postgres.ts",
+    "packages/execution/src/authority-phase05-evidence-v2-postgres.ts",
+    "scripts/fixtures/fake-authority-capability-signal-postgres.ts",
+    "scripts/test-authority-capability-signal-postgres.ts"
+  ]
+}
