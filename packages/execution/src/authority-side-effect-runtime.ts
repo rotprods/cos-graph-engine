@@ -35,6 +35,10 @@ export interface ProviderSideEffectReconciler {
   inspect(operation: AuthoritySideEffectView): Promise<ProviderReconciliationResult>;
 }
 
+export interface MarkProviderOutcomeUnknownInput extends AuthoritySideEffectTransitionBase {
+  reason: AuthorityOperationError;
+}
+
 export interface RecoverInterruptedSideEffectInput {
   operationId: string;
   transitionKeyPrefix: string;
@@ -89,6 +93,24 @@ export class AuthoritySideEffectRuntime {
     return this.service.commit(input);
   }
 
+  /**
+   * Records that provider execution began but no trustworthy terminal outcome is
+   * available. This is deliberately separate from failure and never authorizes a
+   * retry. A later `recoverInterrupted` call must inspect provider/resource truth.
+   */
+  markProviderOutcomeUnknown(
+    input: MarkProviderOutcomeUnknownInput,
+  ): Promise<AuthoritySideEffectAppendResult> {
+    return this.service.markReconciliationRequired({
+      operationId: input.operationId,
+      expectedRevision: input.expectedRevision,
+      transitionKey: input.transitionKey,
+      recordedAt: input.recordedAt,
+      metadata: input.metadata,
+      reason: input.reason,
+    });
+  }
+
   failBeforeExternalEffect(
     input: Parameters<AuthoritySideEffectService['failWithoutEffect']>[0],
   ): Promise<AuthoritySideEffectAppendResult> {
@@ -125,7 +147,7 @@ export class AuthoritySideEffectRuntime {
     }
 
     if (current.state === 'executing') {
-      const marked = await this.service.markReconciliationRequired({
+      const marked = await this.markProviderOutcomeUnknown({
         operationId: current.operationId,
         expectedRevision: current.revision,
         transitionKey: `${input.transitionKeyPrefix}:interrupted`,
