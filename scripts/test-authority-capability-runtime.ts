@@ -215,10 +215,10 @@ async function main(): Promise<void> {
   check(durableRun?.stepResults.length === 1, 'agent run retains one accepted step result');
   check(durableRun?.stepResults[0]?.sideEffectOperationId === committed.operation.operationId, 'agent step points to the durable side-effect operation');
 
-  const retried = await runtime.executeSideEffect(writeRequest);
+  const retried = await runtime.executeSideEffect({ ...writeRequest, agentStep: undefined });
   check(retried.status === 'already_committed', 'same logical retry resolves to durable committed outcome');
   check(transport.calls.length === 1, 'committed retry never calls the provider again');
-  check(retried.agentEvidence.status === 'recorded', 'agent evidence retry converges idempotently');
+  check(retried.agentEvidence.status === 'not_requested', 'provider retry does not attempt a second cross-store evidence mutation');
 
   const read = await runtime.executeRead({
     capability: 'authority_http_read',
@@ -261,14 +261,15 @@ async function main(): Promise<void> {
   check(unknownRetry.status === 'reconciliation_required', 'retry of uncertain operation requires reconciliation');
   check(transport.calls.length === 3, 'uncertain operation retry never executes provider blindly');
 
+  const expiredTarget = await guard.authorize({
+    url: 'https://api.example.com/orders/44', method: 'POST', at: at(30),
+  });
   const operationCountBeforeExpired = (await operationStore.getHistory(committed.operation.operationId)).length;
   await assert.rejects(() => runtime.executeSideEffect({
     ...writeRequest,
     resourceUri: 'https://api.example.com/orders/44',
     input: {
-      target: await guard.authorize({
-        url: 'https://api.example.com/orders/44', method: 'POST', at: at(30),
-      }),
+      target: expiredTarget,
       evaluatedAt: at(200),
       body: '{}',
     },
@@ -311,8 +312,8 @@ async function main(): Promise<void> {
     'policy denial appends no side-effect operation',
   );
 
-  // Construction-time smoke check for filesystem dependency type; it is not
-  // executed here because the dedicated isolation suite owns handle semantics.
+  // Construction-time smoke check for filesystem dependency type; the dedicated
+  // isolation suite owns handle semantics.
   void AuthorityFileSandbox;
 
   console.log(`Authority capability runtime contract: ${assertions} assertions passed`);
