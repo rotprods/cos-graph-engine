@@ -169,7 +169,8 @@ async function main(): Promise<void> {
     resourceUri: 'https://api.example.com/orders/42',
     input: {
       target: writeTarget,
-      evaluatedAt: at(4),
+      // Deliberately stale caller value. The facade must overwrite it with beginAt.
+      evaluatedAt: at(200),
       headers: { 'content-type': 'application/json' },
       body: '{"status":"approved"}',
     },
@@ -210,6 +211,7 @@ async function main(): Promise<void> {
   check(transport.calls[0]?.target.resolvedAddresses[0]?.address === '93.184.216.34', 'transport receives the pinned address set');
   check(transport.calls[0]?.providerIdempotencyKey === 'provider-write-order-42', 'provider idempotency key reaches the transport unchanged');
   check(transport.calls[0]?.target.hostname === 'api.example.com', 'original hostname remains available for SNI/Host semantics');
+  check(transport.calls[0]?.evaluatedAt === at(4), 'facade-owned beginAt replaces caller-selected evaluation time');
 
   const durableRun = await agentRuns.get(createdRun.revision.runId);
   check(durableRun?.stepResults.length === 1, 'agent run retains one accepted step result');
@@ -226,12 +228,13 @@ async function main(): Promise<void> {
     principal,
     sensitivity: 'internal',
     resourceUri: 'https://api.example.com/orders/42',
-    input: { target: readTarget, evaluatedAt: at(10) },
+    input: { target: readTarget, evaluatedAt: at(200) },
     at: at(10),
     context,
   });
   check(read.status === 'read_completed' && read.receipt.result.success, 'read-only pinned capability executes through strict router');
   check(transport.calls.length === 2, 'read execution is distinct from side-effect retry');
+  check(transport.calls[1]?.evaluatedAt === at(10), 'read facade binds its trusted request time');
 
   transport.mode = 'throw_after_call';
   const unknownRequest = {
@@ -241,7 +244,7 @@ async function main(): Promise<void> {
       target: await guard.authorize({
         url: 'https://api.example.com/orders/43', method: 'POST', at: at(20),
       }),
-      evaluatedAt: at(24),
+      evaluatedAt: at(200),
       body: '{"status":"unknown"}',
     },
     idempotencyKey: 'capability-write-order-43',
@@ -257,6 +260,7 @@ async function main(): Promise<void> {
   check(unknown.status === 'reconciliation_required', 'provider exception after begin becomes reconciliation_required');
   check(unknown.operation.effectKnowledge === 'unknown', 'unknown provider effect is not mislabeled failed or not-applied');
   check(transport.calls.length === 3, 'unknown provider path executes once');
+  check(transport.calls[2]?.evaluatedAt === at(24), 'unknown path also uses trusted beginAt');
   const unknownRetry = await runtime.executeSideEffect(unknownRequest);
   check(unknownRetry.status === 'reconciliation_required', 'retry of uncertain operation requires reconciliation');
   check(transport.calls.length === 3, 'uncertain operation retry never executes provider blindly');
@@ -270,13 +274,14 @@ async function main(): Promise<void> {
     resourceUri: 'https://api.example.com/orders/44',
     input: {
       target: expiredTarget,
-      evaluatedAt: at(200),
+      // Caller tries to claim the decision is still valid. Trusted beginAt=154 wins.
+      evaluatedAt: at(31),
       body: '{}',
     },
     idempotencyKey: 'capability-write-order-44',
     providerIdempotencyKey: 'provider-write-order-44',
     timeline: {
-      claimAt: at(31), leaseAt: at(32), prepareAt: at(33), beginAt: at(34), outcomeAt: at(35),
+      claimAt: at(151), leaseAt: at(152), prepareAt: at(153), beginAt: at(154), outcomeAt: at(155),
     },
     agentStep: undefined,
   }), /EGRESS_DECISION_EXPIRED/);
@@ -312,8 +317,6 @@ async function main(): Promise<void> {
     'policy denial appends no side-effect operation',
   );
 
-  // Construction-time smoke check for filesystem dependency type; the dedicated
-  // isolation suite owns handle semantics.
   void AuthorityFileSandbox;
 
   console.log(`Authority capability runtime contract: ${assertions} assertions passed`);
