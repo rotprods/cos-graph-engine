@@ -138,10 +138,10 @@ export interface AuthorityCapabilityRuntimeDependencies {
  * Single authority capability facade.
  *
  * The registry/router remain private so authority callers cannot execute a
- * side-effecting tool directly. Provider preflight runs before the durable
- * operation enters `executing`. After begin, any tool or commit exception is
- * recorded as `reconciliation_required`; it is never converted into a blind
- * retry or false local failure.
+ * side-effecting tool directly. Provider input is rebound to authority-owned
+ * evaluation time and idempotency before preflight. After begin, any tool or
+ * commit exception is recorded as reconciliation_required; it is never
+ * converted into blind retry or false local failure.
  */
 export class AuthorityCapabilityRuntime {
   private readonly router: CapabilityRouter;
@@ -160,14 +160,17 @@ export class AuthorityCapabilityRuntime {
   ): Promise<AuthorityReadCapabilityResult> {
     const normalized = normalizeReadRequest(request);
     const tool = this.requireTool(normalized.capability, 'read');
-    await tool.preflight(normalized.input, normalized.context);
+    const providerInput = tool.bindAuthorityInput(normalized.input, {
+      evaluatedAt: normalized.at,
+    });
+    await tool.preflight(providerInput, normalized.context);
     const operationHash = canonicalHash128({
       action: 'capability.read',
       projectId: normalized.projectId,
       principalId: normalized.principal.id,
       capability: normalized.capability,
       resourceUri: normalized.resourceUri,
-      input: normalized.input,
+      input: providerInput,
     });
     const policy = await this.dependencies.policy.requireAllowed({
       principal: normalized.principal,
@@ -182,7 +185,7 @@ export class AuthorityCapabilityRuntime {
     });
     const receipt = await this.router.execute(
       normalized.capability,
-      normalized.input,
+      providerInput,
       normalized.context,
     );
     const agentEvidence = await this.recordAcceptedStep(
@@ -199,14 +202,13 @@ export class AuthorityCapabilityRuntime {
   ): Promise<AuthoritySideEffectCapabilityResult> {
     const normalized = normalizeSideEffectRequest(request);
     const tool = this.requireTool(normalized.capability, 'mutation');
-    const providerInput = bindProviderIdempotency(
-      normalized.input,
-      normalized.providerIdempotencyKey,
-    );
+    const providerInput = tool.bindAuthorityInput(normalized.input, {
+      evaluatedAt: normalized.timeline.beginAt,
+      providerIdempotencyKey: normalized.providerIdempotencyKey,
+    });
 
-    // Preflight is deliberately before claim/lease/begin. A stale isolation
-    // decision or malformed pinned handle cannot create an ambiguous provider
-    // crash window.
+    // Preflight is deliberately before claim/lease/begin. It validates the
+    // decision for the trusted future beginAt, not a caller-supplied timestamp.
     await tool.preflight(providerInput, normalized.context);
 
     const policyContext: AuthorityExecutionPolicyContext = {
@@ -309,6 +311,7 @@ export class AuthorityCapabilityRuntime {
       providerIdempotencyKey: normalized.providerIdempotencyKey,
       metadata: {
         isolationTool: normalized.capability,
+        isolationEvaluatedAt: normalized.timeline.beginAt,
         leaseResourceRevision: lease.resourceRevision,
       },
     }, policyContext);
@@ -321,6 +324,7 @@ export class AuthorityCapabilityRuntime {
       recordedAt: normalized.timeline.beginAt,
       metadata: {
         isolationPreflight: 'passed',
+        isolationEvaluatedAt: normalized.timeline.beginAt,
         providerIdempotencyKey: normalized.providerIdempotencyKey,
       },
     }, policyContext);
@@ -513,8 +517,6 @@ export class AuthorityCapabilityRuntime {
       });
       return { status: 'released', revision: released.revision.resourceRevision };
     } catch (error) {
-      // The provider operation is already committed. Lease-release failure is a
-      // near miss/evidence repair item and cannot rewrite the operation result.
       return { status: 'release_failed', error: message(error) };
     }
   }
@@ -676,19 +678,6 @@ function normalizeAgentStep(input: AuthorityAgentStepEvidenceRequest): Authority
     evidenceRefs,
     metadata: structuredClone(input.metadata ?? {}),
   };
-}
-
-function bindProviderIdempotency(input: unknown, key: string): unknown {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new Error('side-effect capability input must be an object');
-  }
-  const record = structuredClone(input) as Record<string, unknown>;
-  if (record.providerIdempotencyKey !== undefined
-    && record.providerIdempotencyKey !== key) {
-    throw new Error('CAPABILITY_PROVIDER_IDEMPOTENCY_CONFLICT');
-  }
-  record.providerIdempotencyKey = key;
-  return record;
 }
 
 function assertPrincipalProject(principal: AuthorityPrincipal, projectId: string): void {
