@@ -11,36 +11,15 @@
 - Automatic CI/CD: `OFF`
 - Todoist project: `COS GRAPH ENGINE · 10/10 AUTHORITY PROGRAM` (`6hMP59rWj7f5xH7M`)
 
-## Phase 00 — North Star & control plane — COMPLETE
+## Phases 00–04 — COMPLETE_STATIC
 
-- [x] Evidence-backed North Star, 20D audit, Build/Assurance/Authority scoring and GitHub↔Drive↔Todoist control plane.
+- [x] North Star/control plane and 20D score model.
+- [x] Canonical #34/#35 reconciliation.
+- [x] Contracts, compatibility, ADR and deletion governance.
+- [x] Core graph/identity/CAS/CSR correctness candidates.
+- [x] Temporal/Event/Persistence candidates and frozen Phase 04 checkpoint.
 
-## Phase 01 — Canonical reconciliation — COMPLETE_STATIC
-
-- [x] Reconcile #34/#35, select one authority owner per capability and freeze Phase 01 checkpoint.
-
-## Phase 02 — Contracts / compatibility / deletion governance — COMPLETE_STATIC
-
-- [x] Legacy evidence law, additive authority tests, ADRs, compatibility matrix, rollback map, API policy and deletion governance.
-
-## Phase 03 — Core correctness — COMPLETE_STATIC
-
-- [x] Copy-safe CAS/idempotency.
-- [x] PropertyGraph read/index/traversal correctness.
-- [x] Strict canonical serialization and provider-aware identity.
-- [x] Deterministic multiedge forward/reverse CSR.
-
-## Phase 04 — Temporal / Event / Persistence — COMPLETE_STATIC
-
-- [x] EventLog in-memory/Postgres semantic parity.
-- [x] Canonical JSON wire v1.
-- [x] Append-only bitemporal authority knowledge.
-- [x] Rebuildable graph projection with degraded saga evidence.
-- [x] Postgres semantic fixtures.
-- [x] Hub snapshot integrity and snapshot+tail recovery contracts.
-- [x] Freeze `checkpoint/phase-04-temporal-2e15b88`.
-
-**Checkpoint:** source contracts written, not executed; Assurance unchanged.
+All remain `IMPLEMENTED_UNVERIFIED`; Assurance unchanged.
 
 ## Phase 05 — Security / Concurrency / Agent Runtime — ACTIVE
 
@@ -58,6 +37,7 @@
 - [x] Append-only side-effect operation revisions.
 - [x] Payload-bound claim and transition idempotency.
 - [x] Explicit uncertain/reconciliation and compensation states.
+- [x] Explicit provider-outcome-unknown transition without blind retry.
 - [x] In-memory authority store.
 - [x] Postgres/Supabase-compatible append-only store.
 - [x] Provider reconciliation runtime candidate.
@@ -78,8 +58,7 @@
 - [x] Acquire/renew/release/expire/reacquire with bounded TTL.
 - [x] Deterministic explicit clock.
 - [x] Monotonic token after expiry/release reacquisition.
-- [x] In-memory lease store.
-- [x] Postgres lease store.
+- [x] In-memory and Postgres lease stores.
 - [x] Restart/corruption/advisory-lock contracts written.
 - [ ] Integrate lease orphan/reconciliation evidence with the canonical signal path.
 
@@ -92,7 +71,8 @@
 - [x] In-memory run store and restart contract.
 - [x] `AuthorityAgentRunPostgresStore` candidate.
 - [x] Postgres fixture for operation idempotency, immutable rows, restart and corruption.
-- [ ] Bind real capability execution receipts into run-step evidence automatically.
+- [x] Canonical capability facade can append accepted provider receipts into run-step evidence after commit.
+- [ ] Add explicit repair queue/contract when post-commit cross-store agent evidence cannot be appended.
 
 ### P05.5 — Policy enforcement
 
@@ -102,7 +82,8 @@
 - [x] Exact-operation time-bounded approvals.
 - [x] Claim/prepare/execute/commit policy facade.
 - [x] Policy-decision evidence persisted in operation metadata.
-- [ ] Bind the real `CapabilityRouter`/`StrictToolRegistry` path to the policy-bound runtime.
+- [x] Real `CapabilityRouter`/`StrictToolRegistry` path bound to the policy runtime through `AuthorityCapabilityRuntime`.
+- [ ] Prove package-root callers cannot bypass the authority facade after Phase 07 promotion.
 
 ### P05.6 — HTTP / filesystem isolation
 
@@ -113,9 +94,11 @@
 - [x] Filesystem root/operation/traversal defense.
 - [x] Trusted broker-opened opaque handle contract.
 - [x] Root-prefix escape and symlink control.
+- [x] Authority pinned-HTTP and broker-handle tool adapters.
 - [x] Additive SSRF/DNS/file-handle negative contract written.
-- [ ] Implement/test a real pinned HTTP transport with TLS SNI/Host preservation.
-- [ ] Implement/test a real platform filesystem broker using openat/dirfd or equivalent.
+- [ ] Bind isolation evaluation time to a trusted runtime clock.
+- [ ] Implement/test real pinned HTTP transport with TLS SNI/Host preservation and no second DNS resolution.
+- [ ] Implement/test real platform filesystem broker using openat/dirfd or equivalent.
 
 ### P05.7 — Near-miss / execution evidence
 
@@ -123,16 +106,23 @@
 - [x] Stale fencing rejection evidence.
 - [x] Observation failure isolation.
 - [x] Detached signal store candidate.
-- [ ] Wire policy deny, lease conflict/expiry, isolation denial, uncertain provider outcome and agent-run terminal outcomes.
+- [ ] Wire policy deny, lease conflict/expiry, isolation denial, uncertain provider outcome, lease-release repair and agent-run terminal outcomes.
 - [ ] Bridge canonical signals to `AuthorityTelemetry` without making telemetry a SPOF.
 
 ### P05.8 — Canonical capability path
 
-- [ ] Implement one facade owning read-only and side-effecting capability execution.
-- [ ] Side-effecting path order: isolation → policy → operation claim → lease/fence → begin → provider → commit/reconcile → agent-run evidence.
-- [ ] Prevent direct alternate side-effecting `CapabilityRouter` execution in authority mode.
-- [ ] Preserve legacy paths as shadow/read-only compatibility until Phase 07.
-- [ ] Add end-to-end fake provider contracts for success, deny, stale owner, crash, unknown and partial outcomes.
+- [x] Implement one additive facade owning read-only and side-effecting capability execution.
+- [x] Make `CapabilityRouter` and `StrictToolRegistry` private to the facade.
+- [x] Remove legacy `filesystem`, `http_client` and `search` tools from the authority registry.
+- [x] Require authority provider preflight before execution begins.
+- [x] Side-effecting path: preflight → policy → operation claim → lease/fence → prepare → begin → provider → commit/reconciliation → agent-run evidence.
+- [x] Return durable committed result without second provider call on retry.
+- [x] Convert provider exception after begin to `reconciliation_required`.
+- [x] Expired isolation decision and policy denial occur before provider execution/operation mutation.
+- [x] Preserve legacy paths as shadow until Phase 07.
+- [x] Add end-to-end fake-provider contracts for allow, deny, success, expiry and unknown outcome.
+- [ ] Add canonical facade contracts for stale owner/token, provider-not-applied reconciliation, partial application and compensation.
+- [ ] Add provider-specific reconciliation implementations.
 
 ### P05.9 — Surface closure
 
