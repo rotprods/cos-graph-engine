@@ -16,6 +16,26 @@ import {
 } from './authority-isolation';
 import { StrictToolRegistry } from './strict-tool-registry';
 
+export type AuthorityProviderToolMode = 'read' | 'mutation';
+
+/**
+ * Tool marker consumed by the canonical capability facade. Side-effecting tools
+ * without this preflight contract are rejected before any operation enters the
+ * `executing` state.
+ */
+export interface AuthorityPreflightTool extends ITool {
+  readonly authorityProviderTool: true;
+  readonly authorityMode: AuthorityProviderToolMode;
+  preflight(input: unknown, context: CellContext): Promise<void>;
+}
+
+export function isAuthorityPreflightTool(tool: ITool): tool is AuthorityPreflightTool {
+  const candidate = tool as Partial<AuthorityPreflightTool>;
+  return candidate.authorityProviderTool === true
+    && (candidate.authorityMode === 'read' || candidate.authorityMode === 'mutation')
+    && typeof candidate.preflight === 'function';
+}
+
 export interface AuthorityPinnedHttpToolInput {
   target: AuthorityPinnedHttpTarget;
   evaluatedAt: string;
@@ -66,39 +86,45 @@ export interface AuthorityProviderToolOptions {
   timeoutMs?: number;
 }
 
-export class AuthorityPinnedHttpTool implements ITool {
+export class AuthorityPinnedHttpTool implements AuthorityPreflightTool {
+  readonly authorityProviderTool = true as const;
   readonly definition: ToolDefinition;
 
   constructor(
-    private readonly mode: 'read' | 'mutation',
+    readonly authorityMode: AuthorityProviderToolMode,
     private readonly guard: AuthorityHttpEgressGuard,
     private readonly transport: AuthorityPinnedHttpTransport,
     options: AuthorityProviderToolOptions,
   ) {
     this.definition = definition(
       options,
-      mode === 'read' ? ['read'] : ['execute'],
-      mode === 'read'
+      authorityMode === 'read' ? ['read'] : ['execute'],
+      authorityMode === 'read'
         ? 'Execute an HTTP GET/HEAD using a previously pinned authority target'
         : 'Execute an HTTP mutation using a previously pinned authority target and provider idempotency key',
     );
   }
 
+  async preflight(raw: unknown, _context: CellContext): Promise<void> {
+    const input = normalizeHttpInput(raw);
+    this.guard.assertPinned(input.target, input.evaluatedAt);
+    const readMethod = input.target.method === 'GET' || input.target.method === 'HEAD';
+    if (this.authorityMode === 'read' && !readMethod) {
+      throw new Error(`AUTHORITY_HTTP_READ_METHOD_DENIED method=${input.target.method}`);
+    }
+    if (this.authorityMode === 'mutation' && readMethod) {
+      throw new Error(`AUTHORITY_HTTP_MUTATION_METHOD_REQUIRED method=${input.target.method}`);
+    }
+    if (this.authorityMode === 'mutation' && !input.providerIdempotencyKey) {
+      throw new Error('AUTHORITY_HTTP_PROVIDER_IDEMPOTENCY_REQUIRED');
+    }
+  }
+
   async execute(raw: unknown, context: CellContext): Promise<ToolResult> {
     const started = Date.now();
     try {
+      await this.preflight(raw, context);
       const input = normalizeHttpInput(raw);
-      this.guard.assertPinned(input.target, input.evaluatedAt);
-      const readMethod = input.target.method === 'GET' || input.target.method === 'HEAD';
-      if (this.mode === 'read' && !readMethod) {
-        throw new Error(`AUTHORITY_HTTP_READ_METHOD_DENIED method=${input.target.method}`);
-      }
-      if (this.mode === 'mutation' && readMethod) {
-        throw new Error(`AUTHORITY_HTTP_MUTATION_METHOD_REQUIRED method=${input.target.method}`);
-      }
-      if (this.mode === 'mutation' && !input.providerIdempotencyKey) {
-        throw new Error('AUTHORITY_HTTP_PROVIDER_IDEMPOTENCY_REQUIRED');
-      }
       const output = await this.transport.execute({
         ...input,
         context: cloneContext(context),
@@ -109,7 +135,7 @@ export class AuthorityPinnedHttpTool implements ITool {
         Date.now() - started,
         {
           authorityMode: 'pinned-http',
-          capabilityMode: this.mode,
+          capabilityMode: this.authorityMode,
           targetDecisionHash: input.target.decisionHash,
           providerIdempotencyKey: input.providerIdempotencyKey ?? null,
         },
@@ -120,39 +146,45 @@ export class AuthorityPinnedHttpTool implements ITool {
   }
 }
 
-export class AuthorityFileHandleTool implements ITool {
+export class AuthorityFileHandleTool implements AuthorityPreflightTool {
+  readonly authorityProviderTool = true as const;
   readonly definition: ToolDefinition;
 
   constructor(
-    private readonly mode: 'read' | 'mutation',
+    readonly authorityMode: AuthorityProviderToolMode,
     private readonly sandbox: AuthorityFileSandbox,
     private readonly executor: AuthorityFileHandleExecutor,
     options: AuthorityProviderToolOptions,
   ) {
     this.definition = definition(
       options,
-      mode === 'read' ? ['read'] : ['write'],
-      mode === 'read'
+      authorityMode === 'read' ? ['read'] : ['write'],
+      authorityMode === 'read'
         ? 'Read through a trusted broker-opened authority file handle'
         : 'Mutate through a trusted broker-opened authority file handle and provider idempotency key',
     );
   }
 
+  async preflight(raw: unknown, _context: CellContext): Promise<void> {
+    const input = normalizeFileInput(raw);
+    this.sandbox.assertPinned(input.target);
+    const readOperation = input.target.operation === 'read';
+    if (this.authorityMode === 'read' && !readOperation) {
+      throw new Error(`AUTHORITY_FILE_READ_OPERATION_DENIED operation=${input.target.operation}`);
+    }
+    if (this.authorityMode === 'mutation' && readOperation) {
+      throw new Error('AUTHORITY_FILE_MUTATION_OPERATION_REQUIRED');
+    }
+    if (this.authorityMode === 'mutation' && !input.providerIdempotencyKey) {
+      throw new Error('AUTHORITY_FILE_PROVIDER_IDEMPOTENCY_REQUIRED');
+    }
+  }
+
   async execute(raw: unknown, context: CellContext): Promise<ToolResult> {
     const started = Date.now();
     try {
+      await this.preflight(raw, context);
       const input = normalizeFileInput(raw);
-      this.sandbox.assertPinned(input.target);
-      const readOperation = input.target.operation === 'read';
-      if (this.mode === 'read' && !readOperation) {
-        throw new Error(`AUTHORITY_FILE_READ_OPERATION_DENIED operation=${input.target.operation}`);
-      }
-      if (this.mode === 'mutation' && readOperation) {
-        throw new Error('AUTHORITY_FILE_MUTATION_OPERATION_REQUIRED');
-      }
-      if (this.mode === 'mutation' && !input.providerIdempotencyKey) {
-        throw new Error('AUTHORITY_FILE_PROVIDER_IDEMPOTENCY_REQUIRED');
-      }
       const output = await this.executor.execute({
         ...input,
         context: cloneContext(context),
@@ -163,7 +195,7 @@ export class AuthorityFileHandleTool implements ITool {
         Date.now() - started,
         {
           authorityMode: 'broker-file-handle',
-          capabilityMode: this.mode,
+          capabilityMode: this.authorityMode,
           targetDecisionHash: input.target.decisionHash,
           handleHash: input.target.handleHash,
           providerIdempotencyKey: input.providerIdempotencyKey ?? null,
@@ -179,13 +211,14 @@ export class AuthorityFileHandleTool implements ITool {
  * Creates the registry used by the authority facade. Legacy built-ins are
  * removed first so callers cannot route around pinned transports/handles.
  */
-export function createAuthorityProviderRegistry(tools: ITool[]): StrictToolRegistry {
+export function createAuthorityProviderRegistry(tools: AuthorityPreflightTool[]): StrictToolRegistry {
   if (!Array.isArray(tools) || tools.length === 0) {
     throw new Error('AUTHORITY_PROVIDER_TOOL_REQUIRED');
   }
   const registry = new StrictToolRegistry();
   for (const legacy of ['filesystem', 'http_client', 'search']) registry.unregister(legacy);
   for (const tool of tools) {
+    if (!isAuthorityPreflightTool(tool)) throw new Error('AUTHORITY_PREFLIGHT_TOOL_REQUIRED');
     const name = tool.definition.name.trim();
     if (['filesystem', 'http_client', 'search'].includes(name)) {
       throw new Error(`AUTHORITY_LEGACY_TOOL_NAME_DENIED name=${name}`);
