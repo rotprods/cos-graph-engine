@@ -23,6 +23,7 @@
     "scripts/test-authority-agent-run.ts",
     "scripts/test-authority-agent-run-postgres.ts",
     "scripts/test-authority-isolation.ts",
+    "scripts/test-authority-capability-runtime-clean.ts",
     "scripts/test-authority-capability-evidence-v2.ts",
     "scripts/test-authority-capability-signal-store-v2.ts",
     "scripts/test-authority-capability-signal-postgres.ts",
