@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "cos_v2_model_manifest",
+  "revision": 1,
+  "generatedAt": "2026-08-30T17:30:00.000Z",
+  "authority": "PROJECTION",
+  "selected": {
+    "ontology": "control-plane/v2/model/ontology.json",
+    "hypergraph": "control-plane/v2/model/hypergraph.json",
+    "gaps": "control-plane/v2/model/gaps.json",
+    "decisions": "control-plane/v2/model/decisions.json",
+    "program": "control-plane/v2/model/program.mjs",
+    "checkpoints": "control-plane/v2/model/checkpoints.json",
+    "validator": "scripts/validate-v2-control-plane-v2.mjs",
+    "compiler": "scripts/compile-v2-control-plane-v2.mjs"
+  },
+  "superseded": [
+    {
+      "path": "control-plane/v2/model/program.json",
+      "reason": "Early implementation-compiler draft contains malformed JSON delimiters and is not an authority source.",
+      "replacement": "control-plane/v2/model/program.mjs",
+      "status": "SUPERSEDED",
+      "deletionPhase": "P02/P07 deletion-governance cleanup"
+    },
+    {
+      "path": "scripts/validate-v2-control-plane.mjs",
+      "reason": "First validator targets the malformed program.json draft.",
+      "replacement": "scripts/validate-v2-control-plane-v2.mjs",
+      "status": "SUPERSEDED",
+      "deletionPhase": "P02/P07 deletion-governance cleanup"
+    },
+    {
+      "path": "scripts/compile-v2-control-plane.mjs",
+      "reason": "First compiler targets the malformed program.json draft.",
+      "replacement": "scripts/compile-v2-control-plane-v2.mjs",
+      "status": "SUPERSEDED",
+      "deletionPhase": "P02/P07 deletion-governance cleanup"
+    }
+  ],
+  "selectionRule": "Only selected paths may produce V2 generated state or evidence.",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED"
+}
