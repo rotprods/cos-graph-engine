@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.phase05.observed.json",
+  "include": [
+    "packages/execution/src/authority-node-pinned-http-transport.ts",
+    "packages/execution/src/authority-provider-lease-retry-planner.ts",
+    "packages/execution/src/authority-phase05-deployment.ts",
+    "scripts/test-authority-provider-lease-retry-planner.ts"
+  ]
+}
