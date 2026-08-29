@@ -1,0 +1,30 @@
+{
+  "extends": "./tsconfig.phase05.full.json",
+  "include": [
+    "packages/execution/src/authority-provider-reconciliation.ts",
+    "packages/execution/src/authority-provider-lease-retry-planner.ts",
+    "packages/execution/src/authority-json-idempotency-inspector.ts",
+    "packages/execution/src/authority-node-pinned-http-transport.ts",
+    "packages/execution/src/authority-node-file-handle-executor-v2.ts",
+    "packages/execution/src/authority-capability-evidence-v2.ts",
+    "packages/execution/src/authority-capability-signal-store-v2.ts",
+    "packages/execution/src/authority-capability-signal-store-postgres.ts",
+    "packages/execution/src/authority-repair-ledger.ts",
+    "packages/execution/src/authority-repair-store-postgres.ts",
+    "packages/execution/src/authority-capability-repair-runtime.ts",
+    "packages/execution/src/authority-phase05-selected.ts",
+    "scripts/fixtures/fake-authority-capability-signal-postgres.ts",
+    "scripts/fixtures/fake-authority-repair-postgres.ts",
+    "scripts/test-authority-capability-runtime.ts",
+    "scripts/test-authority-provider-reconciliation.ts",
+    "scripts/test-authority-provider-lease-retry-planner.ts",
+    "scripts/test-authority-json-idempotency-inspector-current.ts",
+    "scripts/test-authority-node-file-handle-executor-v2.ts",
+    "scripts/test-authority-capability-evidence-v2.ts",
+    "scripts/test-authority-capability-signal-store-v2.ts",
+    "scripts/test-authority-capability-signal-postgres.ts",
+    "scripts/test-authority-repair-ledger.ts",
+    "scripts/test-authority-repair-postgres.ts",
+    "scripts/test-authority-capability-repair-runtime.ts"
+  ]
+}
