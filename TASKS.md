@@ -3,134 +3,115 @@
 ## Program status
 
 - North Star: `20/20 verticals at Authority 10.0`
-- Current phase: `04 COMPLETE_STATIC → 05 NEXT`
-- Checkpoints: Phase01 `76dfdc7`, Phase02 `06487e7`, Phase03 `ad6a93c`, Phase04 pending synchronized checkpoint ref
-- Draft PR chain: `#40 → #43 → #44 → #45`
-- Authority: `SHADOW_ONLY`
+- Current phase: `05 — SECURITY / CONCURRENCY / AGENT RUNTIME`
+- Clean PR chain: `#49 → #50 → #51 → #52`
+- Archive only: `#46`
+- Authority: `SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`
 - Automatic CI/CD: `OFF`
 - Todoist project: `COS GRAPH ENGINE · 10/10 AUTHORITY PROGRAM` (`6hMP59rWj7f5xH7M`)
 
-## Phase 00 — North Star & control plane — COMPLETE
-- [x] Evidence-backed North Star, 20D audit, Todoist/Drive/GitHub control plane and Build/Assurance/Authority scoring.
+## Phases 00–04
 
-## Phase 01 — Canonical reconciliation — COMPLETE_STATIC
-- [x] Reconcile #34/#35 from #33, select one authority owner per capability, freeze `checkpoint/phase-01-reconciled-76dfdc7`.
+- [x] North Star and cross-plane control plane.
+- [x] Canonical reconciliation.
+- [x] Contract/compatibility/deletion governance foundations.
+- [x] Core graph/identity/copy-safety candidates.
+- [x] Temporal/event/persistence candidates.
 
-## Phase 02 — Contracts / compatibility / deletion governance — COMPLETE_STATIC
-- [x] Legacy evidence law, additive authority evidence, ADRs, compatibility matrix, rollback map, API policy, deletion governance and read-only migration projections.
-- [x] Freeze `checkpoint/phase-02-contracts-06487e7`.
+All remain statically implemented and unverified.
 
-## Phase 03 — Core correctness — COMPLETE_STATIC
-- [x] Copy-safe CAS/idempotency.
-- [x] PropertyGraph read/index/traversal correctness.
-- [x] Strict canonical serialization and provider-aware identity.
-- [x] Deterministic multiedge forward/reverse CSR.
-- [x] Additive authority contracts, ADR-007/008 and rollback/deletion governance.
-- [x] Freeze `checkpoint/phase-03-core-ad6a93c`.
+## Phase 05 — cleanroom source extraction
 
-## Phase 04 — Temporal / Event / Persistence — COMPLETE_STATIC
+- [x] Preserve PR #46 as non-qualification archive.
+- [x] Re-create source from exact Phase 04 base.
+- [x] Split source into three one-commit review PRs.
+- [x] Exclude V1/V2 duplicates, draft ledgers and stacked barrels.
+- [x] Keep package root unchanged.
+- [x] Create one selected clean barrel.
 
-### P04.1 EventLog semantic parity
-- [x] Shared payload-bound logical-event contract for InMemory/Postgres.
-- [x] Same logical retry converges across changing attempt IDs.
-- [x] Same key + different semantic event fails closed.
-- [x] Copy-safe append/get/getByKey/readFrom.
-- [x] Shared cursor/limit/order validation.
-- [x] Fake-Postgres parity contract.
+### PR #49 — side-effect / lease / policy core
 
-### P04.2 Canonical persisted payloads
-- [x] Canonical JSON wire v1.
-- [x] Optional object `undefined` omission only at wire boundary.
-- [x] Explicit serialization/integrity versioning.
-- [x] JSON/JSONB roundtrip-stable hashes.
-- [x] Additive canonical-wire contract.
+- [x] Append-only side-effect operation revisions.
+- [x] Explicit uncertainty/reconciliation/compensation states.
+- [x] In-memory and Postgres candidate stores.
+- [x] Lease acquire/renew/release/expire/reacquire.
+- [x] Monotonic fencing and explicit-time validation.
+- [x] Default-deny policy and exact approvals.
+- [x] Provider reconciliation and lease retry-planning contract.
 
-### P04.3 Knowledge transaction/saga
-- [x] Authority ledger separated from rebuildable PropertyGraph projection.
-- [x] Projection failure represented as explicit degraded saga evidence.
-- [x] Retry repairs projection without duplicating accepted truth.
-- [x] Failure-injection contract.
+### PR #50 — capability / isolation
 
-### P04.4 Temporal semantics beyond memory
-- [x] Append-only valid/system-time authority knowledge revisions.
-- [x] No future correction/closure leakage into historical knownAt.
-- [x] Provenance/epistemic/confidence/scope/sensitivity first-class.
-- [x] Domain closure distinct from transaction-time supersession.
+- [x] Append-only agent-run aggregate and Postgres candidate.
+- [x] HTTP DNS/IP pinning decision contract.
+- [x] Filesystem broker-handle decision contract.
+- [x] Strict provider tools and private capability router.
+- [x] Canonical capability facade.
+- [x] JSON idempotency inspector candidate.
+- [x] Pinned HTTPS transport candidate.
+- [x] FileHandle executor V2.
 
-### P04.5 Postgres/Supabase semantic fixtures
-- [x] Driver-neutral fake EventLog executor.
-- [x] Driver-neutral fake authority Knowledge executor.
-- [x] Driver-neutral fake Hub snapshot executor.
-- [x] Transaction/CAS/JSON-roundtrip assertions without production DB mutation.
+### PR #51 — evidence / repair
 
-### P04.6 Replay / restore contracts
-- [x] Corrupted snapshot failure.
-- [x] Schema and serialization mismatch failure.
-- [x] Empty projection snapshot + tail restore.
-- [x] Deterministic final semantic hash.
-- [x] Command/outcome tail replay without re-deciding history.
-- [x] Event-log-behind-snapshot failure.
+- [x] Capability evidence V2.
+- [x] In-memory/Postgres capability signal stores.
+- [x] Durable append-only repair aggregate.
+- [x] Repair Postgres candidate and worker.
+- [x] Agent-evidence and lease-release repair handlers.
+- [x] Cleanroom source manifest.
 
-- [x] Update authority ownership/deletion/evidence manifests.
-- [x] Publish `docs/hardening/PHASE_04_CLOSURE.md`.
-- [ ] Create final synchronized Phase 04 checkpoint branch.
+## PR #52 — dependency-pure core contracts
 
-**Checkpoint:** `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`. Assurance remains unchanged.
+- [x] Add one strict selected-source tsconfig.
+- [x] Lease contract.
+- [x] Postgres lease fixture/contract.
+- [x] Execution-runtime fencing contract.
+- [x] Policy and policy-bound runtime contracts.
+- [x] Agent-run contract.
+- [x] Isolation-decision contract.
+- [x] Capability evidence V2 contract.
+- [x] Repair-ledger contract.
+- [x] Record deliberate test exclusions instead of importing archive shims.
 
-## Phase 05 — Security / Concurrency / Agent Runtime — NEXT
+Status: `WRITTEN_UNEXECUTED`.
 
-### P05.1 Durable side-effect ledger
-- [ ] Define operation states: `claimed → prepared → executing → succeeded|failed|uncertain|compensating|compensated`.
-- [ ] Bind operation identity to principal, project, resource, action and canonical request hash.
-- [ ] Persist accepted result/error/provider reference and attempt evidence.
-- [ ] Same operation key + same request converges; conflict fails closed.
-- [ ] Crash after provider mutation but before result commit becomes `uncertain`, never silently retried as new work.
-- [ ] Add in-memory reference store + Postgres/Supabase candidate + additive contracts.
+## Phase 05E — normalized adapter contracts — NEXT
 
-### P05.2 Resource-bound fencing
-- [ ] Issue monotonic fencing tokens per resource.
-- [ ] Validate token at the actual resource commit boundary.
-- [ ] Reject stale owner even if it retains a formerly valid lease token.
-- [ ] Record stale-write near miss.
+- [ ] Agent-run Postgres fixture/contract with direct clean imports.
+- [ ] Capability runtime end-to-end contract with direct clean imports.
+- [ ] Provider reconciliation contract with direct clean imports.
+- [ ] Lease retry-planner contract with direct clean imports.
+- [ ] JSON idempotency inspector contract with direct clean imports.
+- [ ] FileHandle executor V2 contract with direct clean imports.
+- [ ] Capability signal store V2 contract.
+- [ ] Capability signal Postgres fixture/contract.
+- [ ] Repair Postgres fixture/contract.
+- [ ] Capability repair-runtime contract.
+- [ ] Rewrite side-effect runtime contract without excluded fencing prototype.
+- [ ] Rewrite side-effect Postgres contract without excluded fencing prototype.
+- [ ] Extend strict clean graph and evidence manifest.
 
-### P05.3 Lease lifecycle and recovery
-- [ ] Acquire/renew/release/expire/reacquire with bounded TTL.
-- [ ] Deterministic clock injection.
-- [ ] Crash recovery and orphan-owner reconciliation.
-- [ ] No indefinite lock or silent lease stealing.
+## Phase 05F — static closure
 
-### P05.4 Durable agent aggregate
-- [ ] Immutable goal/plan/step/result snapshots.
-- [ ] Persist transition/outcome trace and acceptance evidence.
-- [ ] Resume after restart without replaying already accepted side effects.
-- [ ] Explicit compensation/waiver for partial failure.
+- [ ] Static import/export cycle review.
+- [ ] Review all Postgres SQL/transaction assumptions.
+- [ ] Review TLS overloads, SNI/Host and no-second-DNS contract.
+- [ ] Design/implement trusted atomic FileHandle broker.
+- [ ] Connect signal/telemetry failures to durable repair work.
+- [ ] Update compatibility, rollback and deletion-governance maps.
+- [ ] Freeze exact clean Phase 05 candidate SHA.
 
-### P05.5 Policy enforcement
-- [ ] Principal/project/sensitivity model.
-- [ ] Policy applied at server, retrieval, memory, tool, workflow and destructive boundaries.
-- [ ] Unknown field/operator/action fails closed.
-- [ ] Approval state is durable and non-forgeable.
+## Later evidence gates
 
-### P05.6 HTTP/FS deployment isolation
-- [ ] URL/path guard plus DNS/egress and filesystem sandbox contract.
-- [ ] SSRF rebinding, private network, symlink and TOCTOU threat cases.
-- [ ] Document which layer owns each defense.
+- [ ] Clean install and lockfile reconciliation.
+- [ ] Strict TypeScript execution.
+- [ ] All legacy/orphan/authority contracts.
+- [ ] Real Postgres/Supabase parity.
+- [ ] Contention and process-kill campaign.
+- [ ] Provider crash-window reconciliation.
+- [ ] TLS pinning fixture.
+- [ ] Filesystem broker/TOCTOU campaign.
+- [ ] Security review and threat model.
+- [ ] Replay/restore, benchmarks and cold-agent resume.
+- [ ] Final 20D re-audit and independent review.
 
-### P05.7 Near-miss evidence
-- [ ] Duplicate operation, stale fencing, lease conflict/expiry, policy deny, uncertain provider outcome and compensation failure emit immutable evidence.
-- [ ] Observation failure cannot change protected operation outcome.
-
-**Phase 05 checkpoint:** stale, duplicate, unauthorized or crash-recovered workers cannot create uncontrolled external effects or falsely report exactly-once completion.
-
-## Phase 06 — Hub / Memory / GraphRAG / Observability
-- [x] Candidate GraphRAG/context/memory/Hub paths implemented.
-- [ ] Complete AuthorityTelemetry integration, gold-query set and cross-project leakage evidence.
-
-## Phase 07 — Test Truth / Manual CI
-- [ ] Manual full matrix, clean lockfile/toolchain pin, legacy/orphan/authority suites, failure-red proof, exact qualification SHA and new W13.
-
-## Phase 08 — Evidence Campaign
-- [ ] Security, contention, replay, restore, failure injection, scientific benchmarks, cold-agent resume and evidence manifest.
-
-## Phase 09 — Authority Qualification / Merge
-- [ ] Final 20D re-audit, independent review, evidence-based scores, expected-SHA merge, separate deployment decision and promotion only at D01–D20=10.0.
+No checkbox in the evidence section may be closed from narrative alone.

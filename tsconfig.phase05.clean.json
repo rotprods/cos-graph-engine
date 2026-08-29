@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "useUnknownInCatchVariables": true
+  },
+  "files": [
+    "packages/execution/src/authority-phase05-clean.ts",
+    "scripts/fixtures/fake-authority-lease-postgres.ts",
+    "scripts/test-authority-lease.ts",
+    "scripts/test-authority-lease-postgres.ts",
+    "scripts/test-authority-execution-runtime.ts",
+    "scripts/test-authority-policy.ts",
+    "scripts/test-authority-policy-bound-runtime.ts",
+    "scripts/test-authority-agent-run.ts",
+    "scripts/test-authority-isolation.ts",
+    "scripts/test-authority-capability-evidence-v2.ts",
+    "scripts/test-authority-repair-ledger.ts"
+  ]
+}
