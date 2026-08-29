@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "contextPackId": "ctx_cos_v2_r2",
+  "revision": 2,
+  "generatedAt": "2026-08-30T17:30:00.000Z",
+  "projectId": "COS_GRAPH_ENGINE",
+  "task": "Compile the COS 20D Hypergraph Architecture Refactor V2",
+  "asOf": "2026-08-30T17:30:00.000Z",
+  "knownAt": "2026-08-30T17:30:00.000Z",
+  "sourceRevision": "1bc137eb6e635f55db293b402f561e420dc83c4f",
+  "baseRuntimeRevision": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "eventWatermark": 3,
+  "projectionRevision": 2,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "staleByDefault": true,
+  "mandatoryLiveVerification": [
+    "main SHA",
+    "PR #55 head/base/status",
+    "latest clean Phase 05 PR/head",
+    "issue #39 state",
+    "active claims projection",
+    "event watermark"
+  ],
+  "facts": [
+    "main remains outside the hardening stack",
+    "the clean runtime lineage is PR #49 through PR #54",
+    "PR #46 is archive/provenance only",
+    "PR #55 is an additive control-plane child of PR #54",
+    "automatic Actions and CD remain off",
+    "no clean Phase 05 typecheck or contract suite has executed",
+    "Authority remains min(Build, Assurance) and no score has moved"
+  ],
+  "unknowns": [
+    "agents or claims operating outside repository-backed coordination",
+    "compile/runtime correctness of the clean Phase 05 stack",
+    "real provider behavior under timeout-after-acceptance",
+    "real PostgreSQL/Supabase semantic parity",
+    "real TLS and native filesystem broker behavior"
+  ],
+  "criticalRisks": [
+    "stale control documents can route a successor to the wrong branch",
+    "stacked draft PRs can be mistaken for merged authority",
+    "provider reconciliation can accept weak evidence unless evidence content is verified",
+    "multiple compatibility paths can become hidden writers after package-root promotion",
+    "written tests may not be executed or may prove less than their names imply"
+  ],
+  "nextSafeAction": "Validate the V2 model and compiler locally, persist exact evidence, refresh continuity documents, and keep all runtime/merge authority unchanged."
+}
