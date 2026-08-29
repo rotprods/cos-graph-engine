@@ -14,6 +14,10 @@ export interface ToolResultInvariantViolation {
  * as success. This layer turns structural contradictions into hard failures.
  */
 export class StrictToolRegistry extends ToolRegistry {
+  has(name: string): boolean {
+    return this.get(name) !== undefined;
+  }
+
   async execute(name: string, input: unknown, context: CellContext): Promise<ToolResult> {
     const result = await super.execute(name, input, context);
     const violations = this.validateResult(name, result);
