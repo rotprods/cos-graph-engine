@@ -25,6 +25,7 @@
     "scripts/test-authority-isolation.ts",
     "scripts/test-authority-capability-runtime-clean.ts",
     "scripts/test-authority-provider-reconciliation-clean.ts",
+    "scripts/test-authority-observed-outcome-recorder.ts",
     "scripts/test-authority-capability-evidence-v2.ts",
     "scripts/test-authority-capability-signal-store-v2.ts",
     "scripts/test-authority-capability-signal-postgres.ts",
