@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "historyId": "cos_v2_historical_regression",
+  "revision": 1,
+  "generatedAt": "2026-08-30T17:30:00.000Z",
+  "authority": "PROJECTION",
+  "sourceRevision": "1bc137eb6e635f55db293b402f561e420dc83c4f",
+  "pivots": [
+    {
+      "id": "H001",
+      "period": "v2.0-v2.1 legacy era",
+      "from": "broad 20-level graph engine with large test-count claims",
+      "to": "authority-grade convergence program",
+      "reason": "test counts and breadth did not prove determinism, recovery, security, concurrency or operational continuity",
+      "usefulPropertyPreserved": "broad graph algorithms, visualization, WASM, observability and package ecosystem",
+      "rootCauseSolved": "PARTIAL",
+      "debt": ["legacy evidence must be rerun", "historical test claims must be reconciled with current toolchain"]
+    },
+    {
+      "id": "H002",
+      "period": "W0-W13 initial hardening",
+      "from": "architecture audit",
+      "to": "stacked draft implementations #18-#36",
+      "reason": "rapidly introduce missing authority primitives",
+      "usefulPropertyPreserved": "reversible branches and draft PRs",
+      "rootCauseSolved": "PARTIAL",
+      "debt": ["many written-unexecuted guarantees", "stacked-lineage complexity"]
+    },
+    {
+      "id": "H003",
+      "period": "W12.4 divergence",
+      "from": "PR #33 common base",
+      "to": "sibling PRs #34 and #35",
+      "reason": "two independent authority-completion directions advanced from the same parent",
+      "usefulPropertyPreserved": "both capability sets remained recoverable",
+      "rootCauseSolved": "YES_AFTER_RECONCILIATION",
+      "debt": ["qualification PR #36 inherited only #35 and became invalid"]
+    },
+    {
+      "id": "H004",
+      "period": "stop-the-line review",
+      "from": "confidence based on implementation volume",
+      "to": "Build/Assurance/Authority separation and audit PR #38 / issue #39",
+      "reason": "large deletions, sibling divergence and lack of executed evidence were detected",
+      "usefulPropertyPreserved": "all work remained unmerged and reversible",
+      "rootCauseSolved": "PARTIAL",
+      "debt": ["independent review and exact-SHA qualification still absent"]
+    },
+    {
+      "id": "H005",
+      "period": "Phase 05 exploratory expansion",
+      "from": "canonical reconciled candidate",
+      "to": "PR #46 with approximately 26k additions and multiple V1/V2 drafts",
+      "reason": "explore security, concurrency, side-effect, repair and provider-boundary designs",
+      "usefulPropertyPreserved": "rich provenance and reusable candidate code",
+      "rootCauseSolved": "NO_AS_REVIEW_OBJECT",
+      "debt": ["human-reviewability", "duplicate candidate surfaces", "no clean execution evidence"]
+    },
+    {
+      "id": "H006",
+      "period": "Phase 05 cleanroom extraction",
+      "from": "PR #46 exploratory archive",
+      "to": "clean linear PR #49 through #54",
+      "reason": "extract only selected capabilities into bounded review scopes",
+      "usefulPropertyPreserved": "archive provenance without making it authority",
+      "rootCauseSolved": "PARTIAL",
+      "debt": ["clean stack remains written-unexecuted", "main has not converged"]
+    },
+    {
+      "id": "H007",
+      "period": "V2 control-plane overlay",
+      "from": "hand-maintained root documents and conversational continuity",
+      "to": "PR #55 machine-readable temporal hypergraph, event ledger and compiler",
+      "reason": "the project must survive context loss, stale documents and agent death",
+      "usefulPropertyPreserved": "human-readable documentation remains available as a projection",
+      "rootCauseSolved": "PARTIAL",
+      "debt": ["root documents still need regeneration", "exact-SHA cold-agent drill not run"]
+    }
+  ],
+  "historicalDebt": [
+    {
+      "id": "HD001",
+      "title": "Legacy test-count claims are not current assurance",
+      "origin": "H001",
+      "status": "OPEN",
+      "owner": "role:test-architect",
+      "resolution": "Run the full legacy/orphan/authority matrix from a clean exact-SHA checkout",
+      "test": "TST-FULL-MATRIX",
+      "phase": "P07"
+    },
+    {
+      "id": "HD002",
+      "title": "PR #36 qualifies incomplete lineage",
+      "origin": "H003",
+      "status": "SUPERSEDED",
+      "owner": "role:test-architect",
+      "resolution": "Create a new qualification branch only after the V2 candidate is frozen",
+      "test": "TST-W13-PARENT",
+      "phase": "P08"
+    },
+    {
+      "id": "HD003",
+      "title": "PR #37 reduced verification breadth while disabling automatic runs",
+      "origin": "H004",
+      "status": "OPEN",
+      "owner": "role:devsecops-engineer",
+      "resolution": "Rebuild manual-only CI while preserving the complete verification matrix",
+      "test": "TST-CI-FAIL-RED",
+      "phase": "P07"
+    },
+    {
+      "id": "HD004",
+      "title": "Exploratory Phase 05 drafts remain physically present",
+      "origin": "H005",
+      "status": "OPEN",
+      "owner": "role:refactoring-specialist",
+      "resolution": "Archive/delete only through the semantic deletion ledger after clean extraction proof",
+      "test": "TST-AUTHORITY-SURFACE-UNIQUE",
+      "phase": "P07"
+    },
+    {
+      "id": "HD005",
+      "title": "Control documents can contradict runtime lineage",
+      "origin": "H007",
+      "status": "OPEN",
+      "owner": "role:documentation-architect",
+      "resolution": "Generate continuity sections from the validated V2 model and detect drift",
+      "test": "TST-CP-DOC-DRIFT",
+      "phase": "P00"
+    }
+  ]
+}
