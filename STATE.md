@@ -32,31 +32,20 @@ Static implementation can justify a later Build re-score. Assurance and Authorit
 - Phase 04 canonical base — `checkpoint/phase-04-temporal-2e15b88` @ `2e15b88388836b94b97a93753cb4db347e275e7e` — PR #45;
 - Phase 05 — `hardening/phase-05-security-concurrency-runtime` — PR #46.
 
-PR #47 was closed without merge as a duplicate PR view of the same Phase 05 head. It used the moving Phase 04 branch as base and referenced a nonexistent checkpoint. PR #46 is the single Phase 05 control object.
+PR #47 is closed without merge as a duplicate PR view of the same Phase 05 head. PR #46 is the single Phase 05 control object.
 
-W13 PR #36 remains paused and non-authoritative. PR #37 remains draft/rework. Source branches #34/#35 remain preserved.
+W13 PR #36 remains paused/non-authoritative. PR #37 remains draft/rework. Source branches #34/#35 remain preserved.
 
 ## Frozen static phases
 
-### Phase 01 — canonical reconciliation
+- Phase 01 canonical reconciliation — `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`;
+- Phase 02 contracts/compatibility/deletion governance — `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`;
+- Phase 03 core correctness — `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`;
+- Phase 04 temporal/event/persistence — `COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`.
 
-`COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`.
+Phase 04 delivered shared EventLog semantics, canonical JSON wire v1, append-only bitemporal knowledge authority, Postgres semantic fixtures and Hub snapshot/tail recovery contracts. No Phase 04 contract has been executed in a clean checkout.
 
-### Phase 02 — contracts, compatibility and deletion governance
-
-`COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`.
-
-### Phase 03 — core correctness
-
-`COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`.
-
-### Phase 04 — temporal, event and persistence
-
-`COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED`.
-
-Phase 04 delivered the shared EventLog semantic contract, canonical JSON wire v1, append-only bitemporal knowledge authority, Postgres semantic fixtures and Hub snapshot/tail recovery contracts. No Phase 04 contract has been executed in a clean checkout.
-
-## Phase 05 current authority candidates
+## Phase 05 current control surface
 
 Canonical additive barrel:
 
@@ -85,9 +74,10 @@ Implemented candidate:
 - append-only operation revisions;
 - payload-bound claim/transition idempotency;
 - explicit `claimed → prepared → executing → reconciliation_required|committed|failed|compensation_required → compensating → compensated` states;
-- provider exceptions after execution do not become false local failure or blind retry;
-- interrupted operations require provider/resource reconciliation;
-- partial application requires compensation evidence;
+- provider exceptions after execution never become false local failure or blind retry;
+- explicit `markProviderOutcomeUnknown()` transition;
+- provider/resource reconciliation before retry;
+- compensation evidence for partial application;
 - in-memory and Postgres/Supabase-compatible stores;
 - no exactly-once external-effect claim.
 
@@ -101,20 +91,22 @@ Implemented candidate:
 - stale lease ID/owner/token/expiry/resource revision rejection;
 - in-memory and Postgres stores;
 - prepare, begin and commit use the current lease validator;
-- accepted side-effect commit validates the fencing token at the operation boundary.
+- accepted local side-effect commit validates the fence.
+
+Actual provider/resource acceptance still requires provider-native idempotency/reconciliation or a resource that consumes the fence.
 
 ### P05.4 — durable agent-run aggregate
 
 Implemented candidate:
 
 - append-only goal/plan/step/result/criterion revisions;
-- DAG and dependency validation;
+- DAG/dependency/attempt validation;
 - exact evaluator ID/version evidence;
 - critical side-effect steps require committed operation evidence;
 - completion cannot be inferred from prose;
 - failed and accepted attempts remain historical evidence;
-- in-memory store;
-- `AuthorityAgentRunPostgresStore` with advisory-lock serialization, operation-key idempotency, immutable rows, restart reconstruction and corruption checks.
+- in-memory and `AuthorityAgentRunPostgresStore` candidates;
+- Postgres advisory-lock serialization, operation-key idempotency, immutable rows, restart reconstruction and corruption checks.
 
 ### P05.5 — policy
 
@@ -122,8 +114,7 @@ Implemented candidate:
 
 - default deny;
 - principal/project/sensitivity gates;
-- explicit deny dominates allow;
-- approval dominates broad allow;
+- deny/approval precedence;
 - exact-operation time-bounded approvals;
 - independent claim/prepare/execute/commit authorization;
 - denied mutations append no protected operation revision.
@@ -138,8 +129,8 @@ Implemented decision contracts:
 
 Hard boundary:
 
-- the HTTP guard is not a transport; authority deployment must connect to the pinned address set directly while preserving TLS SNI/Host semantics;
-- the filesystem sandbox is not the broker; authority execution must use the atomically opened handle and may not reopen a path.
+- the HTTP guard is not a transport; authority deployment must connect to pinned addresses directly while preserving TLS SNI/Host semantics;
+- the filesystem sandbox is not the broker; authority execution must consume the atomically opened handle and may not reopen a path.
 
 ### P05.7 — execution evidence
 
@@ -147,25 +138,44 @@ Implemented candidate:
 
 - content-hashed execution signals;
 - near-miss evidence for stale fencing rejection;
-- observation failure cannot alter the protected result;
-- detached signal reads.
+- observation failure cannot alter protected results;
+- detached signal store candidate.
 
-Broader policy/lease/isolation/agent-run signal and `AuthorityTelemetry` wiring is still open.
+Broader policy/lease/isolation/provider/agent-run signal and `AuthorityTelemetry` wiring remains open.
+
+### P05.8 — canonical capability path
+
+Implemented candidate:
+
+- `AuthorityPinnedHttpTool` and `AuthorityFileHandleTool` consume pinned decisions/handles only;
+- every authority provider tool exposes preflight and explicit `read|mutation` mode;
+- authority registry removes legacy `filesystem`, `http_client` and `search` tools;
+- `AuthorityCapabilityRuntime` privately owns `CapabilityRouter` + `StrictToolRegistry` execution;
+- read path requires policy and read-mode permission;
+- mutation path binds provider idempotency into durable operation identity;
+- mutation path enters policy → claim → lease/fence → prepare → begin → provider → commit/reconciliation;
+- committed retry returns durable truth without a second provider call;
+- provider exception after begin becomes `reconciliation_required`;
+- optional agent-run evidence is appended only after accepted commit;
+- post-commit evidence or lease-release failure is repairable and cannot rewrite provider truth;
+- additive end-to-end fake-provider contract written.
 
 ## Explicit remaining Phase 05 gaps
 
 P0:
 
-1. bind the real `CapabilityRouter` + `StrictToolRegistry` path to `PolicyBoundAuthorityExecutionRuntime` and the isolation decisions;
-2. add provider-native idempotency/reconciliation adapters that consume pinned transports/handles;
-3. prove no alternate side-effecting capability path can bypass policy, lease and operation history.
+1. implement provider-native idempotency and reconciliation adapters for pinned HTTP and broker-handle filesystem execution;
+2. bind isolation evaluation time to a trusted runtime clock instead of trusting only provider input `evaluatedAt`;
+3. prove real HTTP pinned-address transport behavior with correct TLS SNI/Host and no second DNS resolution;
+4. prove real platform broker/handle execution without path reopen;
+5. prove no alternate package-root side-effect path can bypass the authority facade.
 
 P1:
 
-4. connect policy, lease, isolation and agent-run outcomes to canonical signal + `AuthorityTelemetry` paths;
-5. resolve/archive superseded Phase 05 prototypes/barrels/fixtures under Phase 02 deletion governance;
-6. perform package-root/API promotion only in Phase 07 with compatibility evidence;
-7. repair every strict-typecheck or contract failure found when execution starts.
+6. connect policy deny, lease conflict/expiry, isolation denial, provider uncertainty, lease-release repair and agent-run outcomes to canonical signals + `AuthorityTelemetry`;
+7. resolve/archive superseded Phase 05 prototypes/barrels/tests/fixtures under Phase 02 deletion governance;
+8. perform package-root/API promotion only in Phase 07 with compatibility evidence;
+9. repair every strict-typecheck or contract failure found when execution starts.
 
 ## Current verification boundary
 
@@ -176,10 +186,10 @@ Not yet run:
 - clean dependency install;
 - strict TypeScript graph;
 - authority contracts;
-- contention and stale-writer campaign;
+- contention/stale-writer campaign;
 - crash-window/provider-reconciliation campaign;
-- SSRF/DNS-pinning integration test;
-- handle-broker filesystem integration test;
+- SSRF/DNS-pinning transport integration;
+- handle-broker filesystem integration;
 - security diff/threat-model review;
 - replay/restore qualification;
 - full legacy/orphan suite.
@@ -197,10 +207,10 @@ Therefore no `VERIFIED`, `AUTHORITY_READY`, `exactly-once` or score-promotion cl
 
 ## Next exact action
 
-Close the remaining Phase 05 authority path in this order:
+Close Phase 05 in this order:
 
-1. create one canonical capability facade that binds `CapabilityRouter`/`StrictToolRegistry` to policy, durable operation history, lease/fence validation and isolation evidence;
-2. implement provider adapter contracts for pinned HTTP and broker-handle filesystem execution plus reconciliation;
-3. wire terminal/denied/stale/uncertain outcomes to signal + telemetry without making observers a SPOF;
-4. statically reconcile superseded files and manifests;
-5. freeze a Phase 05 checkpoint only after the surface has one owner per capability.
+1. add provider-native reconciliation contracts and trusted runtime time binding;
+2. add real/pinned transport and broker-handle integration adapters or explicit deployment ports;
+3. wrap the capability facade in failure-isolated signal + telemetry observation;
+4. reconcile superseded files, compatibility and deletion governance;
+5. freeze one exact Phase 05 checkpoint only after the surface has one owner per capability.
