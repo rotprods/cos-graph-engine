@@ -1,146 +1,152 @@
 # STATE — COS Graph Engine
 
-Updated: 2026-08-28  
-Mode: **PHASE_04_COMPLETE_STATIC / PHASE_05_ACTIVE_NEXT**  
-Authority status: **SHADOW_ONLY**  
-Current phase: **04 COMPLETE_STATIC → 05 SECURITY / CONCURRENCY / AGENT RUNTIME**  
-Draft PR chain: **#40 → #43 → #44 → #45**  
+Updated: 2026-08-29  
+Mode: **PHASE_05_CLEANROOM_EXTRACTION**  
+Authority status: **SHADOW_ONLY / IMPLEMENTED_UNVERIFIED**  
+Current phase: **05 / 09 — SECURITY / CONCURRENCY / AGENT RUNTIME**  
 Automatic CI/CD: **OFF**  
-Merge authorization: **DENIED UNTIL HARDENING + EVIDENCE**
+Merge authorization: **DENIED UNTIL EXECUTED EVIDENCE + INDEPENDENT REVIEW**
 
 ## North Star
 
-Bring COS Graph Engine to `10.0 Authority` in all 20 audited engineering verticals and qualify it as the zero-cost graph compute/projection and agent-runtime substrate of AGENTIC_SYSTEMS_OS.
+Bring COS Graph Engine to `10.0 Authority` in every audited vertical and qualify it as the zero-cost graph/runtime substrate of AGENTIC_SYSTEMS_OS.
 
-`Authority = min(Build, Assurance)`.
+`Authority = min(Build, Assurance)`
 
 Calibrated baseline remains:
 
-- Build: **7.6/10**;
-- Assurance: **2.6/10**;
-- Authority: **2.6/10**.
+- Build: **7.6/10**
+- Assurance: **2.6/10**
+- Authority: **2.6/10**
 
-No score has moved during Phases 01–04 because their contracts remain unexecuted.
+No score moved during this extraction. Code volume is not evidence.
 
-## Frozen checkpoints
+## Frozen upstream lineage
 
-- Phase 01 — `checkpoint/phase-01-reconciled-76dfdc7` → `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
-- Phase 02 — `checkpoint/phase-02-contracts-06487e7` → `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
-- Phase 03 — `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5b0182338dbcceb4` is NOT the code checkpoint; canonical Phase 03 code checkpoint remains `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` and its synchronized descendant/base for Phase 04 is `64dbdd85323d563ceb10af9b5b0182338dbcceb4` — PR #44
-- Phase 04 — `checkpoint/phase-04-temporal-event-bedfec6` → `bedfec6b8ea147c91ac7d50a888c38b0439d53ff` — PR #45
+- Phase 01 — `checkpoint/phase-01-reconciled-76dfdc7` @ `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
+- Phase 02 — `checkpoint/phase-02-contracts-06487e7` @ `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
+- Phase 03 — `checkpoint/phase-03-core-ad6a93c` @ `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44
+- Phase 04 canonical base — `checkpoint/phase-04-temporal-2e15b88` @ `2e15b88388836b94b97a93753cb4db347e275e7e` — PR #45
 
-## Phase 04 closure
+## Phase 05 lineage correction
 
-Status: **COMPLETE_STATIC / IMPLEMENTED_UNVERIFIED**.
+Exploratory PR #46 remains preserved as design/provenance archive:
 
-Closure artifact: `docs/hardening/PHASE_04_CLOSURE.md`.
+- head: `ea5023caab7741aa72d7b9cfdfbcdab28e47f6fe`
+- 152 commits / 118 files / +26,125 / -373
+- title now identifies it as superseded archive
+- it is not qualification lineage
 
-### Durable event truth
+The selected source was re-created from the exact Phase 04 base as three reviewable commits:
 
-- one payload-bound logical-event contract for InMemory/Postgres EventLog;
-- attempt-local event ID / trace / span / `recordedAt` do not redefine an accepted logical retry;
-- same key + different semantic content fails closed;
-- event-ID reuse under another key fails closed;
-- reads/writes are detached;
-- driver-neutral Postgres parity fixture exists.
+1. **PR #49 — Phase 05A**
+   - branch: `hardening/phase-05a-side-effect-core`
+   - SHA: `3e79488a3ca5013812ab3f64d18b2a55b8050333`
+   - 1 commit / 10 files / +3,941
+   - side-effect truth, leases/fencing, policy and reconciliation core
+2. **PR #50 — Phase 05B**
+   - branch: `hardening/phase-05b-capability-isolation`
+   - SHA: `45a565ac945363ab45f0f6b1ddb6a2795843084d`
+   - 1 commit / 10 files / +4,084
+   - agent-run, isolation, strict provider tools and capability facade
+3. **PR #51 — Phase 05C**
+   - branch: `hardening/phase-05c-evidence-repair`
+   - SHA: `a4122eb80ad319a0cbf6497b2cc618c2f99d27a9`
+   - 1 commit / 9 files / +2,490
+   - evidence V2, signal stores, durable repair and cleanroom manifest
+4. **PR #52 — Phase 05D contracts**
+   - branch: `hardening/phase-05d-clean-core-contracts`
+   - source-test commit: `008734a20afb78bebddf8420b2ac8e74a861216a`
+   - 1 source-test commit before this state sync / 13 files / +2,323
+   - strict selected graph plus first dependency-pure contract set
 
-### Canonical persistence wire
+Integration source alias:
 
-- `CANONICAL_JSON_WIRE_VERSION = 1`;
-- persistence/signing uses explicit canonical JSON wire values;
-- optional object `undefined` is omitted only at the wire boundary;
-- undefined arrays/root values, sparse arrays, accessors, cycles, symbol keys, bigint, functions and non-plain objects fail closed;
-- NFC normalization and normalized-key collision rejection;
-- SHA-256 covers the exact persisted wire value.
+`hardening/phase-05-clean-selected` @ `a4122eb80ad319a0cbf6497b2cc618c2f99d27a9`
 
-### Knowledge authority
+## Selected Phase 05 source
 
-- `AuthorityKnowledgeGateway` is the single knowledge authority candidate;
-- immutable append-only system revisions;
-- independent valid-time vs system-time semantics;
-- historical `knownAt` cannot see future corrections/closures;
-- provenance, epistemic type, confidence, scope and sensitivity are first-class;
-- PropertyGraph is rebuildable projection only;
-- projection failure is explicit degraded saga state and can be repaired idempotently;
-- Postgres adapter is advisory-lock + revision-CAS + INSERT-only history.
+Single additive surface:
 
-### Hub recovery
+`packages/execution/src/authority-phase05-clean.ts`
 
-- Hub registration/command/outcome/projection hashes use canonical wire v1;
-- successful outcomes omit absent `error` before hashing/persistence;
-- `recordedAt` remains transaction-time evidence, not producer retry identity;
-- JSON/JSONB round trips preserve semantic hash;
-- snapshot envelopes carry schema + serialization version;
-- snapshot SHA-256 covers exactly what JSONB stores;
-- snapshot-only and snapshot+tail replay contracts are written;
-- corruption, schema/serialization mismatch, metadata tampering and event-log-behind-snapshot fail closed.
+Selected capabilities:
 
-## Authority candidate ownership
+- append-only side-effect operation history;
+- explicit provider uncertainty, reconciliation and compensation;
+- bounded leases and monotonic fencing;
+- default-deny scoped policy and exact approvals;
+- append-only agent-run aggregate;
+- DNS-pinned HTTP and broker-handle filesystem decision contracts;
+- strict provider tools and private capability router;
+- provider status inspection and retry planning;
+- pinned HTTPS transport candidate;
+- FileHandle executor V2;
+- failure-isolated capability evidence V2;
+- append-only capability signal stores;
+- durable post-commit repair ledger.
 
-```text
-State               → AuthorityStateMachine
-Agentic topology    → AuthorityAgenticRegistry
-GraphRAG            → AuthorityGraphRAGIndex
-ContextPack         → AuthorityContextPackCompiler
-Hub runtime         → AuthorityHub
-Hub query           → AuthorityHubQueryService
-Hub context         → AuthorityHubContextProjector
-Hub recovery        → AuthorityHubSnapshotManager
-Memory              → AuthorityMemoryGateway + append-only stores
-Knowledge           → AuthorityKnowledgeGateway + append-only stores
-Durable events      → IEventLog / PostgresEventLog candidate
-Canonical wire      → CANONICAL_JSON_WIRE_VERSION 1
-CSR hot graph       → BidirectionalCSRGraph candidate
-Observability       → AuthorityTelemetry
-Tools               → strict ToolRegistry candidate
-```
+Package-root export remains unchanged. Legacy production callers cannot select this candidate accidentally.
 
-Legacy counterparts remain shadow/deprecated/read-only compatibility and may not write authority truth.
+## Deliberately excluded from qualification lineage
 
-## Static Phase 04 defect ledger
+- capability evidence V1;
+- signal store V1;
+- FileHandle executor V1;
+- early capability executor and side-effect coordinator;
+- duplicate lease/side-effect ledgers and Postgres prototypes;
+- version-stacking barrels and draft tsconfigs;
+- exploratory control-plane documents from PR #46.
 
-Phase 04 discovered and addressed:
+## Contracts now written on PR #52
 
-1. InMemory/Postgres EventLog idempotency divergence;
-2. mutable EventLog read leakage;
-3. producer-event-ID/JSON representation coupling in Postgres retries;
-4. persisted/signed `undefined` optional-field ambiguity;
-5. Hub successful-outcome `error: undefined` hash drift;
-6. Hub global `projectId: undefined` JSONB round-trip drift;
-7. KnowledgeGraph valid/system-time conflation;
-8. knowledge-ledger vs graph-projection partial-failure ambiguity.
+Strict graph:
 
-No item is marked VERIFIED until execution.
+`npx tsc -p tsconfig.phase05.clean.json --noEmit`
 
-## Phase 05 objective
+Initial dependency-pure contracts cover:
 
-Make external side effects and autonomous concurrent execution safe across retries, stale ownership, crash windows and uncertain provider outcomes.
+- in-memory/Postgres lease semantics;
+- lease-bound execution and stale-worker rejection;
+- default-deny policy and policy-bound mutations;
+- append-only agent-run semantics;
+- HTTP/filesystem isolation decisions;
+- capability evidence V2 observer isolation;
+- repair dedupe/CAS/lease/retry/abandonment.
 
-Exact order:
+Everything remains `WRITTEN_UNEXECUTED`.
 
-1. durable side-effect operation ledger;
-2. resource commit-boundary monotonic fencing;
-3. lease acquire / renew / expire / reacquire / crash recovery;
-4. immutable durable goal-plan-result aggregate;
-5. principal / project / sensitivity policy enforcement on real execution paths;
-6. deployment HTTP/FS isolation contract;
-7. near-miss evidence for denied, stale, duplicate and uncertain operations.
+## Remaining Phase 05 gates
 
-## Phase 05 hard constraints
+P0:
 
-- idempotency-key presence is not durable idempotency;
-- fencing-token presence is not proof of commit-boundary validation;
-- do not claim exactly-once external effects unless provider + protocol prove it;
-- crash after provider effect but before local commit becomes `uncertain`, never guessed success/failure;
-- state-machine rollback cannot undo an external provider mutation;
-- all authority side effects must route through one operation-ledger owner;
-- no automatic Actions/CD;
-- no Assurance promotion without executed evidence.
+1. normalize adapter tests that still import superseded barrels;
+2. write clean replacements for side-effect tests that depended on the excluded in-memory fencing prototype;
+3. prove the selected strict graph compiles;
+4. prove pinned HTTPS transport against a controlled TLS fixture;
+5. implement/prove a trusted atomic filesystem broker (`openat`/dirfd or equivalent);
+6. implement real provider-specific status inspectors and target factories;
+7. durably repair signal/telemetry delivery failures;
+8. prove no package-root authority bypass before promotion.
 
-## W13 timing
+P1:
 
-PR #36 remains paused/non-authoritative. A replacement W13 is created only after Phase 07 freezes the exact complete qualification SHA.
+- real PostgreSQL/Supabase semantic campaign;
+- contention/process-kill/restart campaign;
+- compatibility and rollback deltas for the clean stack;
+- deletion governance for superseded archive files;
+- exact Phase 05 checkpoint after static and executed gates.
 
 ## Next exact action
 
-Create the single descendant branch `hardening/phase-05-security-concurrency-runtime` from the synchronized Phase 04 head and implement the durable side-effect ledger first.
+Create **Phase 05E — normalized adapter contracts** on top of PR #52:
+
+- direct-import capability runtime contract;
+- provider reconciliation and retry-planner contracts;
+- JSON idempotency inspector contract;
+- FileHandle V2 contract;
+- signal-store in-memory/Postgres contracts;
+- repair Postgres and capability-repair contracts;
+- clean side-effect store/runtime replacements without the excluded fencing prototype.
+
+Then perform static import/export review. No automatic Actions or score promotion.

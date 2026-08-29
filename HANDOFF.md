@@ -2,16 +2,33 @@
 
 ## Recovery point
 
-Phases 01–04 are statically complete. COS remains `SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`.
+Phase 05 has been extracted from the 26k-line exploratory PR into a clean stacked review chain. COS remains:
 
-### Frozen/checkpointed lineage
+`SHADOW_ONLY / IMPLEMENTED_UNVERIFIED`
 
-- Phase 01: `checkpoint/phase-01-reconciled-76dfdc7` → `76dfdc737c231b2637f122125f7acf98b735ff1f` — PR #40
-- Phase 02: `checkpoint/phase-02-contracts-06487e7` → `06487e7acbce82c5a54dbb8dd171dceae2bb67ac` — PR #43
-- Phase 03: `checkpoint/phase-03-core-ad6a93c` → `ad6a93c0b2986c36efefb5cd59a4d14a9dffceb3` — PR #44
-- Phase 04: PR #45; synchronized checkpoint branch created after closure documents
+No merge, automatic Action, deployment, release, production database or Supabase mutation has occurred.
 
-Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #37 remains draft/rework. No merge, automatic Action, deployment or production data mutation has occurred.
+## Canonical source and contract stack
+
+```text
+Phase04 exact base
+  2e15b88388836b94b97a93753cb4db347e275e7e
+        ↓
+PR #49 / Phase05A
+  3e79488a3ca5013812ab3f64d18b2a55b8050333
+        ↓
+PR #50 / Phase05B
+  45a565ac945363ab45f0f6b1ddb6a2795843084d
+        ↓
+PR #51 / Phase05C
+  a4122eb80ad319a0cbf6497b2cc618c2f99d27a9
+        ↓
+PR #52 / Phase05D clean contracts
+  008734a20afb78bebddf8420b2ac8e74a861216a
+  + later control-plane sync commit
+```
+
+PR #46 @ `ea5023caab7741aa72d7b9cfdfbcdab28e47f6fe` is an archive/provenance source only. Do not base qualification or new implementation work on it.
 
 ## Read first
 
@@ -21,134 +38,86 @@ Source #34/#35 remain preserved. W13 #36 remains paused/non-authoritative. PR #3
 4. `SCORECARD_20D.md`
 5. `TASKS.md`
 6. `GRAPH.md`
-7. `docs/hardening/PHASE_01_CLOSURE.md`
-8. `docs/hardening/PHASE_02_CLOSURE.md`
-9. `docs/hardening/PHASE_03_CLOSURE.md`
-10. `docs/hardening/PHASE_04_CLOSURE.md`
-11. `docs/hardening/ADR_INDEX.md`
-12. `docs/hardening/COMPATIBILITY_MATRIX.md`
-13. `docs/hardening/ROLLBACK_MAP.md`
-14. `docs/hardening/TEST_EVIDENCE_MANIFEST.json`
-15. `docs/hardening/DELETION_GOVERNANCE.json`
-16. `docs/hardening/AUTHORITY_SURFACE_MANIFEST.json`
-17. `AGENTS.md`
+7. `docs/hardening/PHASE_05_CLEANROOM_PORT.md`
+8. `docs/hardening/PHASE_05_CLEANROOM_MANIFEST.json`
+9. `docs/hardening/PHASE_05_CLEAN_CONTRACTS.md`
+10. `docs/hardening/PHASE_05_CLEAN_CONTRACTS_MANIFEST.json`
+11. `docs/hardening/adrs/ADR-009-AUTHORITY-ISOLATION-BOUNDARIES.md`
+12. `AGENTS.md`
 
-## Phase 04 completed-static guarantees
+## Selected source owner
 
-### Durable event contract
+`packages/execution/src/authority-phase05-clean.ts`
 
-- InMemory/Postgres adapters share one logical-event projection/hash;
-- equal logical retries converge even when attempt-local IDs differ;
-- conflicting reuse of an idempotency key fails closed;
-- accepted events and reads are detached;
-- cursor/limit/order behavior is aligned;
-- fake Postgres fixture covers transaction and conflict paths.
+It is deliberately not exported from `packages/execution/src/index.ts`.
 
-### Canonical persistence wire
+The clean branch contains one selected generation of each Phase 05 capability and excludes all known V1/V2 duplicate implementations from PR #46.
 
-- canonical JSON wire version 1 is explicit;
-- optional object `undefined` is omitted only at the wire boundary;
-- ambiguous JS values, cycles, accessors, sparse arrays and non-finite numbers fail closed;
-- NFC normalization and normalized-key collision rejection are enforced;
-- SHA-256 hashes exact canonical persisted values.
+## Current contracts
 
-### Knowledge authority
+`tsconfig.phase05.clean.json` starts from the clean barrel and therefore typechecks the complete selected source closure.
 
-- AuthorityKnowledgeGateway + append-only stores own the candidate truth path;
-- valid time and system time are independent;
-- future corrections do not leak into historical knownAt;
-- domain closure is a new revision, not historical mutation;
-- PropertyGraph is a derived projection;
-- projection failure is explicit degraded saga evidence and can be repaired idempotently;
-- Postgres candidate uses advisory transaction lock, revision CAS and INSERT-only history.
+PR #52 currently carries only tests with dependency-pure imports:
 
-### Hub recovery
+- lease and Postgres lease;
+- execution runtime;
+- policy and policy-bound runtime;
+- agent-run;
+- isolation decisions;
+- capability evidence V2;
+- repair ledger.
 
-- command/outcome/projection hashes survive JSON/JSONB roundtrip;
-- snapshot envelope has schema + serialization version;
-- SHA-256 covers the actual wire payload;
-- runtime hydration does not change semantic/integrity hash;
-- snapshot + tail replay rebuilds an empty projection;
-- corruption/schema/serialization/metadata/event-log-behind failures are explicit.
+No command has run.
 
-All contracts remain unexecuted. Assurance did not move.
+## Next exact slice — Phase 05E
 
-## Next phase — Phase 05 Security / Concurrency / Agent Runtime
+Create one child branch from the current PR #52 head and add normalized adapter contracts only.
 
-Create exactly one descendant branch:
+Required work:
 
-`hardening/phase-05-security-concurrency-runtime`
+1. replace old barrel imports with direct selected imports or `authority-phase05-clean`;
+2. add agent-run Postgres contract and fixture;
+3. add capability runtime end-to-end contract;
+4. add provider reconciliation and lease retry contracts;
+5. add JSON status/idempotency inspector contract;
+6. add FileHandle V2 contract;
+7. add capability signal store V2 and Postgres contracts;
+8. add repair Postgres and capability repair contracts;
+9. write new side-effect runtime/Postgres tests that use `AuthorityLeaseService` rather than the excluded `InMemoryAuthorityFencingValidator`;
+10. extend the one clean tsconfig and evidence manifest.
 
-from the synchronized Phase 04 checkpoint.
+## Hard rules
 
-### Exact implementation order
+- never copy an archive test blindly when its imports point at excluded code;
+- no V1/V2 coexistence in the clean lineage;
+- no package-root export during Phase 05;
+- no exactly-once provider claim;
+- no blind retry after execution begins;
+- no HTTP hostname re-resolution after pinning;
+- no filesystem path reopen after broker authorization;
+- no automatic Actions/CD;
+- no Assurance movement before execution;
+- do not merge stacked PRs until the clean chain is compiled, tested and independently reviewed.
 
-1. Durable side-effect ledger
-   - define operation identity from principal/project/resource/action/request hash;
-   - states: claimed, prepared, executing, succeeded, failed, uncertain, compensating, compensated;
-   - append/store attempts and accepted terminal evidence;
-   - same key/same request converges, conflict fails closed;
-   - crash window after provider mutation becomes uncertain, not automatic success/retry.
-2. Resource fencing
-   - monotonic token per resource;
-   - validate at resource commit boundary;
-   - reject stale workers and emit near-miss evidence.
-3. Lease lifecycle
-   - acquire/renew/release/expire/reacquire;
-   - deterministic clock;
-   - orphan/crash recovery;
-   - bounded TTL, no indefinite locks.
-4. Durable goal aggregate
-   - immutable goal/plan/step/result history;
-   - resume without repeating accepted external effects;
-   - compensation/waiver for partial completion.
-5. Policy
-   - principal/project/sensitivity context;
-   - enforce at all execution/destructive boundaries;
-   - unknown actions/operators/fields fail closed;
-   - durable approvals.
-6. Deployment isolation
-   - DNS/egress/HTTP and filesystem sandbox contracts;
-   - SSRF rebinding, private network, symlink and TOCTOU cases.
-7. Near-miss evidence
-   - duplicate/stale/lease/policy/uncertain/compensation signals;
-   - observer failure cannot change protected outcome.
-
-## Hard safety rules
-
-- do not claim exactly-once provider effects;
-- idempotency-key presence is not durable idempotency;
-- fencing-token presence is not commit-boundary validation;
-- do not auto-retry an operation whose provider outcome is unknown;
-- state-machine rollback cannot undo an external side effect;
-- no alternate tool/runtime path may bypass the operation ledger;
-- no legacy test rewrite without waiver+ADR;
-- material deletion requires deletion-governance entry;
-- no automatic Actions or CD;
-- no Assurance score movement before execution.
-
-## Branch law
+## Verification commands prepared, not run
 
 ```text
-Phase01 → Phase02 → Phase03 → Phase04 → Phase05 → Phase06 → Phase07
-                                                                  ↓
-                                                     exact qualification SHA
-                                                                  ↓
-                                                               new W13
+npx tsc -p tsconfig.phase05.clean.json --noEmit
+npx tsx scripts/test-authority-lease.ts
+npx tsx scripts/test-authority-lease-postgres.ts
+npx tsx scripts/test-authority-execution-runtime.ts
+npx tsx scripts/test-authority-policy.ts
+npx tsx scripts/test-authority-policy-bound-runtime.ts
+npx tsx scripts/test-authority-agent-run.ts
+npx tsx scripts/test-authority-isolation.ts
+npx tsx scripts/test-authority-capability-evidence-v2.ts
+npx tsx scripts/test-authority-repair-ledger.ts
 ```
-
-## Cost / verification
-
-- recurring incremental infrastructure cost: `EUR 0/month`;
-- Actions manual-only;
-- CD/deploy/release OFF;
-- Codex optional only for shell-heavy work;
-- GitHub/Drive/Todoist remain the cross-plane control system.
 
 ## Rollback
 
-- Phase04: use the final `checkpoint/phase-04-*` branch created from the synchronized closure head;
-- Phase03: `checkpoint/phase-03-core-ad6a93c`;
-- Phase02: `checkpoint/phase-02-contracts-06487e7`;
-- Phase01: `checkpoint/phase-01-reconciled-76dfdc7`;
-- pre-reconciliation: #33 `5806a71fd7bb11245dfe1454b7094bc9febf8ed5`.
+- clean source rollback: `a4122eb80ad319a0cbf6497b2cc618c2f99d27a9`;
+- Phase 05B: `45a565ac945363ab45f0f6b1ddb6a2795843084d`;
+- Phase 05A: `3e79488a3ca5013812ab3f64d18b2a55b8050333`;
+- Phase 04 base: `2e15b88388836b94b97a93753cb4db347e275e7e`;
+- archive source: PR #46, never merge as qualification candidate.
