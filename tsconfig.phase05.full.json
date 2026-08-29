@@ -10,6 +10,8 @@
     "useUnknownInCatchVariables": true
   },
   "files": [
+    "packages/execution/src/strict-tool-registry.ts",
+    "packages/execution/src/capability-router.ts",
     "packages/execution/src/authority-side-effect.ts",
     "packages/execution/src/authority-side-effect-runtime.ts",
     "packages/execution/src/authority-side-effect-store-postgres.ts",
@@ -24,6 +26,8 @@
     "packages/execution/src/authority-agent-run.ts",
     "packages/execution/src/authority-agent-run-store-postgres.ts",
     "packages/execution/src/authority-isolation.ts",
+    "packages/execution/src/authority-provider-tools.ts",
+    "packages/execution/src/authority-capability-runtime.ts",
     "packages/execution/src/authority-phase05-current.ts",
     "scripts/fixtures/fake-authority-side-effect-store-postgres.ts",
     "scripts/fixtures/fake-authority-lease-postgres.ts",
@@ -38,6 +42,7 @@
     "scripts/test-authority-policy-bound-runtime.ts",
     "scripts/test-authority-agent-run.ts",
     "scripts/test-authority-agent-run-postgres.ts",
-    "scripts/test-authority-isolation.ts"
+    "scripts/test-authority-isolation.ts",
+    "scripts/test-authority-capability-runtime.ts"
   ]
 }
