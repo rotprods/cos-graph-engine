@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "phase": "05_SECURITY_CONCURRENCY_AGENT_RUNTIME",
   "verification": "IMPLEMENTED_UNVERIFIED",
   "authorityStatus": "SHADOW_ONLY",
@@ -134,21 +134,41 @@
       "rule": "lexical defense plus broker-opened opaque handle, canonical root containment and explicit symlink policy; authority code must not reopen paths"
     },
     "toolExecution": {
-      "authorityCandidate": "PENDING_CANONICAL_BINDING",
+      "authorityCandidate": "@cos/execution:AuthorityCapabilityRuntime",
       "components": [
         "@cos/execution:CapabilityRouter",
         "@cos/execution:StrictToolRegistry",
+        "@cos/execution:AuthorityPinnedHttpTool",
+        "@cos/execution:AuthorityFileHandleTool",
         "@cos/execution:PolicyBoundAuthorityExecutionRuntime",
-        "@cos/execution:AuthorityHttpEgressGuard",
-        "@cos/execution:AuthorityFileSandbox"
+        "@cos/execution:AuthoritySideEffectRuntime",
+        "@cos/execution:AuthorityAgentRunService"
       ],
       "shadow": [
         "@cos/execution:AuthorityCapabilityExecutor",
         "direct side-effecting CapabilityRouter calls",
+        "legacy filesystem/http_client/search tools",
         "legacy permissive tool execution"
       ],
-      "status": "P0_BINDING_GAP",
-      "migration": "read-only and side-effecting capabilities need one canonical facade; write/execute/admin operations enter policy, lease and durable side-effect history before provider execution"
+      "status": "CANONICAL_FACADE_IMPLEMENTED_UNVERIFIED",
+      "rules": [
+        "legacy direct tools are removed from the authority registry",
+        "every authority provider tool implements a preflight contract",
+        "preflight occurs before operation execution begins",
+        "read calls require policy and cannot use mutation-permission tools",
+        "mutation calls require policy, durable operation claim, active lease/fence and provider idempotency key",
+        "exceptions after begin become reconciliation_required and are never blind-retried",
+        "committed operation retries return durable results without a second provider call",
+        "agent-run evidence is appended only after accepted commit; cross-store evidence failure remains repairable and cannot rewrite provider truth"
+      ],
+      "remaining": [
+        "real pinned HTTP transport with TLS SNI/Host preservation",
+        "real platform handle broker/executor",
+        "provider-native reconciliation implementations",
+        "trusted runtime binding of isolation evaluation time",
+        "signal and AuthorityTelemetry integration",
+        "package-root promotion and alternate-path enforcement in Phase 07"
+      ]
     },
     "durableEvents": {
       "authorityCandidate": "@cos/runtime:IEventLog with PostgresEventLog for durable deployment",
