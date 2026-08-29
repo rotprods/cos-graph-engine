@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "status": "WRITTEN_UNEXECUTED",
+  "authorityStatus": "SHADOW_ONLY",
+  "sourceHead": "a4122eb80ad319a0cbf6497b2cc618c2f99d27a9",
+  "branch": "hardening/phase-05d-clean-core-contracts",
+  "strictTypecheck": "npx tsc -p tsconfig.phase05.clean.json --noEmit",
+  "contracts": [
+    {"path":"scripts/test-authority-lease.ts","scope":"in-memory lease lifecycle, expiry, renewal, fencing and detached history"},
+    {"path":"scripts/test-authority-lease-postgres.ts","scope":"Postgres lease append-only parity, reconstruction and corruption rejection"},
+    {"path":"scripts/test-authority-execution-runtime.ts","scope":"lease-bound prepare/begin/commit and stale worker rejection"},
+    {"path":"scripts/test-authority-policy.ts","scope":"default deny, precedence, scope, clearance and exact approvals"},
+    {"path":"scripts/test-authority-policy-bound-runtime.ts","scope":"policy interception on canonical operation mutations"},
+    {"path":"scripts/test-authority-agent-run.ts","scope":"append-only goal/plan/step/criterion aggregate and evidence-gated completion"},
+    {"path":"scripts/test-authority-isolation.ts","scope":"DNS/IP/redirect and filesystem broker-decision negative contracts"},
+    {"path":"scripts/test-authority-capability-evidence-v2.ts","scope":"failure-isolated signals and telemetry boundary"},
+    {"path":"scripts/test-authority-repair-ledger.ts","scope":"repair dedupe, CAS, lease fencing, retry and abandonment"}
+  ],
+  "deliberateExclusions": [
+    "old side-effect runtime/Postgres tests import excluded InMemoryAuthorityFencingValidator and must be rewritten",
+    "capability, provider, signal-Postgres, FileHandle-V2 and repair-Postgres tests import superseded barrels and enter a follow-up adapter-contract PR after import normalization",
+    "no package.json script change until the contract set is stable",
+    "no automatic GitHub Actions"
+  ],
+  "proofBoundary": {
+    "typecheckExecuted": false,
+    "contractsExecuted": false,
+    "realPostgres": false,
+    "contention": false,
+    "tlsFixture": false,
+    "nativeHandleBroker": false
+  }
+}
