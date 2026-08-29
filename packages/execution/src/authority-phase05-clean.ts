@@ -28,3 +28,4 @@ export * from './authority-capability-signal-store-postgres';
 export * from './authority-repair-ledger';
 export * from './authority-repair-store-postgres';
 export * from './authority-capability-repair-runtime';
+export * from './authority-observed-outcome-recorder';
