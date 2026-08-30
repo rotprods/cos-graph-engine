@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "packetId": "t0501_provider_evidence_integrity_4433ac46",
+  "projectId": "COS_GRAPH_ENGINE",
+  "sessionId": "ses_99fc7c34-1035-4eb1-b4a3-e28d3ecd5392",
+  "correlationId": "corr_02d4810e-7d03-49a1-a400-0089a3ca1e65",
+  "claim": {
+    "claimId": "claim_7054aa45-6720-40f5-bde5-c1d08fab801c",
+    "revision": 4,
+    "fencingToken": 4,
+    "status": "CONSUMED_BY_EVIDENCE_COMMIT",
+    "expectedHead": "4433ac46d442ef3d9877e7551de98bc90db93340",
+    "createdAt": "2026-08-30T16:13:22Z",
+    "scope": ["control-plane/v2/runtime-qualification/t0501/EVIDENCE_PACKET.json"]
+  },
+  "implementation": {
+    "commitSha": "4433ac46d442ef3d9877e7551de98bc90db93340",
+    "baseRuntimeSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+    "branch": "hardening/t0501-provider-evidence-integrity-real",
+    "publishedBlobShas": {
+      "providerReconciliation": "43bc3727f3d28b66b3b6bcacc9f60801f9dcec26",
+      "observedOutcomeRecorder": "95fddc1eb9a80952b4cc596b746b3d96b5df35d4",
+      "adversarialContract": "0daa08a5af7eaf88f5a5f7055f7ee7b116b1e80c",
+      "targetedTypegraph": "bc25e0df00862ed464c3c4cb4ce60951bfa08935"
+    }
+  },
+  "executedEvidence": {
+    "status": "TARGETED_HELPER_PASS",
+    "providerProductionBlobExact": true,
+    "recorderProductionBlobExact": true,
+    "method": "The exact published TypeScript provider blob was transpiled with TypeScript 5.8.3. Its runtime-only @cos/core dependency was supplied by a local shim implementing the exact canonicalSerialize and sha256Hex algorithms read from the same runtime candidate. The exact published recorder blob was transpile-parsed for syntax only.",
+    "commands": [
+      {"command": "TypeScript transpileModule(exact provider blob)", "result": "PASS", "syntaxDiagnostics": []},
+      {"command": "TypeScript transpileModule(exact recorder blob)", "result": "PASS", "syntaxDiagnostics": []},
+      {"command": "node targeted exact-provider seal/verifier harness", "result": "PASS", "assertions": 9}
+    ],
+    "assertions": [
+      "valid SHA-256 seal verifies",
+      "re-sealed retry envelope remains self-verifiable",
+      "re-sealing changes the final seal",
+      "tampered nested provider evidence is rejected",
+      "validly re-sealed evidence for another operation is rejected by binding",
+      "stale inspection timestamp is rejected",
+      "wrong target decision is rejected",
+      "malformed non-SHA evidenceHash is rejected",
+      "missing evidenceHash is rejected"
+    ]
+  },
+  "notRun": [
+    "tsconfig.t0501-provider-evidence-integrity.json against the full monorepo checkout",
+    "scripts/test-authority-observed-outcome-recorder.ts",
+    "scripts/test-authority-observed-outcome-evidence-integrity.ts end-to-end",
+    "full Phase 05 selected typegraph",
+    "real provider inspection",
+    "real PostgreSQL/Supabase",
+    "contention/process-kill/replay/restore/security/benchmark campaigns"
+  ],
+  "securitySemantics": {
+    "integrity": "SHA-256 over strict canonical JSON-like data",
+    "bindings": ["operationId","projectId","capability","resourceUri","providerIdempotencyKey","fencingToken","operationContentHash","target","inspectedAt"],
+    "authenticity": "NOT_PROVEN_BY_HASH; inspector trust remains a runtime/provider-policy responsibility",
+    "failureMode": "verification failure throws before observed-outcome transition; operation remains reconciliation_required",
+    "exactlyOnceClaim": false
+  },
+  "result": {
+    "implementation": "IMPLEMENTED",
+    "targetedProviderSeal": "EXECUTED_PASS",
+    "recorderSyntax": "EXECUTED_PASS",
+    "recorderEndToEnd": "NOT_RUN",
+    "fullTypecheck": "NOT_RUN",
+    "globalBuildScoreMovement": "NONE",
+    "globalAssuranceScoreMovement": "NONE",
+    "globalAuthorityScoreMovement": "NONE"
+  },
+  "authorityEffect": "TARGETED_RUNTIME_EVIDENCE_ONLY_NO_GLOBAL_PROMOTION",
+  "nextSafeAction": "Obtain a reproducible full checkout or manual runner, execute the targeted typegraph plus old/new recorder contracts, repair any real failures, then proceed to provider-specific reconciliation adapters."
+}
