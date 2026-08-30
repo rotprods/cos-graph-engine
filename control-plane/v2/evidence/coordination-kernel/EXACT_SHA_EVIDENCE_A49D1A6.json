@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 2,
+  "evidenceId": "evidence_coordination_kernel_a49d1a6",
+  "projectId": "COS_GRAPH_ENGINE",
+  "pullRequest": 56,
+  "implementation": {
+    "commitSha": "a49d1a6ec9e6bfb7c02e22465e1672f439b82354",
+    "treeSha": "32ce3d14d183b4aeaabf11528dc920ffc348edb1",
+    "parentSha": "f2b90d083a0eed82f0e099c87a04c4125445976f",
+    "branch": "refactor/v2-coordination-authority-kernel"
+  },
+  "execution": {
+    "evaluatedAt": "2026-08-30T06:51:00Z",
+    "binding": "COS_GIT_SHA=a49d1a6ec9e6bfb7c02e22465e1672f439b82354",
+    "commands": [
+      {
+        "command": "node scripts/validate-v2-coordination-kernel.mjs --self-test --write --at 2026-08-30T06:51:00Z",
+        "exitCode": 0,
+        "reportId": "coord_5c852262760a13edd2b8f2bd",
+        "stdoutSha256": "a9e3f3a131ccacdcdfe1f19d829af51dfc5a680e7e9553059fd3053aec7ac3a9"
+      },
+      {
+        "command": "node scripts/test-v2-coordination-kernel.mjs --write --at 2026-08-30T06:51:00Z",
+        "exitCode": 0,
+        "testId": "TST-V2-COORDINATION-KERNEL",
+        "reportHash": "72d1dea53a16231ba8f1fd35ef734da3d4dba5962cea9d12143072187c3f60e2",
+        "stdoutSha256": "441e6f51e77a7b4de23829380e6060114880600bed16c98e5058758122db05ef"
+      }
+    ]
+  },
+  "result": {
+    "status": "PASS",
+    "baselineValidation": "PASS",
+    "contractAssertionsPassed": 6,
+    "adversarialMutationsRejected": [
+      {
+        "name": "event payload tamper",
+        "expectedCode": "EVENT_HASH_MISMATCH"
+      },
+      {
+        "name": "event reorder",
+        "expectedCode": "EVENT_SEQUENCE_GAP"
+      },
+      {
+        "name": "duplicate event id",
+        "expectedCode": "DUPLICATE_EVENT_ID"
+      },
+      {
+        "name": "duplicate idempotency",
+        "expectedCode": "DUPLICATE_EVENT_IDEMPOTENCY_KEY"
+      },
+      {
+        "name": "duplicate candidate lane",
+        "expectedCode": "DUPLICATE_CURRENT_CANDIDATE_LANE"
+      },
+      {
+        "name": "stale claim fence",
+        "expectedCode": "CLAIM_FENCE_MISMATCH"
+      },
+      {
+        "name": "stale candidate sha",
+        "expectedCode": "CONTEXT_CANDIDATE_SHA_STALE"
+      },
+      {
+        "name": "expired context",
+        "expectedCode": "CONTEXT_EXPIRED"
+      },
+      {
+        "name": "authority assignment",
+        "expectedCode": "BLOCKED_AUTHORITY_REF_ASSIGNED"
+      },
+      {
+        "name": "unquarantined future claim",
+        "expectedCode": "INVALID_TIMESTAMP_CLAIM_NOT_QUARANTINED"
+      }
+    ],
+    "warnings": [
+      "HISTORICAL_NONDURABLE_EXECUTION_CLAIMS",
+      "QUARANTINED_FUTURE_TIMESTAMP"
+    ],
+    "authorityRef": "UNASSIGNED",
+    "runtimeBuild": "NOT_RUN",
+    "runtimeTests": "NOT_RUN",
+    "globalScoreMovement": "NONE"
+  },
+  "fingerprints": {
+    "refs": "1b5ac68eecc26c674d5a27e303c94a2d27232c7cefe2e047ff0f378b9c03f697",
+    "roles": "c9c9e41bdcc3dc26b65d10038c0ad7f009564956573171f42e9cd3d6a08b24cf",
+    "claims": "99036b368ef6665cb9c4c15ce0f2c9aec9c184afac862918ca62c0d7fb4959f0",
+    "session": "c235adf817e556e6972b93b262d5778e9202e20f040bfcfc5473d872494f0a9b",
+    "context": "a648a31f68b1716c7c6e32ca6480745497abcea33c12387ef20ff128f9700761",
+    "manifest": "41d385ceffeab135994bd74ef62eb721f80d86d118d139e2eee6cbcb7c322f6d",
+    "eventTip": "31a6e3e205a2f360285cf302c6c9542797fa95294e42c323a2f7544a6f28ff0d"
+  },
+  "implementationBlobShas": {
+    "authorityRefs": "7ea9158d6a0295a6b9bd2907e5f43fc74da944ee",
+    "prRoles": "a1363f0476c00f6520b318c2ad00457b4901c13c",
+    "claims": "aa60adddf098d0a5a8bca542a0d8fcc478dc5854",
+    "session": "0d27f386f1a0cadda804ef317c3fd139ed42761f",
+    "ledger": "d80374a5e521519ff7aeb0826781346b374428da",
+    "events": "a4dd418ef708928513dd40af9563de103bdeb89a",
+    "context": "81f94afe295fe1dec063df1844c6e87efafed60c",
+    "manifest": "42920dc467bdbc8bcb4ccb483b297c88dd077c7c",
+    "readme": "1fef0d122b8d0dba568b1ce243b13cf6f17fddf2",
+    "incident": "24998f016b396b164ff15d8a9c283f615f5524af",
+    "validator": "ff7898d8ac46e56ec51f2b48f24ed678a5282eed",
+    "test": "b2c8913aca315dec9633e7bc95aa5f5e89f9fb75"
+  },
+  "proofBoundary": [
+    "coordination/control-plane kernel only",
+    "no monorepo runtime build/typecheck/WASM/provider/Postgres/contention/replay/restore/benchmark/deployment evidence",
+    "no automatic GitHub Actions, CD, production or Supabase mutation"
+  ],
+  "authorityEffect": "TARGETED_CONTROL_PLANE_ASSURANCE_ONLY_NO_GLOBAL_RUNTIME_OR_SCORE_PROMOTION",
+  "contentHash": "27d8fa4f1a5cd2f4a09ffb1f9c30f990a55b098a40696602895d09b5c7ca7f9d"
+}
