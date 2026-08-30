@@ -1,0 +1,191 @@
+{
+  "schemaVersion": 3,
+  "evidenceId": "evidence_coordination_integration_23f303a",
+  "projectId": "COS_GRAPH_ENGINE",
+  "implementation": {
+    "commitSha": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be",
+    "treeSha": "6fa59dc92e39eb9327afec59ae6e6c27ac66cabe",
+    "parentSha": "e2a4931beed71248677e2eef0a3cde814608ba0c",
+    "branch": "refactor/v2-coordination-integration",
+    "pullRequest": 57
+  },
+  "execution": {
+    "evaluatedAt": "2026-08-30T10:34:00Z",
+    "binding": "COS_GIT_SHA=23f303a31554ec3b6ff0ce770429e1aa27d2e7be",
+    "command": "node scripts/validate-v2-integration-v3.mjs --self-test --write --at 2026-08-30T10:34:00Z",
+    "exitCode": 0,
+    "stdoutSha256": "c7fece980db80ccd26c2c398fd359e346bc7a396649aa15736ade6964dc11783",
+    "rawReportHash": "33bb4597ea4232518819aa81ca3c29612c2dd76db0f7ab418e6001003c198de3"
+  },
+  "result": {
+    "status": "PASS",
+    "validationPassed": true,
+    "validationErrors": [],
+    "warnings": [
+      {
+        "code": "OBJECTS_STILL_UNPROVEN",
+        "detail": "58,59,60,61"
+      },
+      {
+        "code": "RUNTIME_NOT_RUN",
+        "detail": "This gate does not qualify the monorepo runtime."
+      }
+    ],
+    "selfTestsPassed": 10,
+    "selfTestsTotal": 10,
+    "selfTests": [
+      {
+        "name": "event-tamper",
+        "expected": [
+          "EVENT_HASH"
+        ],
+        "observed": [
+          "EVENT_HASH"
+        ],
+        "passed": true
+      },
+      {
+        "name": "event-reorder",
+        "expected": [
+          "FIRST_SEQUENCE",
+          "EVENT_SEQUENCE"
+        ],
+        "observed": [
+          "FIRST_SEQUENCE"
+        ],
+        "passed": true
+      },
+      {
+        "name": "duplicate-idempotency",
+        "expected": [
+          "DUPLICATE_IDEMPOTENCY"
+        ],
+        "observed": [
+          "DUPLICATE_IDEMPOTENCY"
+        ],
+        "passed": true
+      },
+      {
+        "name": "duplicate-lane",
+        "expected": [
+          "DUPLICATE_ACTIVE_LANE"
+        ],
+        "observed": [
+          "DUPLICATE_ACTIVE_LANE"
+        ],
+        "passed": true
+      },
+      {
+        "name": "stale-fence",
+        "expected": [
+          "CLAIM_FENCE"
+        ],
+        "observed": [
+          "CLAIM_FENCE",
+          "CONTEXT_FENCE"
+        ],
+        "passed": true
+      },
+      {
+        "name": "expired-context",
+        "expected": [
+          "CONTEXT_EXPIRED"
+        ],
+        "observed": [
+          "CONTEXT_EXPIRED"
+        ],
+        "passed": true
+      },
+      {
+        "name": "retroactive-pr",
+        "expected": [
+          "RETROACTIVE_EXISTENCE"
+        ],
+        "observed": [
+          "RETROACTIVE_EXISTENCE"
+        ],
+        "passed": true
+      },
+      {
+        "name": "authority-assignment",
+        "expected": [
+          "AUTHORITY_ASSIGNED",
+          "AUTHORITY_PROMOTED"
+        ],
+        "observed": [
+          "AUTHORITY_ASSIGNED",
+          "AUTHORITY_PROMOTED"
+        ],
+        "passed": true
+      },
+      {
+        "name": "stale-current-doc",
+        "expected": [
+          "CURRENT_STALE"
+        ],
+        "observed": [
+          "CURRENT_STALE"
+        ],
+        "passed": true
+      },
+      {
+        "name": "wrong-claim-head",
+        "expected": [
+          "CLAIM_HEAD"
+        ],
+        "observed": [
+          "CLAIM_HEAD"
+        ],
+        "passed": true
+      }
+    ],
+    "restoreHashExpected": "5be03178c9d0c1d2273f2d32829f35f1f59b2431365b1adfd8741b62564ff32e",
+    "restoreHashObserved": "5be03178c9d0c1d2273f2d32829f35f1f59b2431365b1adfd8741b62564ff32e",
+    "restoredState": {
+      "projectId": "COS_GRAPH_ENGINE",
+      "mainSha": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+      "controlPlanePr": 57,
+      "controlPlaneObservedHead": "e2a4931beed71248677e2eef0a3cde814608ba0c",
+      "coordinationPr": 56,
+      "coordinationImplementation": "a49d1a6ec9e6bfb7c02e22465e1672f439b82354",
+      "coordinationEvidence": "e2a4931beed71248677e2eef0a3cde814608ba0c",
+      "runtimePr": 54,
+      "runtimeHead": "789edef87549d4f173de03f73e54f5b6193c2e98",
+      "eventWatermark": 11,
+      "eventTip": "fa82fc0b4b15c6d68237e0cf5822df715fa8b2815a005e488a3dd7302e059883",
+      "activeClaim": {
+        "id": "claim_2d82507f-d8b9-4c85-bc40-1a57756f1bc3",
+        "revision": 3,
+        "fence": 3,
+        "expectedHead": "e2a4931beed71248677e2eef0a3cde814608ba0c"
+      },
+      "authorityRef": null,
+      "authorityStatus": "SHADOW_ONLY",
+      "nextSafeAction": "bind exact-SHA integration evidence, obtain independent review, then create a real runtime qualification branch"
+    },
+    "authorityRef": "UNASSIGNED",
+    "runtimeQualification": "NOT_RUN",
+    "globalScoreMovement": "NONE"
+  },
+  "implementationBlobShas": {
+    "bundle": "c381b9f90ae57d39a634e8510a3c7a0c111d7178",
+    "validator": "41ac5528295c701eb841efdeee73da5aaafa7f2a",
+    "readmeFirst": "8c6353f5b68225ae89a60ef334a58d914a57f626",
+    "currentV3": "e1426b0a96d46589268ce057a76fae75edfc1c39"
+  },
+  "fileSha256": {
+    "bundle": "f43b70f3de70d41eff683b807771ba7c243ca82e370a0c71b848e3dab16ec8ed",
+    "validator": "98c52b42052fdc9f918b264de4bf7232877094ad252993780ba9e5f21cf5db49",
+    "readmeFirst": "2af0baf72bdd7eb47544d1836e740db92cd81f93e90bf41ac6d82c6a3cecfe69",
+    "currentV3": "e45cfc3544ec62de4c21efbc49efb279caa4bcbd74c3af2c60bf1cf6dec8a3ac",
+    "rawEvidence": "c7fece980db80ccd26c2c398fd359e346bc7a396649aa15736ade6964dc11783"
+  },
+  "proofBoundary": [
+    "coordination integration and control-plane restore only",
+    "runtime build/tests/Postgres/provider/contention/replay/security/benchmark remain NOT_RUN",
+    "no Actions/CD/deploy/Supabase mutation"
+  ],
+  "authorityEffect": "TARGETED_CONTROL_PLANE_ASSURANCE_ONLY_NO_GLOBAL_RUNTIME_OR_SCORE_PROMOTION",
+  "nextSafeAction": "Obtain independent review of implementation 23f303a and evidence commit, then create a real runtime qualification branch from exact PR #54 lineage.",
+  "contentHash": "14258a9c53675c4d64801d21770e79062834dde4e72093c4c2e1176adbe6e995"
+}
