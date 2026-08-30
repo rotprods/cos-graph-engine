@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "kernelId": "cos_v2_coordination_authority_kernel",
+  "version": "2.0.0-candidate",
+  "generatedAt": "2026-08-30T06:33:39Z",
+  "observedBaseSha": "f2b90d083a0eed82f0e099c87a04c4125445976f",
+  "sessionId": "ses_972494ec-5cb8-46d6-b426-ad3a79e5fa2d",
+  "claimId": "claim_0392c18e-c7e4-48b7-a1c0-f05481390ff0",
+  "correlationId": "corr_805d03b9-3947-4226-b015-85a217535d5b",
+  "selectedFiles": [
+    "control-plane/v2/coordination/authority-refs.v2.json",
+    "control-plane/v2/coordination/pr-roles.v2.json",
+    "control-plane/v2/coordination/claim-leases.v2.json",
+    "control-plane/v2/coordination/session.v2.json",
+    "control-plane/v2/coordination/event-ledger.v2.json",
+    "control-plane/v2/coordination/events.v2.ndjson",
+    "control-plane/v2/coordination/context-pack.v2.json",
+    "control-plane/v2/coordination/README.md",
+    "control-plane/v2/incidents/INC-2026-08-30-NONEXISTENT-EXECUTION-CLAIMS.md",
+    "scripts/validate-v2-coordination-kernel.mjs",
+    "scripts/test-v2-coordination-kernel.mjs"
+  ],
+  "authorityEffect": "CONTROL_PLANE_ONLY_NO_RUNTIME_OR_SCORE_PROMOTION",
+  "contentHash": "41d385ceffeab135994bd74ef62eb721f80d86d118d139e2eee6cbcb7c322f6d"
+}

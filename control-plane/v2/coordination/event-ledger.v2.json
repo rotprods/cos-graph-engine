@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "ledgerId": "ledger_cos_coordination_v2",
+  "hashAlgorithm": "sha256-canonical-json-v1",
+  "legacyAnchor": {
+    "watermark": 3,
+    "anchorHash": "05a4b96ad024841a9b82d67363daafc127bd644e3db67a21779d9092dfa37420",
+    "sourceCommitSha": "f2b90d083a0eed82f0e099c87a04c4125445976f"
+  },
+  "firstSequence": 4,
+  "lastSequence": 7,
+  "eventCount": 4,
+  "lastEventHash": "31a6e3e205a2f360285cf302c6c9542797fa95294e42c323a2f7544a6f28ff0d",
+  "segment": "control-plane/v2/coordination/events.v2.ndjson",
+  "status": "SEALED_CANDIDATE",
+  "rules": [
+    "event sequence is contiguous",
+    "event ID and idempotency key are unique",
+    "each event hashes its canonical envelope including previousEventHash",
+    "correction is represented by a new event, never a historical rewrite"
+  ]
+}

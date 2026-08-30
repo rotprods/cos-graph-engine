@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 2,
+  "repository": "rotprods/cos-graph-engine",
+  "observedAt": "2026-08-30T06:26:39Z",
+  "refs": [
+    {
+      "refId": "ref:default:main",
+      "refType": "DefaultBranchRef",
+      "name": "main",
+      "commitSha": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+      "mutable": true,
+      "authority": "EXECUTABLE_DEFAULT_REF",
+      "status": "OBSERVED"
+    },
+    {
+      "refId": "ref:candidate:control-plane",
+      "refType": "CandidateRef",
+      "lane": "control-plane",
+      "name": "refactor/v2-hypergraph-control-plane",
+      "pullRequest": 55,
+      "commitSha": "f2b90d083a0eed82f0e099c87a04c4125445976f",
+      "baseRef": "hardening/phase-05f-observed-outcome-recovery",
+      "baseSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+      "mutable": true,
+      "authority": "SHADOW_ONLY",
+      "status": "CURRENT_CANDIDATE"
+    },
+    {
+      "refId": "ref:candidate:runtime",
+      "refType": "CandidateRef",
+      "lane": "runtime",
+      "name": "hardening/phase-05f-observed-outcome-recovery",
+      "pullRequest": 54,
+      "commitSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+      "baseRef": "hardening/phase-05e-normalized-adapter-contracts",
+      "baseSha": "50e809fee99f50a34f0e82b92af02e0ea11552ac",
+      "mutable": true,
+      "authority": "SHADOW_ONLY",
+      "status": "CURRENT_CANDIDATE"
+    },
+    {
+      "refId": "ref:authority:production",
+      "refType": "AuthorityRef",
+      "name": "production-authority",
+      "commitSha": null,
+      "mutable": false,
+      "authority": "UNASSIGNED",
+      "status": "BLOCKED",
+      "blockedBy": [
+        "CP6",
+        "CP7",
+        "CP8",
+        "CP9",
+        "CP10",
+        "CP11",
+        "CP12",
+        "CP13"
+      ]
+    },
+    {
+      "refId": "ref:projection:coordination-v2",
+      "refType": "ProjectionRef",
+      "name": "coordination-authority-kernel-v2",
+      "sourceRefId": "ref:candidate:control-plane",
+      "sourceCommitSha": "f2b90d083a0eed82f0e099c87a04c4125445976f",
+      "projectionRevision": 3,
+      "eventWatermark": 7,
+      "mutable": true,
+      "authority": "PROJECTION",
+      "status": "CURRENT_PROJECTION"
+    }
+  ],
+  "rules": [
+    "DefaultBranchRef is not automatically the qualified AuthorityRef.",
+    "CandidateRef is mutable and must be re-read before every mutation.",
+    "AuthorityRef may be assigned only by an explicit promotion event backed by exact-SHA evidence.",
+    "ProjectionRef can be discarded and rebuilt and never outranks its source ref/events.",
+    "Exactly one CURRENT_CANDIDATE is permitted per lane."
+  ],
+  "contentHash": "1b5ac68eecc26c674d5a27e303c94a2d27232c7cefe2e047ff0f378b9c03f697"
+}
