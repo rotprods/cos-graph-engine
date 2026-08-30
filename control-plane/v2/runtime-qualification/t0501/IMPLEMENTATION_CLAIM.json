@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "projectId": "COS_GRAPH_ENGINE",
+  "sessionId": "ses_99fc7c34-1035-4eb1-b4a3-e28d3ecd5392",
+  "claimId": "claim_9d860c21-e5bc-4da1-8088-76420ff6c119",
+  "revision": 2,
+  "fencingToken": 2,
+  "status": "CONSUMED_BY_SCOPE_EXPANSION_COMMIT",
+  "expectedHead": "112cc7b4b44d01cb736e660668ef647c0172fff0",
+  "createdAt": "2026-08-30T15:56:37Z",
+  "reason": "Static graph expansion found that retry evidence is not independently recomputable because sealEvidence re-seals an object that already carries evidenceHash and then overwrites that field. The recorder cannot be made sound without fixing the canonical sealing producer.",
+  "exclusiveResourceScopes": [
+    "packages/execution/src/authority-provider-reconciliation.ts",
+    "packages/execution/src/authority-observed-outcome-recorder.ts",
+    "scripts/test-authority-observed-outcome-evidence-integrity.ts",
+    "tsconfig.t0501-provider-evidence-integrity.json",
+    "control-plane/v2/runtime-qualification/t0501/**"
+  ],
+  "constraints": [
+    "No package-root export change.",
+    "No provider mutation or real provider call.",
+    "No exactly-once claim.",
+    "Valid existing reconciliation evidence must remain accepted.",
+    "Every final evidence object produced by sealEvidence must be independently verifiable from its own published fields."
+  ],
+  "nextRequiredClaim": "Implementation mutation must use revision/fence 3/3 against the commit produced by this scope-expansion record."
+}
