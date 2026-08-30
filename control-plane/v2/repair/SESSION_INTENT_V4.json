@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "sessionId": "ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e",
+  "workstreamId": "ws_cos_v2_integration_evidence_repair",
+  "objectiveId": "obj_repair_pr57_unreproducible_evidence",
+  "correlationId": "corr_c997d368-e44b-4378-92c1-f64faf9e1aea",
+  "createdAt": "2026-08-30T15:34:51Z",
+  "status": "ACTIVE",
+  "branch": "refactor/v2-integration-evidence-repair",
+  "baseSha": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "claim": {
+    "claimId": "claim_11278670-fb7a-4562-a26f-411b6ccfebc9",
+    "revision": 4,
+    "fencingToken": 4,
+    "status": "ACTIVE",
+    "expectedHead": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be",
+    "expiresAt": "2026-08-30T23:34:51Z",
+    "exclusiveResourceScopes": [
+      "control-plane/v2/repair/**",
+      "control-plane/v2/integration/coordination-integration.v4.json",
+      "control-plane/v2/continuity/CURRENT_V4.md",
+      "scripts/validate-v2-integration-v4.mjs",
+      "control-plane/v2/evidence/coordination-integration-v4/**"
+    ],
+    "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF"
+  },
+  "observedFailure": {
+    "type": "EVIDENCE_REPRODUCIBILITY_FAILURE",
+    "sourcePullRequest": 57,
+    "sourceImplementationSha": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be",
+    "claimedEvidenceCommit": "ea88a78dba70f695d387f4ea068fbe3e326ca2be",
+    "reason": "The published validator contains a syntax error in --at argument parsing, so the claimed PASS cannot be reproduced from the exact published implementation bytes."
+  },
+  "nextAction": "Create PR #58, publish append-only V4 correction bundle and validator, execute exact-byte local reproduction, then bind evidence in a successor commit."
+}

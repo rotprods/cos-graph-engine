@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 4,
+  "bundleId": "cos-v2-coordination-integration-v4",
+  "repository": "rotprods/cos-graph-engine",
+  "observedAt": "2026-08-30T15:40:00Z",
+  "sourceParentSha": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605",
+  "refs": {
+    "main": {"type": "DefaultBranchRef", "sha": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83"},
+    "repairCandidate": {"type": "CandidateRef", "pr": 58, "branch": "refactor/v2-integration-evidence-repair", "preMutationHeadSha": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605", "status": "CURRENT_REPAIR_CANDIDATE"},
+    "integrationV3": {"type": "ComponentRef", "pr": 57, "implementationSha": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be", "claimedEvidenceCommit": "ea88a78dba70f695d387f4ea068fbe3e326ca2be", "status": "UNREPRODUCIBLE_EVIDENCE"},
+    "coordinationV2": {"type": "ComponentRef", "pr": 56, "implementationSha": "a49d1a6ec9e6bfb7c02e22465e1672f439b82354", "evidenceCommitSha": "e2a4931beed71248677e2eef0a3cde814608ba0c", "status": "TARGETED_PASS"},
+    "runtime": {"type": "CandidateRef", "pr": 54, "headSha": "789edef87549d4f173de03f73e54f5b6193c2e98", "status": "IMPLEMENTED_UNVERIFIED"},
+    "authority": {"type": "AuthorityRef", "sha": null, "status": "BLOCKED"}
+  },
+  "roles": [
+    {"pr": 58, "lane": "control-plane-repair", "role": "ACTIVE_CANDIDATE", "sha": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605"},
+    {"pr": 57, "lane": "control-plane", "role": "STACK_ANCESTOR_UNREPRODUCIBLE_EVIDENCE", "sha": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be"},
+    {"pr": 56, "lane": "coordination", "role": "STACK_ANCESTOR_TARGETED_PASS", "sha": "a49d1a6ec9e6bfb7c02e22465e1672f439b82354"},
+    {"pr": 55, "lane": "control-plane", "role": "STACK_ANCESTOR", "sha": "f2b90d083a0eed82f0e099c87a04c4125445976f"},
+    {"pr": 54, "lane": "runtime", "role": "ACTIVE_CANDIDATE", "sha": "789edef87549d4f173de03f73e54f5b6193c2e98"},
+    {"pr": 46, "lane": "runtime", "role": "ARCHIVE_SOURCE", "sha": "ea5023caab7741aa72d7b9cfdfbcdab28e47f6fe"}
+  ],
+  "temporalTruth": {
+    "pr57CreatedAt": "2026-08-30T07:11:39Z",
+    "pr58CreatedAt": "2026-08-30T15:35:59Z",
+    "pr57EvidenceFailureObservedAt": "2026-08-30T15:34:51Z",
+    "pullRequests59To61": "NOT_FOUND_AT_V4_OBSERVATION",
+    "law": "later creation or later corrected evidence never retroactively validates an earlier false claim"
+  },
+  "session": {
+    "id": "ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e",
+    "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+    "workstreamId": "ws_cos_v2_integration_evidence_repair",
+    "objectiveId": "obj_repair_pr57_unreproducible_evidence",
+    "correlationId": "corr_c997d368-e44b-4378-92c1-f64faf9e1aea",
+    "status": "EVIDENCE_PENDING",
+    "branch": "refactor/v2-integration-evidence-repair",
+    "authorityCeiling": "IMPLEMENTED_UNVERIFIED"
+  },
+  "claims": [
+    {"id": "claim_11278670-fb7a-4562-a26f-411b6ccfebc9", "revision": 4, "fence": 4, "expectedHead": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be", "status": "CONSUMED", "resultingCommit": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605"},
+    {"id": "claim_2fd19c46-a819-48f6-860f-116a8a724479", "revision": 5, "fence": 5, "expectedHead": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605", "status": "CONSUMED_BY_IMPLEMENTATION_COMMIT", "expiresAt": "2026-08-30T23:40:00Z"}
+  ],
+  "ledger": {
+    "anchorSequence": 11,
+    "anchorHash": "fa82fc0b4b15c6d68237e0cf5822df715fa8b2815a005e488a3dd7302e059883",
+    "firstSequence": 12,
+    "lastSequence": 15,
+    "tipHash": "231cfe98c8aab1e3158ceaa3882b03b93f3cc78d01ece06a154e2e499622d83f",
+    "events": [
+      {"sequence": 12, "eventId": "evt_ad478794-bdd6-4e17-9d3b-93d84bac6eae", "idempotencyKey": "live:pr58:8e489", "eventType": "LIVE_TRUTH_RECONSTRUCTED", "occurredAt": "2026-08-30T15:40:00Z", "recordedAt": "2026-08-30T15:40:00Z", "projectId": "COS_GRAPH_ENGINE", "sessionId": "ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e", "correlationId": "corr_c997d368-e44b-4378-92c1-f64faf9e1aea", "previousEventHash": "fa82fc0b4b15c6d68237e0cf5822df715fa8b2815a005e488a3dd7302e059883", "payload": {"mainSha": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83", "runtimePr": 54, "runtimeSha": "789edef87549d4f173de03f73e54f5b6193c2e98", "coordinationPr": 56, "coordinationImplementation": "a49d1a6ec9e6bfb7c02e22465e1672f439b82354", "coordinationEvidence": "e2a4931beed71248677e2eef0a3cde814608ba0c", "integrationPr": 57, "integrationImplementation": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be", "claimedEvidenceCommit": "ea88a78dba70f695d387f4ea068fbe3e326ca2be", "repairPr": 58, "repairPreMutationHead": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605", "stillMissingPullRequests": [59,60,61]}, "eventHash": "0763eec0e9352b3c5596e5e85da2d72ecc95c7a9b9c48b9a3272b0a0251e0025"},
+      {"sequence": 13, "eventId": "evt_31dbb079-5661-46f2-ad4a-18430524f776", "idempotencyKey": "incident:pr57-validator-syntax", "eventType": "EVIDENCE_REPRODUCIBILITY_FAILURE", "occurredAt": "2026-08-30T15:40:00Z", "recordedAt": "2026-08-30T15:40:00Z", "projectId": "COS_GRAPH_ENGINE", "sessionId": "ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e", "correlationId": "corr_c997d368-e44b-4378-92c1-f64faf9e1aea", "previousEventHash": "0763eec0e9352b3c5596e5e85da2d72ecc95c7a9b9c48b9a3272b0a0251e0025", "payload": {"incidentId": "INC-2026-08-30-PR57-UNREPRODUCIBLE-EVIDENCE", "pullRequest": 57, "implementationSha": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be", "claimedEvidenceCommit": "ea88a78dba70f695d387f4ea068fbe3e326ca2be", "brokenInvariant": "A PASS claim must be reproducible from the exact published implementation bytes.", "observedDefect": "scripts/validate-v2-integration-v3.mjs contains malformed --at argument parsing and cannot be parsed by Node.", "authorityCorrection": "PR57_TARGETED_PASS_DEMOTED_TO_UNREPRODUCIBLE", "failureFamily": ["evidence generated from non-published bytes", "evidence narrative committed without re-executing published artifact", "syntax-invalid validator paired with PASS metadata", "unbound local workspace divergence"]}, "eventHash": "90f45e972e7c24fa7157cf3c1337f0067c9bd8d9a304b1b33d55940351f42760"},
+      {"sequence": 14, "eventId": "evt_2b06ea9b-f0e2-4d94-8836-33a9dd2de71a", "idempotencyKey": "claim4:pre-mutation-intent", "eventType": "CLAIM_SCOPE_CONSUMED", "occurredAt": "2026-08-30T15:40:00Z", "recordedAt": "2026-08-30T15:40:00Z", "projectId": "COS_GRAPH_ENGINE", "sessionId": "ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e", "correlationId": "corr_c997d368-e44b-4378-92c1-f64faf9e1aea", "previousEventHash": "90f45e972e7c24fa7157cf3c1337f0067c9bd8d9a304b1b33d55940351f42760", "payload": {"claimId": "claim_11278670-fb7a-4562-a26f-411b6ccfebc9", "revision": 4, "fencingToken": 4, "expectedHead": "23f303a31554ec3b6ff0ce770429e1aa27d2e7be", "resultingIntentCommit": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605", "status": "CONSUMED", "reason": "One-shot pre-mutation intent commit created PR #58."}, "eventHash": "d78705b638a7d4cd4fd5c26250897ab66cfb052cb9eb787246ab8b2923bbbd65"},
+      {"sequence": 15, "eventId": "evt_1aa2338e-3531-4d18-9334-abe908973a86", "idempotencyKey": "claim5:implementation", "eventType": "CLAIM_LEASE_TAKEN_OVER", "occurredAt": "2026-08-30T15:40:00Z", "recordedAt": "2026-08-30T15:40:00Z", "projectId": "COS_GRAPH_ENGINE", "sessionId": "ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e", "correlationId": "corr_c997d368-e44b-4378-92c1-f64faf9e1aea", "previousEventHash": "d78705b638a7d4cd4fd5c26250897ab66cfb052cb9eb787246ab8b2923bbbd65", "payload": {"previousClaimId": "claim_11278670-fb7a-4562-a26f-411b6ccfebc9", "newClaimId": "claim_2fd19c46-a819-48f6-860f-116a8a724479", "revision": 5, "fencingToken": 5, "expectedHead": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605", "status": "CONSUMED_BY_THIS_IMPLEMENTATION_COMMIT", "scope": ["control-plane/v2/integration/coordination-integration.v4.json", "control-plane/v2/continuity/CURRENT_V4.md", "control-plane/v2/incidents/INC-2026-08-30-PR57-UNREPRODUCIBLE-EVIDENCE.md", "scripts/validate-v2-integration-v4.mjs"]}, "eventHash": "231cfe98c8aab1e3158ceaa3882b03b93f3cc78d01ece06a154e2e499622d83f"}
+    ]
+  },
+  "context": {
+    "generatedAt": "2026-08-30T15:40:00Z",
+    "expiresAt": "2026-08-30T19:40:00Z",
+    "staleByDefault": true,
+    "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+    "fences": {"main": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83", "repairParent": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605", "runtime": "789edef87549d4f173de03f73e54f5b6193c2e98", "watermark": 15, "claimRevision": 5, "fencingToken": 5},
+    "facts": ["PR #56 targeted coordination evidence is durable and remains targeted PASS.", "PR #57 V3 integration evidence is demoted to UNREPRODUCIBLE because its published validator is syntax-invalid.", "PR #58 is the bounded repair candidate.", "Runtime full build/tests/Postgres/provider/contention/replay/security/benchmark remain NOT_RUN."],
+    "unknowns": ["external non-repository claims", "runtime empirical behavior outside targeted control-plane contracts", "pull requests 59-61 remain absent at observation"]
+  },
+  "restore": {
+    "expectedState": {"projectId": "COS_GRAPH_ENGINE", "mainSha": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83", "repairPr": 58, "repairPreMutationHead": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605", "integrationPr": 57, "integrationStatus": "UNREPRODUCIBLE_EVIDENCE", "coordinationPr": 56, "coordinationStatus": "TARGETED_PASS", "runtimePr": 54, "runtimeHead": "789edef87549d4f173de03f73e54f5b6193c2e98", "eventWatermark": 15, "eventTip": "231cfe98c8aab1e3158ceaa3882b03b93f3cc78d01ece06a154e2e499622d83f", "claimRevision": 5, "fencingToken": 5, "authorityRef": null, "authorityStatus": "SHADOW_ONLY", "nextSafeAction": "execute V4 validator from exact published bytes, bind evidence to the implementation commit, then begin real runtime qualification"},
+    "expectedHash": "af551d2bdaac475f4a726c4d765d198992e961f1f82ab26033cf4bc60cb67ba6"
+  },
+  "proofBoundary": ["control-plane evidence repair and bounded restore only", "runtime build/tests/Postgres/provider/contention/replay/security/benchmark remain NOT_RUN", "no Actions/CD/deploy/production/Supabase mutation"],
+  "authorityEffect": "TARGETED_CONTROL_PLANE_REPAIR_ONLY_NO_GLOBAL_SCORE_PROMOTION",
+  "contentHash": "369f71b1bc9d5bb46bee2274ee77bb149598276aef301c2b0ba081b0933f9472"
+}
