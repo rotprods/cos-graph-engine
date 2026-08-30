@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 2,
+  "contextPackId": "ctx_coordination_v2_20260830",
+  "compilerId": "coordination-kernel-v2",
+  "compilerVersion": "2.0.0",
+  "projectId": "COS_GRAPH_ENGINE",
+  "task": "Implement and validate the coordination authority kernel before any further evidence campaign.",
+  "generatedAt": "2026-08-30T06:33:39Z",
+  "expiresAt": "2026-08-30T10:33:39Z",
+  "asOf": "2026-08-30T06:33:39Z",
+  "knownAt": "2026-08-30T06:33:39Z",
+  "staleByDefault": true,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "fences": {
+    "defaultBranchSha": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+    "controlPlaneCandidateSha": "f2b90d083a0eed82f0e099c87a04c4125445976f",
+    "runtimeCandidateSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+    "eventWatermark": 7,
+    "projectionRevision": 3,
+    "claimId": "claim_0392c18e-c7e4-48b7-a1c0-f05481390ff0",
+    "claimRevision": 2,
+    "fencingToken": 2
+  },
+  "facts": [
+    {
+      "factId": "fact:main-sha",
+      "statement": "main is 3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+      "source": {
+        "type": "GitCommit",
+        "uri": "github://rotprods/cos-graph-engine/commit/3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+        "revision": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83"
+      },
+      "confidence": "HIGH"
+    },
+    {
+      "factId": "fact:pr55-head",
+      "statement": "PR #55 head is f2b90d083a0eed82f0e099c87a04c4125445976f and is draft/open.",
+      "source": {
+        "type": "PullRequestHead",
+        "uri": "github://rotprods/cos-graph-engine/pull/55",
+        "revision": "f2b90d083a0eed82f0e099c87a04c4125445976f"
+      },
+      "confidence": "HIGH"
+    },
+    {
+      "factId": "fact:runtime-tip",
+      "statement": "Runtime candidate PR #54 head is 789edef87549d4f173de03f73e54f5b6193c2e98.",
+      "source": {
+        "type": "PullRequestHead",
+        "uri": "github://rotprods/cos-graph-engine/pull/54",
+        "revision": "789edef87549d4f173de03f73e54f5b6193c2e98"
+      },
+      "confidence": "HIGH"
+    },
+    {
+      "factId": "fact:missing-t0703",
+      "statement": "At the 2026-08-30 live-truth barrier, no GitHub branch hardening/t0703-test-truth-campaign existed and PR #56 returned Not Found.",
+      "source": {
+        "type": "LiveGitHubQuery",
+        "uri": "github://rotprods/cos-graph-engine/search/branches?t0703",
+        "revision": "2026-08-30T06:33:39Z"
+      },
+      "confidence": "HIGH"
+    }
+  ],
+  "unknowns": [
+    {
+      "unknownId": "unknown:external-claims",
+      "statement": "Agents or claims outside repository-backed coordination may exist.",
+      "owner": "Agentic Systems Architect",
+      "resolution": "Require external heartbeat ingestion before assuming absence."
+    },
+    {
+      "unknownId": "unknown:runtime-build",
+      "statement": "Runtime full build/WASM result is NOT_RUN; prior claimed T0703 result has no durable object.",
+      "owner": "Test Architect",
+      "resolution": "Create a real branch/evidence run later from exact candidate."
+    }
+  ],
+  "nextSafeAction": "Validate this pre-mutation ContextPack, atomically commit the kernel using expected candidate SHA f2b90d0, then issue a successor projection bound to the resulting commit.",
+  "contextHash": "a648a31f68b1716c7c6e32ca6480745497abcea33c12387ef20ff128f9700761"
+}

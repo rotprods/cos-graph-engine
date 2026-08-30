@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 2,
+  "sessionId": "ses_972494ec-5cb8-46d6-b426-ad3a79e5fa2d",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-pro",
+  "workstreamId": "ws_cos_graph_refactor_v2_coordination",
+  "objectiveId": "obj_coordination_authority_kernel_v2",
+  "correlationId": "corr_805d03b9-3947-4226-b015-85a217535d5b",
+  "createdAt": "2026-08-30T06:26:39Z",
+  "heartbeatAt": "2026-08-30T06:33:39Z",
+  "status": "ACTIVE",
+  "resumesFrom": "ses_43c3d959-9e6f-4f4a-8466-8df96163d4c8",
+  "branch": "refactor/v2-coordination-authority-kernel",
+  "expectedBaseSha": "f2b90d083a0eed82f0e099c87a04c4125445976f",
+  "claimId": "claim_0392c18e-c7e4-48b7-a1c0-f05481390ff0",
+  "claimRevision": 2,
+  "fencingToken": 2,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "resourceScopes": [
+    "control-plane/v2/coordination/**",
+    "control-plane/v2/incidents/INC-2026-08-30-NONEXISTENT-EXECUTION-CLAIMS.md",
+    "scripts/validate-v2-coordination-kernel.mjs",
+    "scripts/test-v2-coordination-kernel.mjs",
+    "control-plane/v2/evidence/coordination-kernel/**"
+  ],
+  "semanticScopes": [
+    "typed authority references",
+    "fenced claim leases",
+    "hash-chained operational events",
+    "exact-provenance ContextPacks",
+    "PR lifecycle roles",
+    "coordination escaped-failure regression"
+  ],
+  "nextAction": "Validate the coordination kernel locally, atomically commit it, then bind exact-SHA evidence in a successor commit.",
+  "contentHash": "c235adf817e556e6972b93b262d5778e9202e20f040bfcfc5473d872494f0a9b"
+}

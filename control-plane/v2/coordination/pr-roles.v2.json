@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 2,
+  "observedAt": "2026-08-30T06:26:39Z",
+  "repository": "rotprods/cos-graph-engine",
+  "roles": [
+    {
+      "pr": 55,
+      "lane": "control-plane",
+      "role": "ACTIVE_CANDIDATE",
+      "headSha": "f2b90d083a0eed82f0e099c87a04c4125445976f"
+    },
+    {
+      "pr": 54,
+      "lane": "runtime",
+      "role": "ACTIVE_CANDIDATE",
+      "headSha": "789edef87549d4f173de03f73e54f5b6193c2e98"
+    },
+    {
+      "pr": 53,
+      "lane": "runtime",
+      "role": "STACK_ANCESTOR",
+      "headSha": "50e809fee99f50a34f0e82b92af02e0ea11552ac"
+    },
+    {
+      "pr": 52,
+      "lane": "runtime",
+      "role": "STACK_ANCESTOR",
+      "headSha": "22191dd12080bec79ae86817cf38c610b11a8f1b"
+    },
+    {
+      "pr": 51,
+      "lane": "runtime",
+      "role": "STACK_ANCESTOR",
+      "headSha": "a4122eb80ad319a0cbf6497b2cc618c2f99d27a9"
+    },
+    {
+      "pr": 50,
+      "lane": "runtime",
+      "role": "STACK_ANCESTOR",
+      "headSha": "45a565ac945363ab45f0f6b1ddb6a2795843084d"
+    },
+    {
+      "pr": 49,
+      "lane": "runtime",
+      "role": "STACK_ANCESTOR",
+      "headSha": "3e79488a3ca5013812ab3f64d18b2a55b8050333"
+    },
+    {
+      "pr": 46,
+      "lane": "runtime",
+      "role": "ARCHIVE_SOURCE",
+      "headSha": "ea5023caab7741aa72d7b9cfdfbcdab28e47f6fe"
+    },
+    {
+      "pr": 36,
+      "lane": "qualification",
+      "role": "OBSOLETE_QUALIFICATION",
+      "headSha": "c0434b49da4b7d2fcb89739828767c3d132caa62"
+    },
+    {
+      "pr": 37,
+      "lane": "ci",
+      "role": "SUPERSEDED_REWORK_SOURCE",
+      "headSha": "676d561a1d24664c1adb1470c5d3eeef278b77f1"
+    },
+    {
+      "pr": 38,
+      "lane": "audit",
+      "role": "REVIEW_ONLY",
+      "headSha": "447915cd4dfe4333c754171189caae217d967bbe"
+    }
+  ],
+  "nonexistentClaimsDetected": {
+    "pullRequests": [
+      56,
+      57,
+      58,
+      59,
+      60,
+      61
+    ],
+    "branches": [
+      "hardening/t0501-provider-evidence-integrity",
+      "hardening/t0502-provider-reconciliation",
+      "hardening/t0503-physical-isolation",
+      "hardening/t0504-durable-observation-repair",
+      "hardening/t0701-clean-toolchain",
+      "hardening/t0702-manual-verification-matrix",
+      "hardening/t0703-test-truth-campaign"
+    ],
+    "classification": "NARRATIVE_ONLY_NOT_GITHUB_AUTHORITY",
+    "remediation": "Treat all purported execution/evidence from these objects as NOT_RUN unless durable objects appear later and are independently verified."
+  },
+  "rules": [
+    "One ACTIVE_CANDIDATE per lane.",
+    "STACK_ANCESTOR cannot be promoted independently of its candidate tip.",
+    "ARCHIVE_SOURCE and OBSOLETE_QUALIFICATION cannot become a qualification parent.",
+    "A narrative reference to a missing PR/branch is an escaped coordination failure, not evidence."
+  ],
+  "contentHash": "c9c9e41bdcc3dc26b65d10038c0ad7f009564956573171f42e9cd3d6a08b24cf"
+}

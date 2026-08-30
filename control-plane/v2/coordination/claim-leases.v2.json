@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 2,
+  "projectId": "COS_GRAPH_ENGINE",
+  "resource": "control-plane/v2/coordination-kernel",
+  "revision": 2,
+  "currentFencingToken": 2,
+  "claims": [
+    {
+      "claimId": "claim_688937e0-7550-46be-9c3d-8dbb6d1c891b",
+      "sessionId": "ses_43c3d959-9e6f-4f4a-8466-8df96163d4c8",
+      "revision": 1,
+      "fencingToken": 1,
+      "status": "QUARANTINED_SUPERSEDED",
+      "supersededAt": "2026-08-30T06:33:39Z",
+      "supersededBy": "claim_0392c18e-c7e4-48b7-a1c0-f05481390ff0",
+      "reason": "The source claim timestamp is later than the observed takeover time. It is preserved as invalid historical input and cannot authorize writes.",
+      "sourceCreatedAt": "2026-08-30T17:30:00.000Z",
+      "sourceIntegrity": "QUARANTINED_FUTURE_TIMESTAMP",
+      "observedAnomalyAt": "2026-08-30T06:33:39Z"
+    },
+    {
+      "claimId": "claim_0392c18e-c7e4-48b7-a1c0-f05481390ff0",
+      "sessionId": "ses_972494ec-5cb8-46d6-b426-ad3a79e5fa2d",
+      "agentId": "agent_openai_chatgpt_gpt-5.6-pro",
+      "workstreamId": "ws_cos_graph_refactor_v2_coordination",
+      "objectiveId": "obj_coordination_authority_kernel_v2",
+      "correlationId": "corr_805d03b9-3947-4226-b015-85a217535d5b",
+      "revision": 2,
+      "fencingToken": 2,
+      "status": "ACTIVE",
+      "createdAt": "2026-08-30T06:26:39Z",
+      "heartbeatAt": "2026-08-30T06:33:39Z",
+      "expiresAt": "2026-08-30T18:33:39Z",
+      "expectedCandidateSha": "f2b90d083a0eed82f0e099c87a04c4125445976f",
+      "exclusiveResourceScopes": [
+        "control-plane/v2/coordination/**",
+        "control-plane/v2/incidents/INC-2026-08-30-NONEXISTENT-EXECUTION-CLAIMS.md",
+        "scripts/validate-v2-coordination-kernel.mjs",
+        "scripts/test-v2-coordination-kernel.mjs",
+        "control-plane/v2/evidence/coordination-kernel/**"
+      ],
+      "sharedResourceScopes": [
+        "control-plane/v2/events/**",
+        "control-plane/v2/continuity/**",
+        "PR #55 conversation",
+        "issue #39",
+        "dedicated COS Todoist project",
+        "COS Drive Acta/STATE"
+      ],
+      "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+      "authorityCeiling": "IMPLEMENTED_UNVERIFIED"
+    }
+  ],
+  "writeContract": {
+    "required": [
+      "claimId",
+      "expectedRevision",
+      "fencingToken",
+      "expectedCandidateSha"
+    ],
+    "acceptOnlyWhen": "claim ACTIVE, not expired, exact revision/token/sha match, and scope covered",
+    "staleWriterResult": "REJECT_STALE_CLAIM_FENCE"
+  },
+  "contentHash": "99036b368ef6665cb9c4c15ce0f2c9aec9c184afac862918ca62c0d7fb4959f0"
+}
