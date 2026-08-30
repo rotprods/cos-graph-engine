@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "packetId": "packet_v2_integration_v4_8a9c9f8",
+  "evidence": {
+    "schemaVersion": 1,
+    "evidenceId": "evidence_v2_integration_v4_8a9c9f8",
+    "projectId": "COS_GRAPH_ENGINE",
+    "pullRequest": 58,
+    "implementation": {
+      "commitSha": "8a9c9f8ab08823f2195421bd5348c8a844185b68",
+      "parentSha": "8e48986178b9b70f5e36adeedc4f23a8bb3c0605",
+      "branch": "refactor/v2-integration-evidence-repair",
+      "blobShas": {
+        "bundle": "3d344c4dd181b31fb269ebe38fbf2ea0cbfe695a",
+        "current": "c20fd0e31e0ed6b40877793a6e149dbbcb29ed7b",
+        "incident": "063824edc5a29cda7e016d70b0b3a288192d78f0",
+        "validator": "e7ef129d793ca121eaee407cf9830de8f75f2c6d"
+      }
+    },
+    "execution": {
+      "evaluatedAt": "2026-08-30T15:41:00Z",
+      "binding": "COS_GIT_SHA=8a9c9f8ab08823f2195421bd5348c8a844185b68",
+      "commands": [
+        {"command": "node --check scripts/validate-v2-integration-v4.mjs", "exitCode": 0},
+        {"command": "COS_GIT_SHA=8a9c9f8ab08823f2195421bd5348c8a844185b68 node scripts/validate-v2-integration-v4.mjs --self-test --at 2026-08-30T15:41:00Z", "exitCode": 0, "reportHash": "fbfa0d8ff1d4e1bd23ba976d18cc22d1252dc2fa73101de0c70908e3afee6ad8"}
+      ]
+    },
+    "byteBinding": {
+      "status": "PASS",
+      "method": "Local Git blob SHA-1 computed over exact execution bytes and compared to published GitHub blob SHAs.",
+      "allMatched": true,
+      "files": {
+        "bundle": "3d344c4dd181b31fb269ebe38fbf2ea0cbfe695a",
+        "current": "c20fd0e31e0ed6b40877793a6e149dbbcb29ed7b",
+        "incident": "063824edc5a29cda7e016d70b0b3a288192d78f0",
+        "validator": "e7ef129d793ca121eaee407cf9830de8f75f2c6d"
+      }
+    },
+    "result": {
+      "status": "PASS",
+      "validatorSyntax": "PASS",
+      "baselineValidation": "PASS",
+      "selfTestsPassed": 10,
+      "selfTestsTotal": 10,
+      "restoredStateHash": "af551d2bdaac475f4a726c4d765d198992e961f1f82ab26033cf4bc60cb67ba6",
+      "runtimeQualification": "NOT_RUN",
+      "globalScoreMovement": "NONE"
+    },
+    "authorityCorrections": [
+      {"artifact": "PR57 claimed targeted PASS", "previous": "CLAIMED_PASS", "current": "UNREPRODUCIBLE_NON_AUTHORITY", "reason": "Published V3 validator is syntax-invalid."},
+      {"artifact": "PR56 coordination targeted PASS", "previous": "TARGETED_PASS", "current": "TARGETED_PASS", "reason": "No contradiction found in its exact published evidence."}
+    ],
+    "proofBoundary": [
+      "control-plane V4 evidence repair only",
+      "no monorepo runtime build/typecheck/full tests/Postgres/provider/contention/replay/security/benchmark evidence",
+      "no automatic GitHub Actions, CD, production or Supabase mutation"
+    ],
+    "authorityEffect": "TARGETED_CONTROL_PLANE_ASSURANCE_ONLY_NO_GLOBAL_RUNTIME_OR_SCORE_PROMOTION",
+    "createdAt": "2026-08-30T15:47:34Z"
+  },
+  "claim": {
+    "schemaVersion": 1,
+    "projectId": "COS_GRAPH_ENGINE",
+    "claimId": "claim_e33adcc8-e00b-4f68-8ede-4ee32cfc62fd",
+    "sessionId": "ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e",
+    "revision": 6,
+    "fencingToken": 6,
+    "status": "CONSUMED_BY_EVIDENCE_COMMIT",
+    "expectedHead": "8a9c9f8ab08823f2195421bd5348c8a844185b68",
+    "createdAt": "2026-08-30T15:47:34Z",
+    "scope": ["control-plane/v2/evidence/coordination-integration-v4/**"],
+    "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+    "purpose": "Persist exact-byte V4 PASS evidence without mutating implementation bytes."
+  },
+  "events": {
+    "anchorSequence": 15,
+    "anchorHash": "231cfe98c8aab1e3158ceaa3882b03b93f3cc78d01ece06a154e2e499622d83f",
+    "firstSequence": 16,
+    "lastSequence": 18,
+    "tipHash": "c5e2f14200ac4d5c0bba23d74fe732ee516d4058b4908aa0331ca79f92f7ba4a",
+    "events": [
+      {"sequence":16,"eventId":"evt_ec79d9d7-75ed-4d83-80a3-afa30bbbb57f","idempotencyKey":"evidence:v4:blob-binding","eventType":"EXACT_BYTE_BINDING_VERIFIED","occurredAt":"2026-08-30T15:47:34Z","recordedAt":"2026-08-30T15:47:34Z","projectId":"COS_GRAPH_ENGINE","sessionId":"ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e","correlationId":"corr_c997d368-e44b-4378-92c1-f64faf9e1aea","previousEventHash":"231cfe98c8aab1e3158ceaa3882b03b93f3cc78d01ece06a154e2e499622d83f","payload":{"implementationSha":"8a9c9f8ab08823f2195421bd5348c8a844185b68","blobs":{"bundle":"3d344c4dd181b31fb269ebe38fbf2ea0cbfe695a","current":"c20fd0e31e0ed6b40877793a6e149dbbcb29ed7b","incident":"063824edc5a29cda7e016d70b0b3a288192d78f0","validator":"e7ef129d793ca121eaee407cf9830de8f75f2c6d"},"status":"PASS"},"eventHash":"fb7f3e9ddfdc82eebe5d12cf5ac9e70acabdd4c5787144d5c56ac114b4d7d565"},
+      {"sequence":17,"eventId":"evt_4541ae7f-c5e8-496b-8d85-2e3690ad2a21","idempotencyKey":"evidence:v4:validator-pass","eventType":"TASK_EXECUTED_PASS","occurredAt":"2026-08-30T15:47:34Z","recordedAt":"2026-08-30T15:47:34Z","projectId":"COS_GRAPH_ENGINE","sessionId":"ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e","correlationId":"corr_c997d368-e44b-4378-92c1-f64faf9e1aea","previousEventHash":"fb7f3e9ddfdc82eebe5d12cf5ac9e70acabdd4c5787144d5c56ac114b4d7d565","payload":{"task":"V4 integration evidence repair","implementationSha":"8a9c9f8ab08823f2195421bd5348c8a844185b68","validatorSyntax":"PASS","selfTests":"10/10","restoreHash":"af551d2bdaac475f4a726c4d765d198992e961f1f82ab26033cf4bc60cb67ba6","reportHash":"fbfa0d8ff1d4e1bd23ba976d18cc22d1252dc2fa73101de0c70908e3afee6ad8","runtimeQualification":"NOT_RUN"},"eventHash":"8d886fa51a890e41504634e9da3ab82bb9c7495e91e04a382094226ddd51e56b"},
+      {"sequence":18,"eventId":"evt_87b0c3f2-fae9-4a2d-aa51-d400903899e1","idempotencyKey":"claim6:evidence","eventType":"CLAIM_RELEASED","occurredAt":"2026-08-30T15:47:34Z","recordedAt":"2026-08-30T15:47:34Z","projectId":"COS_GRAPH_ENGINE","sessionId":"ses_e73f2954-bbbb-4ddb-9761-0a9dd862f84e","correlationId":"corr_c997d368-e44b-4378-92c1-f64faf9e1aea","previousEventHash":"8d886fa51a890e41504634e9da3ab82bb9c7495e91e04a382094226ddd51e56b","payload":{"claimId":"claim_e33adcc8-e00b-4f68-8ede-4ee32cfc62fd","revision":6,"fencingToken":6,"expectedHead":"8a9c9f8ab08823f2195421bd5348c8a844185b68","status":"CONSUMED_BY_EVIDENCE_COMMIT"},"eventHash":"c5e2f14200ac4d5c0bba23d74fe732ee516d4058b4908aa0331ca79f92f7ba4a"}
+    ]
+  },
+  "nextSafeAction": "Open a real runtime qualification child from PR #54 exact head only after live GitHub review confirms PR #58 targeted PASS evidence commit exists."
+}
