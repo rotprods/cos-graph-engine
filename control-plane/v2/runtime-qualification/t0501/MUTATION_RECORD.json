@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "projectId": "COS_GRAPH_ENGINE",
+  "sessionId": "ses_99fc7c34-1035-4eb1-b4a3-e28d3ecd5392",
+  "claimId": "claim_4cf60da8-2689-432f-bfd8-284c21bc4f9b",
+  "revision": 3,
+  "fencingToken": 3,
+  "status": "CONSUMED_BY_IMPLEMENTATION_COMMIT",
+  "expectedHead": "ccea71e96b2463eede186714b6633541c12f73be",
+  "createdAt": "2026-08-30T15:59:00Z",
+  "scope": [
+    "packages/execution/src/authority-provider-reconciliation.ts",
+    "packages/execution/src/authority-observed-outcome-recorder.ts",
+    "scripts/test-authority-observed-outcome-evidence-integrity.ts",
+    "tsconfig.t0501-provider-evidence-integrity.json",
+    "control-plane/v2/runtime-qualification/t0501/MUTATION_RECORD.json"
+  ],
+  "implementedInvariants": [
+    "Provider evidence uses SHA-256 over strict canonical JSON-like content.",
+    "Re-sealing removes any previous top-level evidenceHash before hashing, so the final envelope is self-verifiable.",
+    "Observed-outcome recovery independently verifies the provider seal before any state transition.",
+    "Provider evidence is bound to operationId, projectId, capability, resourceUri, provider idempotency key, fence, operation content hash, target and exact inspection timestamp.",
+    "A valid seal from another operation or stale inspection cannot be replayed into the current recovery.",
+    "Historical fence semantics and no-exactly-once provider-effect posture remain unchanged."
+  ],
+  "complexSystemsReview": {
+    "riskRemoved": [
+      "arbitrary non-empty evidenceHash accepted",
+      "tampered provider payload re-sealed by COS",
+      "cross-operation evidence replay",
+      "non-recomputable retry evidence envelope"
+    ],
+    "riskIntroduced": [
+      "custom reconcilers that do not emit the selected sealed schema now fail closed",
+      "evidenceHash format moves from deterministic 128-bit identity hash to SHA-256",
+      "inspection time is now an exact recovery binding"
+    ],
+    "newCouplings": [
+      "observed-outcome recorder depends on selected provider evidence schema",
+      "provider evidence hashing depends on WebCrypto SHA-256"
+    ],
+    "degradedMode": "If provider evidence cannot be verified, operation remains reconciliation_required and no retry/commit is authorized.",
+    "rollback": "Reset this branch to ccea71e96b2463eede186714b6633541c12f73be; runtime PR #54 remains untouched.",
+    "blastRadius": "Selected Phase05 reconciliation/observed-outcome path only; no package-root export or production mutation."
+  },
+  "proofBoundary": "Implementation and tests are written in this commit. Typecheck/test evidence must be produced from the exact published bytes in a successor evidence commit or remain NOT_RUN."
+}

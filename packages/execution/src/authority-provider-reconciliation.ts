@@ -1,4 +1,4 @@
-import { canonicalHash128, canonicalSerialize } from '@cos/core';
+import { canonicalSerialize, sha256Hex } from '@cos/core';
 import type {
   ProviderReconciliationResult,
   ProviderSideEffectReconciler,
@@ -103,6 +103,18 @@ export interface AuthorityProviderReconcilerOptions {
   retryPlanner?: AuthorityProviderRetryPlanner;
 }
 
+export interface AuthorityProviderEvidenceBinding {
+  operationId: string;
+  projectId: string;
+  capability: string;
+  resourceUri: string;
+  providerIdempotencyKey: string;
+  fencingToken: number;
+  inspectedAt: string;
+  operationContentHash: string;
+  target: AuthorityProviderTarget;
+}
+
 /**
  * Adapts provider-native inspection into the side-effect recovery protocol.
  *
@@ -130,7 +142,10 @@ export class AuthorityProviderReconciler implements ProviderSideEffectReconciler
       operation.fencingToken,
       'operation fencingToken',
     );
-    const target = extractProviderTarget(operation.input, providerIdempotencyKey);
+    const target = authorityProviderTargetFromOperationInput(
+      operation.input,
+      providerIdempotencyKey,
+    );
     const request: AuthorityProviderInspectionRequest = {
       operationId: operation.operationId,
       projectId: operation.projectId,
@@ -143,14 +158,20 @@ export class AuthorityProviderReconciler implements ProviderSideEffectReconciler
       input: canonicalClone(operation.input, 'provider inspection input'),
       operationContentHash: operation.contentHash,
     };
-    const outcome = await this.options.inspection.inspect(canonicalClone(request, 'provider inspection request'));
-    const baseEvidence = sealEvidence({
+    const outcome = await this.options.inspection.inspect(
+      canonicalClone(request, 'provider inspection request'),
+    );
+    const baseEvidence = await sealProviderReconciliationEvidence({
       inspectorId: this.options.inspection.inspectorId,
       inspectorVersion: this.options.inspection.inspectorVersion,
       inspectedAt: this.inspectedAt,
       operationId: operation.operationId,
+      projectId: operation.projectId,
+      capability: operation.capability,
+      resourceUri: operation.resourceUri,
       providerIdempotencyKey,
       fencingToken,
+      operationContentHash: operation.contentHash,
       target,
       providerEvidence: outcome.evidence,
     });
@@ -225,7 +246,7 @@ export class AuthorityProviderReconciler implements ProviderSideEffectReconciler
     if (nextProviderIdempotencyKey === providerIdempotencyKey) {
       throw new Error('PROVIDER_RETRY_IDEMPOTENCY_KEY_MUST_ROTATE');
     }
-    const retryEvidence = sealEvidence({
+    const retryEvidence = await sealProviderReconciliationEvidence({
       ...baseEvidence,
       retryPlannerEvidence: plan.evidence,
       nextFencingToken,
@@ -238,6 +259,119 @@ export class AuthorityProviderReconciler implements ProviderSideEffectReconciler
       evidence: retryEvidence,
     };
   }
+}
+
+/**
+ * Produces a self-verifiable evidence envelope.
+ *
+ * Re-sealing deliberately removes any prior top-level evidenceHash first. This
+ * means the final envelope can always be independently verified from its own
+ * published fields, including retry evidence that extends an earlier seal.
+ */
+export async function sealProviderReconciliationEvidence(
+  value: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const canonical = canonicalClone(value, 'provider reconciliation evidence');
+  const unsigned = { ...canonical };
+  delete unsigned.evidenceHash;
+  return {
+    ...unsigned,
+    evidenceHash: await sha256Hex(unsigned),
+  };
+}
+
+/**
+ * Independently verifies the SHA-256 provider evidence seal and, when an
+ * expected binding is supplied, rejects evidence from another operation,
+ * project, resource, provider attempt, fence, target, content revision or
+ * inspection instant.
+ *
+ * The seal proves content integrity and binding, not provider authenticity.
+ * Trust in inspectorId still belongs to the configured runtime/provider policy.
+ */
+export async function verifyProviderReconciliationEvidence(
+  value: Record<string, unknown>,
+  expected?: AuthorityProviderEvidenceBinding,
+): Promise<Record<string, unknown>> {
+  const canonical = canonicalClone(value, 'provider reconciliation evidence');
+  const claimedHash = canonical.evidenceHash;
+  if (typeof claimedHash !== 'string' || !claimedHash.trim()) {
+    throw new Error('PROVIDER_RECONCILIATION_EVIDENCE_HASH_REQUIRED');
+  }
+  if (!/^[0-9a-f]{64}$/.test(claimedHash)) {
+    throw new Error('PROVIDER_RECONCILIATION_EVIDENCE_SHA256_INVALID');
+  }
+  const unsigned = { ...canonical };
+  delete unsigned.evidenceHash;
+  const recomputedHash = await sha256Hex(unsigned);
+  if (claimedHash !== recomputedHash) {
+    throw new Error(
+      `PROVIDER_RECONCILIATION_EVIDENCE_HASH_MISMATCH expected=${recomputedHash} actual=${claimedHash}`,
+    );
+  }
+
+  assertEvidenceField(
+    canonical,
+    'inspectorId',
+    nonEmpty(String(canonical.inspectorId ?? ''), 'provider evidence inspectorId'),
+  );
+  assertEvidenceField(
+    canonical,
+    'inspectorVersion',
+    nonEmpty(String(canonical.inspectorVersion ?? ''), 'provider evidence inspectorVersion'),
+  );
+  const nestedEvidence = canonical.providerEvidence;
+  if (!nestedEvidence || typeof nestedEvidence !== 'object' || Array.isArray(nestedEvidence)) {
+    throw new Error('PROVIDER_RECONCILIATION_PROVIDER_EVIDENCE_REQUIRED');
+  }
+
+  if (expected) {
+    assertEvidenceField(canonical, 'operationId', expected.operationId);
+    assertEvidenceField(canonical, 'projectId', expected.projectId);
+    assertEvidenceField(canonical, 'capability', expected.capability);
+    assertEvidenceField(canonical, 'resourceUri', expected.resourceUri);
+    assertEvidenceField(
+      canonical,
+      'providerIdempotencyKey',
+      expected.providerIdempotencyKey,
+    );
+    if (canonical.fencingToken !== expected.fencingToken) {
+      throw new Error(
+        `PROVIDER_RECONCILIATION_EVIDENCE_FENCE_MISMATCH expected=${expected.fencingToken} actual=${String(canonical.fencingToken)}`,
+      );
+    }
+    assertEvidenceField(
+      canonical,
+      'operationContentHash',
+      expected.operationContentHash,
+    );
+    const actualInspectedAt = canonicalTime(
+      String(canonical.inspectedAt ?? ''),
+      'provider evidence inspectedAt',
+    );
+    const expectedInspectedAt = canonicalTime(
+      expected.inspectedAt,
+      'expected provider evidence inspectedAt',
+    );
+    if (actualInspectedAt !== expectedInspectedAt) {
+      throw new Error(
+        `PROVIDER_RECONCILIATION_EVIDENCE_TIME_MISMATCH expected=${expectedInspectedAt} actual=${actualInspectedAt}`,
+      );
+    }
+    const target = canonical.target;
+    if (!target || typeof target !== 'object' || Array.isArray(target)) {
+      throw new Error('PROVIDER_RECONCILIATION_EVIDENCE_TARGET_REQUIRED');
+    }
+    const actualTargetHash = await sha256Hex(target);
+    const expectedTargetHash = await sha256Hex(expected.target);
+    if (actualTargetHash !== expectedTargetHash) {
+      throw new Error(
+        `PROVIDER_RECONCILIATION_EVIDENCE_TARGET_MISMATCH expected=${expectedTargetHash} actual=${actualTargetHash}`,
+      );
+    }
+  }
+
+  return canonical;
 }
 
 function assertReconcilable(operation: AuthoritySideEffectView): void {
@@ -256,7 +390,7 @@ function assertReconcilable(operation: AuthoritySideEffectView): void {
   }
 }
 
-function extractProviderTarget(
+export function authorityProviderTargetFromOperationInput(
   input: unknown,
   providerIdempotencyKey: string,
 ): AuthorityProviderTarget {
@@ -307,12 +441,17 @@ function extractProviderTarget(
   throw new Error('PROVIDER_RECONCILIATION_TARGET_UNSUPPORTED');
 }
 
-function sealEvidence(value: Record<string, unknown>): Record<string, unknown> {
-  const canonical = canonicalClone(value, 'provider reconciliation evidence');
-  return {
-    ...canonical,
-    evidenceHash: canonicalHash128(canonical),
-  };
+function assertEvidenceField(
+  evidence: Record<string, unknown>,
+  field: string,
+  expected: string,
+): void {
+  const actual = evidence[field];
+  if (typeof actual !== 'string' || actual !== expected) {
+    throw new Error(
+      `PROVIDER_RECONCILIATION_EVIDENCE_BINDING_MISMATCH field=${field} expected=${expected} actual=${String(actual)}`,
+    );
+  }
 }
 
 function normalizeOperationError(error: AuthorityOperationError): AuthorityOperationError {

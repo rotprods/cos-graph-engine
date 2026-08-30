@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.phase05.clean.json",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": false,
+    "useUnknownInCatchVariables": true
+  },
+  "files": [
+    "packages/execution/src/authority-provider-reconciliation.ts",
+    "packages/execution/src/authority-observed-outcome-recorder.ts",
+    "scripts/test-authority-observed-outcome-recorder.ts",
+    "scripts/test-authority-observed-outcome-evidence-integrity.ts"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "sessionId": "ses_99fc7c34-1035-4eb1-b4a3-e28d3ecd5392",
+  "workstreamId": "ws_cos_runtime_qualification_t0501",
+  "objectiveId": "T0501_PROVIDER_EVIDENCE_INTEGRITY",
+  "correlationId": "corr_02d4810e-7d03-49a1-a400-0089a3ca1e65",
+  "createdAt": "2026-08-30T15:55:05Z",
+  "status": "ACTIVE",
+  "branch": "hardening/t0501-provider-evidence-integrity-real",
+  "baseSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "claim": {
+    "claimId": "claim_b2615bb3-66f0-489b-a64d-c7d3d235a2b4",
+    "revision": 1,
+    "fencingToken": 1,
+    "status": "ACTIVE",
+    "expectedHead": "789edef87549d4f173de03f73e54f5b6193c2e98",
+    "expiresAt": "2026-08-30T23:55:05Z",
+    "exclusiveResourceScopes": [
+      "packages/execution/src/authority-observed-outcome-recorder.ts",
+      "scripts/test-authority-observed-outcome-evidence-integrity.ts",
+      "tsconfig.t0501-provider-evidence-integrity.json",
+      "control-plane/v2/runtime-qualification/t0501/**"
+    ],
+    "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF"
+  },
+  "facts": [
+    "PR #54 exact runtime head is 789edef87549d4f173de03f73e54f5b6193c2e98.",
+    "AuthorityProviderReconciler seals provider inspection evidence with canonicalHash128.",
+    "AuthorityObservedOutcomeRecorder currently checks only that evidenceHash is non-empty before re-sealing provider evidence with historicalFence."
+  ],
+  "unknowns": [
+    "Whether the full Phase 05 selected graph currently compiles from a clean install.",
+    "Whether any custom ProviderSideEffectReconciler intentionally emits a different evidence schema.",
+    "Real provider behavior remains outside this targeted integrity task."
+  ],
+  "desiredOutcome": "Reject forged, tampered, cross-operation or stale provider evidence before recording observed provider truth, while preserving valid AuthorityProviderReconciler evidence and historical-fence recovery semantics.",
+  "successCriteria": [
+    "Top-level provider evidence hash is independently recomputed and must match.",
+    "Sealed evidence is bound to operationId, providerIdempotencyKey, fencingToken and target/resource identity available at this boundary.",
+    "Tamper and cross-operation evidence fail before any operation transition.",
+    "Valid existing reconciler flow remains accepted.",
+    "Targeted typecheck/test evidence is bound to exact published implementation bytes or remains explicitly NOT_RUN."
+  ],
+  "failureCondition": "Any forged provider evidence with an arbitrary non-empty evidenceHash can still be accepted, or the fix weakens existing recovery/fencing semantics.",
+  "nextAction": "Open PR #59, implement the smallest fail-closed provider-evidence verification boundary, add adversarial contract tests, then execute exact-byte targeted evidence if a local checkout is reproducibly obtainable."
+}
