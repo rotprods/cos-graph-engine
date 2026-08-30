@@ -1,4 +1,4 @@
-import { canonicalHash128, canonicalSerialize } from '@cos/core';
+import { canonicalSerialize, sha256Hex } from '@cos/core';
 import type {
   AuthorityFencingValidator,
   AuthoritySideEffectRevision,
@@ -11,8 +11,11 @@ import {
   type ProviderSideEffectReconciler,
   type RecoverInterruptedSideEffectResult,
 } from './authority-side-effect-runtime';
+import {
+  authorityProviderTargetFromOperationInput,
+  verifyProviderReconciliationEvidence,
+} from './authority-provider-reconciliation';
 import type {
-  AuthorityLeaseRevision,
   IAuthorityLeaseStore,
 } from './authority-lease';
 
@@ -42,8 +45,9 @@ export interface AuthorityHistoricalFenceEvidence {
  *
  * This does not authorize a new external mutation. It proves that the original
  * operation entered `executing` under a historically valid lease/fence, requires
- * content-hashed provider inspection evidence, and then records the observed
- * applied/not-applied/partial outcome in the append-only operation history.
+ * independently verifiable provider inspection evidence bound to the exact
+ * operation, and then records the observed applied/not-applied/partial outcome
+ * in the append-only operation history.
  */
 export class AuthorityObservedOutcomeRecorder {
   constructor(
@@ -68,7 +72,11 @@ export class AuthorityObservedOutcomeRecorder {
     const execution = findExecutionRevision(operationHistory, current);
     const historicalFence = await this.proveHistoricalFence(current, execution);
     const validator = historicalFenceValidator(current, historicalFence);
-    const reconciler = evidenceBoundReconciler(input.reconciler, historicalFence);
+    const reconciler = evidenceBoundReconciler(
+      input.reconciler,
+      historicalFence,
+      reconciledAt,
+    );
     const runtime = new AuthoritySideEffectRuntime(this.operations, validator);
 
     return runtime.recoverInterrupted({
@@ -118,25 +126,44 @@ export class AuthorityObservedOutcomeRecorder {
 function evidenceBoundReconciler(
   delegate: ProviderSideEffectReconciler,
   historicalFence: AuthorityHistoricalFenceEvidence,
+  reconciledAt: string,
 ): ProviderSideEffectReconciler {
   return {
     async inspect(operation: AuthoritySideEffectView): Promise<ProviderReconciliationResult> {
       const outcome = await delegate.inspect(structuredClone(operation));
-      const providerEvidence = canonicalClone(
+      const providerIdempotencyKey = nonEmpty(
+        operation.providerIdempotencyKey ?? '',
+        'operation providerIdempotencyKey',
+      );
+      const fencingToken = positiveSafeInteger(
+        operation.fencingToken,
+        'operation fencingToken',
+      );
+      const target = authorityProviderTargetFromOperationInput(
+        operation.input,
+        providerIdempotencyKey,
+      );
+      const providerEvidence = await verifyProviderReconciliationEvidence(
         outcome.evidence,
-        'provider reconciliation evidence',
-      ) as Record<string, unknown>;
-      if (typeof providerEvidence.evidenceHash !== 'string'
-        || !providerEvidence.evidenceHash.trim()) {
-        throw new Error('PROVIDER_RECONCILIATION_EVIDENCE_HASH_REQUIRED');
-      }
+        {
+          operationId: operation.operationId,
+          projectId: operation.projectId,
+          capability: operation.capability,
+          resourceUri: operation.resourceUri,
+          providerIdempotencyKey,
+          fencingToken,
+          inspectedAt: reconciledAt,
+          operationContentHash: operation.contentHash,
+          target,
+        },
+      );
       const combined = {
         providerEvidence,
         historicalFence: structuredClone(historicalFence),
       };
       const evidence = {
         ...combined,
-        evidenceHash: canonicalHash128(combined),
+        evidenceHash: await sha256Hex(combined),
       };
       return { ...outcome, evidence } as ProviderReconciliationResult;
     },
@@ -192,6 +219,13 @@ function canonicalClone<T>(value: T, label: string): T {
   } catch (error) {
     throw new Error(`${label} must be canonical JSON-like data: ${message(error)}`);
   }
+}
+
+function positiveSafeInteger(value: number | null, label: string): number {
+  if (!Number.isSafeInteger(value) || value === null || value < 1) {
+    throw new Error(`${label} must be a positive safe integer`);
+  }
+  return value;
 }
 
 function canonicalTime(value: string, label: string): string {
