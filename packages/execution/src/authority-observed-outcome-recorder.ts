@@ -1,4 +1,4 @@
-import { canonicalHash128, canonicalSerialize } from '@cos/core';
+import { canonicalSerialize } from '@cos/core';
 import type {
   AuthorityFencingValidator,
   AuthoritySideEffectRevision,
@@ -15,6 +15,11 @@ import type {
   AuthorityLeaseRevision,
   IAuthorityLeaseStore,
 } from './authority-lease';
+import {
+  assertAuthorityProviderEvidenceBinding,
+  sealAuthorityProviderEvidence,
+  verifyAuthorityProviderEvidence,
+} from './authority-provider-evidence-integrity';
 
 export interface AuthorityObservedOutcomeRecoveryInput {
   operationId: string;
@@ -41,9 +46,10 @@ export interface AuthorityHistoricalFenceEvidence {
  * state, even when the original lease has since expired or a newer owner exists.
  *
  * This does not authorize a new external mutation. It proves that the original
- * operation entered `executing` under a historically valid lease/fence, requires
- * content-hashed provider inspection evidence, and then records the observed
- * applied/not-applied/partial outcome in the append-only operation history.
+ * operation entered `executing` under a historically valid lease/fence,
+ * independently verifies provider inspection evidence, binds that evidence to
+ * the exact durable operation/provider attempt and only then records the
+ * applied/not-applied/partial outcome in append-only operation history.
  */
 export class AuthorityObservedOutcomeRecorder {
   constructor(
@@ -122,22 +128,28 @@ function evidenceBoundReconciler(
   return {
     async inspect(operation: AuthoritySideEffectView): Promise<ProviderReconciliationResult> {
       const outcome = await delegate.inspect(structuredClone(operation));
-      const providerEvidence = canonicalClone(
-        outcome.evidence,
-        'provider reconciliation evidence',
-      ) as Record<string, unknown>;
-      if (typeof providerEvidence.evidenceHash !== 'string'
-        || !providerEvidence.evidenceHash.trim()) {
-        throw new Error('PROVIDER_RECONCILIATION_EVIDENCE_HASH_REQUIRED');
-      }
+      const verified = verifyAuthorityProviderEvidence(
+        canonicalClone(outcome.evidence, 'provider reconciliation evidence') as Record<string, unknown>,
+      );
+      const providerIdempotencyKey = nonEmpty(
+        operation.providerIdempotencyKey ?? '',
+        'operation providerIdempotencyKey',
+      );
+      assertAuthorityProviderEvidenceBinding(verified.evidence, {
+        operationId: operation.operationId,
+        providerIdempotencyKey,
+        fencingToken: historicalFence.fencingToken,
+      });
+
       const combined = {
-        providerEvidence,
+        providerEvidence: verified.evidence,
+        providerEvidenceVerification: {
+          sealingMode: verified.sealingMode,
+          originalEvidenceHash: verified.originalEvidenceHash,
+        },
         historicalFence: structuredClone(historicalFence),
       };
-      const evidence = {
-        ...combined,
-        evidenceHash: canonicalHash128(combined),
-      };
+      const evidence = sealAuthorityProviderEvidence(combined);
       return { ...outcome, evidence } as ProviderReconciliationResult;
     },
   };
