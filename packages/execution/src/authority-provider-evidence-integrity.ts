@@ -1,5 +1,7 @@
 import { canonicalHash128, canonicalSerialize } from '@cos/core';
 
+export const AUTHORITY_PROVIDER_EVIDENCE_SCHEMA_VERSION = 2 as const;
+
 export interface AuthorityProviderEvidenceBinding {
   operationId: string;
   providerIdempotencyKey: string;
@@ -12,22 +14,22 @@ export interface AuthorityProviderEvidenceBinding {
 
 export interface VerifiedAuthorityProviderEvidence {
   evidence: Record<string, unknown>;
-  sealingMode: 'canonical-v1' | 'legacy-retry-v1';
+  sealingMode: 'canonical-v2' | 'canonical-v1' | 'legacy-retry-v1';
   originalEvidenceHash: string;
 }
 
 /**
- * Canonical authority seal for provider/reconciliation evidence.
+ * Canonical authority seal for all newly produced provider/reconciliation evidence.
  *
- * `evidenceHash` is a reserved top-level field. Any caller-supplied value is
- * removed before hashing so resealing an already sealed envelope is stable and
- * independently reproducible.
+ * T0501 makes the schema version explicit. `evidenceHash` is reserved and is
+ * always recomputed from the canonical payload. Re-sealing is idempotent.
  */
 export function sealAuthorityProviderEvidence(
   value: Record<string, unknown>,
 ): Record<string, unknown> {
   const canonical = canonicalClone(value, 'provider reconciliation evidence');
   delete canonical.evidenceHash;
+  canonical.evidenceSchemaVersion = AUTHORITY_PROVIDER_EVIDENCE_SCHEMA_VERSION;
   return {
     ...canonical,
     evidenceHash: canonicalHash128(canonical),
@@ -35,28 +37,43 @@ export function sealAuthorityProviderEvidence(
 }
 
 /**
- * Verify provider evidence without trusting the supplied hash.
+ * Independently verify an evidence envelope without trusting its claimed hash.
  *
- * The primary contract is canonical-v1: hash(all top-level fields except
- * `evidenceHash`). A bounded compatibility verifier also recognizes the exact
- * retry-envelope shape produced by the pre-T0501 reconciler, whose outer hash
- * included the previous base evidence hash before overwriting that field.
- * Accepted legacy evidence is normalized immediately to canonical-v1 before it
- * is persisted by the observed-outcome recorder.
+ * - canonical-v2: new T0501 evidence with explicit schema version and full
+ *   durable-operation binding;
+ * - canonical-v1: pre-T0501 applied/partial evidence whose hash is reproducible
+ *   but whose historical schema lacked the new full bindings;
+ * - legacy-retry-v1: exact pre-T0501 retry shape where the outer hash included
+ *   the previous base evidenceHash before overwriting it.
+ *
+ * Historical envelopes remain historical. They are wrapped by new v2 recovery
+ * evidence but are never relabelled as if they had stronger bindings originally.
  */
 export function verifyAuthorityProviderEvidence(
   value: Record<string, unknown>,
 ): VerifiedAuthorityProviderEvidence {
   const canonical = canonicalClone(value, 'provider reconciliation evidence');
+  if (!Object.hasOwn(canonical, 'evidenceHash')) {
+    throw new Error('PROVIDER_RECONCILIATION_EVIDENCE_HASH_REQUIRED');
+  }
   const actual = nonEmptyString(canonical.evidenceHash, 'evidenceHash');
   const payload = { ...canonical };
   delete payload.evidenceHash;
 
   const expected = canonicalHash128(payload);
   if (actual === expected) {
+    const version = payload.evidenceSchemaVersion;
+    if (version !== undefined
+      && version !== AUTHORITY_PROVIDER_EVIDENCE_SCHEMA_VERSION) {
+      throw new Error(
+        `PROVIDER_RECONCILIATION_EVIDENCE_SCHEMA_UNSUPPORTED version=${String(version)}`,
+      );
+    }
     return {
-      evidence: sealAuthorityProviderEvidence(payload),
-      sealingMode: 'canonical-v1',
+      evidence: canonical,
+      sealingMode: version === AUTHORITY_PROVIDER_EVIDENCE_SCHEMA_VERSION
+        ? 'canonical-v2'
+        : 'canonical-v1',
       originalEvidenceHash: actual,
     };
   }
@@ -64,7 +81,7 @@ export function verifyAuthorityProviderEvidence(
   const legacyExpected = legacyRetryEvidenceHash(payload);
   if (legacyExpected !== null && actual === legacyExpected) {
     return {
-      evidence: sealAuthorityProviderEvidence(payload),
+      evidence: canonical,
       sealingMode: 'legacy-retry-v1',
       originalEvidenceHash: actual,
     };
@@ -78,11 +95,10 @@ export function verifyAuthorityProviderEvidence(
 /**
  * Bind verified evidence to the exact durable operation attempt.
  *
- * Operation ID is the primary anti-replay identity. Provider idempotency key and
- * historical fencing token are always required. New canonical evidence may also
- * be bound to project, capability, resource and operation content hash. Legacy
- * evidence is accepted only with the smaller historical binding that actually
- * existed when it was written.
+ * Operation ID, provider idempotency key and historical fencing token always
+ * bind the envelope. New v2 evidence additionally binds project, capability,
+ * resource and operation content hash. The caller chooses those stronger checks
+ * only after `verifyAuthorityProviderEvidence` classifies the schema as v2.
  */
 export function assertAuthorityProviderEvidenceBinding(
   evidence: Record<string, unknown>,
@@ -157,6 +173,7 @@ function fieldToCode(
 }
 
 function legacyRetryEvidenceHash(payload: Record<string, unknown>): string | null {
+  if (Object.hasOwn(payload, 'evidenceSchemaVersion')) return null;
   if (!Object.hasOwn(payload, 'retryPlannerEvidence')
     || !Object.hasOwn(payload, 'nextFencingToken')
     || !Object.hasOwn(payload, 'nextProviderIdempotencyKey')) {
