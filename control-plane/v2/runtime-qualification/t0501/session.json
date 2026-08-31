@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "ses_3c90a1d5-8a81-4ad0-b3cb-24f0d099ca8a",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_phase05_provider_evidence_integrity",
+  "objectiveId": "T0501",
+  "correlationId": "corr_7c1b2f9a-9c0f-4e6e-9896-8dc58f8436f2",
+  "createdAt": "2026-08-31T09:10:00Z",
+  "heartbeatAt": "2026-08-31T09:10:00Z",
+  "status": "ACTIVE",
+  "branch": "hardening/t0501-provider-evidence-integrity-v2",
+  "expectedBaseSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "claimId": "claim_6c897ae6-b6b9-4f58-b70b-16f658cfdbfe",
+  "claimRevision": 1,
+  "fencingToken": 1,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "resourceScopes": [
+    "packages/execution/src/authority-provider-reconciliation.ts",
+    "packages/execution/src/authority-observed-outcome-recorder.ts",
+    "scripts/test-authority-observed-outcome-recorder.ts",
+    "scripts/test-authority-provider-evidence-integrity.ts",
+    "control-plane/v2/runtime-qualification/t0501/**"
+  ],
+  "semanticScopes": [
+    "provider evidence canonicalization",
+    "evidence hash independent verification",
+    "cross-operation replay rejection",
+    "historical fence evidence binding"
+  ],
+  "summary": "Close T0501 by making provider reconciliation evidence independently reproducible and verified before historical provider truth can mutate the operation ledger.",
+  "nextAction": "Implement one canonical seal/verify contract, harden observed-outcome recovery, add tamper/replay regression tests, then execute an isolated exact-SHA harness if dependency closure permits."
+}

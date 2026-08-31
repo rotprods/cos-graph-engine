@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "claimId": "claim_6c897ae6-b6b9-4f58-b70b-16f658cfdbfe",
+  "sessionId": "ses_3c90a1d5-8a81-4ad0-b3cb-24f0d099ca8a",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_phase05_provider_evidence_integrity",
+  "objectiveId": "T0501",
+  "createdAt": "2026-08-31T09:10:00Z",
+  "heartbeatAt": "2026-08-31T09:10:00Z",
+  "expiresAt": "2026-08-31T17:10:00Z",
+  "revision": 1,
+  "fencingToken": 1,
+  "status": "ACTIVE",
+  "expectedCandidateSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "exclusiveResourceScopes": [
+    "packages/execution/src/authority-provider-reconciliation.ts",
+    "packages/execution/src/authority-observed-outcome-recorder.ts",
+    "scripts/test-authority-observed-outcome-recorder.ts",
+    "scripts/test-authority-provider-evidence-integrity.ts",
+    "control-plane/v2/runtime-qualification/t0501/**"
+  ],
+  "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "writeContract": {
+    "required": ["claimId", "expectedRevision", "fencingToken", "expectedCandidateSha"],
+    "staleWriterResult": "REJECT_STALE_CLAIM_FENCE"
+  }
+}
