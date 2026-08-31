@@ -7,20 +7,17 @@
   "objectiveId": "T0502D",
   "correlationId": "corr_4771ed75-e40d-44ae-8f0f-6d3dd3fd4a34",
   "createdAt": "2026-08-31T22:53:05Z",
-  "heartbeatAt": "2026-08-31T22:53:05Z",
-  "status": "ACTIVE",
+  "heartbeatAt": "2026-08-31T22:59:11Z",
+  "completedAt": "2026-08-31T22:59:11Z",
+  "status": "HANDOFF_READY",
   "branch": "hardening/t0502d-durable-absence-store-postgres",
   "baseSha": "d50a2d12f5db7d7c35c25126f5cac4f5bf528b12",
+  "implementationSha": "71a69656d978732ce31729abb524e4037e6012b9",
   "claimId": "claim_8a4e9c9e-1eb9-43d1-a230-061bb61cd5e1",
-  "claimRevision": 1,
+  "claimRevision": 2,
   "fencingToken": 1,
   "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
-  "semanticScopes": [
-    "append-only durable absence observation persistence",
-    "Postgres/Supabase semantic parity",
-    "restart-safe repeated absence proof",
-    "cryptographic observation verification"
-  ],
-  "summary": "Make repeated authoritative absence survive process restart using the existing driver-neutral PostgresExecutor contract, without adding infrastructure or mutating a real database.",
-  "nextAction": "Implement insert-only Postgres store, fake transactional driver and restart/tamper/idempotency contracts."
+  "summary": "T0502D implemented append-only driver-neutral Postgres/Supabase absence observation persistence and proved restart/tamper/idempotency semantics with a fake transactional driver.",
+  "evidencePath": "control-plane/v2/runtime-qualification/t0502d/evidence.json",
+  "nextAction": "Implement real read-only GitHub and Drive client adapters behind T0502 inspector ports; keep real provider retries blocked until empirical timeout-after-acceptance evidence exists."
 }
