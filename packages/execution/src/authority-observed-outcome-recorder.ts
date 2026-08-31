@@ -139,7 +139,7 @@ function evidenceBoundReconciler(
         operationId: operation.operationId,
         providerIdempotencyKey,
         fencingToken: historicalFence.fencingToken,
-        ...(verified.sealingMode === 'canonical-v1'
+        ...(verified.sealingMode === 'canonical-v2'
           ? {
               projectId: operation.projectId,
               capability: operation.capability,
