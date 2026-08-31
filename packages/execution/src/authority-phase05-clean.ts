@@ -18,6 +18,7 @@ export * from './authority-isolation';
 export * from './authority-provider-tools';
 export * from './authority-capability-runtime';
 export * from './authority-provider-reconciliation';
+export * from './authority-provider-evidence-integrity';
 export * from './authority-provider-lease-retry-planner';
 export * from './authority-json-idempotency-inspector';
 export * from './authority-node-pinned-http-transport';
