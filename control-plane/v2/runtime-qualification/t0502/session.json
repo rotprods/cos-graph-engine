@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "ses_8751dbb0-045e-4235-b0b4-da8d88ecf33f",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_phase05_provider_reconciliation_adapters",
+  "objectiveId": "T0502",
+  "correlationId": "corr_0154bf94-bc2b-4f4a-bdcf-9973870e16e0",
+  "createdAt": "2026-08-31T09:59:00Z",
+  "heartbeatAt": "2026-08-31T09:59:00Z",
+  "status": "ACTIVE",
+  "branch": "hardening/t0502-provider-reconciliation-adapters-v2",
+  "baseSha": "6eb3cee68aa6b4a08fdb09db54807142696183d9",
+  "claimId": "claim_7f7b9d07-936d-4f68-a663-566a17607893",
+  "claimRevision": 1,
+  "fencingToken": 1,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "resourceScopes": [
+    "packages/execution/src/providers/authority-provider-inspection-shared.ts",
+    "packages/execution/src/providers/authority-github-reconciliation.ts",
+    "packages/execution/src/providers/authority-drive-reconciliation.ts",
+    "packages/execution/src/providers/index.ts",
+    "scripts/test-authority-provider-specific-reconciliation.ts",
+    "control-plane/v2/runtime-qualification/t0502/**"
+  ],
+  "semanticScopes": [
+    "provider-specific read-only reconciliation",
+    "GitHub durable marker/resource inspection",
+    "Google Drive app-property/sentinel/revision inspection",
+    "consistency-window absence proof",
+    "provider payload validation and ambiguity preservation"
+  ],
+  "summary": "Implement bounded, read-only GitHub and Google Drive reconciliation adapters that classify applied/not_applied/partial/unknown without repeating a mutation.",
+  "nextAction": "Inspect existing generic provider contracts, implement injected read-only client ports and consistency-window state, then run fake-client adversarial contracts."
+}

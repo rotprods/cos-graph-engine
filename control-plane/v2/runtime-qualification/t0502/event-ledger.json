@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "ledgerId": "ledger_t0502_runtime_qualification",
+  "anchor": {
+    "sourceTask": "T0501",
+    "sequence": 5,
+    "eventHash": "4917bdbb8ea14bfe0cfe5881fe753b41154d770ad58d9d92b80d7c0ee07e8be3",
+    "sourceCommitSha": "6eb3cee68aa6b4a08fdb09db54807142696183d9"
+  },
+  "segments": [
+    {
+      "path": "control-plane/v2/runtime-qualification/t0502/events-000001.ndjson",
+      "firstSequence": 1,
+      "lastSequence": 1,
+      "eventCount": 1,
+      "lastEventHash": "01867c467e709709b7a288dbe47b7cd1e2c5689dce6ce56dced9c25508641d1e",
+      "status": "SEALED"
+    }
+  ],
+  "eventWatermark": 1,
+  "lastEventHash": "01867c467e709709b7a288dbe47b7cd1e2c5689dce6ce56dced9c25508641d1e"
+}
