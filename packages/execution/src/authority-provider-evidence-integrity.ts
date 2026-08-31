@@ -1,6 +1,7 @@
-import { canonicalHash128, canonicalSerialize } from '@cos/core';
+import { canonicalHash128, canonicalSerialize, sha256Hex } from '@cos/core';
 
 export const AUTHORITY_PROVIDER_EVIDENCE_SCHEMA_VERSION = 2 as const;
+export const AUTHORITY_PROVIDER_EVIDENCE_HASH_ALGORITHM = 'sha256' as const;
 
 export interface AuthorityProviderEvidenceBinding {
   operationId: string;
@@ -14,44 +15,42 @@ export interface AuthorityProviderEvidenceBinding {
 
 export interface VerifiedAuthorityProviderEvidence {
   evidence: Record<string, unknown>;
-  sealingMode: 'canonical-v2' | 'canonical-v1' | 'legacy-retry-v1';
+  sealingMode: 'canonical-v2-sha256' | 'canonical-v1-fnv128' | 'legacy-retry-v1-fnv128';
   originalEvidenceHash: string;
+  hashAlgorithm: 'sha256' | 'fnv128-legacy';
 }
 
 /**
- * Canonical authority seal for all newly produced provider/reconciliation evidence.
+ * Canonical cryptographic integrity seal for newly produced provider evidence.
  *
- * T0501 makes the schema version explicit. `evidenceHash` is reserved and is
- * always recomputed from the canonical payload. Re-sealing is idempotent.
+ * Compact canonicalHash128 remains an identity/dedup primitive only. V2 evidence
+ * is explicitly algorithm-labelled and SHA-256 sealed over strict canonical
+ * JSON-like content. Re-sealing strips all reserved seal fields first.
  */
-export function sealAuthorityProviderEvidence(
+export async function sealAuthorityProviderEvidence(
   value: Record<string, unknown>,
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   const canonical = canonicalClone(value, 'provider reconciliation evidence');
   delete canonical.evidenceHash;
+  delete canonical.evidenceHashAlgorithm;
   canonical.evidenceSchemaVersion = AUTHORITY_PROVIDER_EVIDENCE_SCHEMA_VERSION;
+  canonical.evidenceHashAlgorithm = AUTHORITY_PROVIDER_EVIDENCE_HASH_ALGORITHM;
   return {
     ...canonical,
-    evidenceHash: canonicalHash128(canonical),
+    evidenceHash: await sha256Hex(canonical),
   };
 }
 
 /**
  * Independently verify an evidence envelope without trusting its claimed hash.
  *
- * - canonical-v2: new T0501 evidence with explicit schema version and full
- *   durable-operation binding;
- * - canonical-v1: pre-T0501 applied/partial evidence whose hash is reproducible
- *   but whose historical schema lacked the new full bindings;
- * - legacy-retry-v1: exact pre-T0501 retry shape where the outer hash included
- *   the previous base evidenceHash before overwriting it.
- *
- * Historical envelopes remain historical. They are wrapped by new v2 recovery
- * evidence but are never relabelled as if they had stronger bindings originally.
+ * New v2 envelopes MUST be SHA-256. Historical v1 envelopes remain readable
+ * through the exact legacy FNV-128 verification path but are never upgraded to
+ * v2 guarantees merely because a newer runtime reads them.
  */
-export function verifyAuthorityProviderEvidence(
+export async function verifyAuthorityProviderEvidence(
   value: Record<string, unknown>,
-): VerifiedAuthorityProviderEvidence {
+): Promise<VerifiedAuthorityProviderEvidence> {
   const canonical = canonicalClone(value, 'provider reconciliation evidence');
   if (!Object.hasOwn(canonical, 'evidenceHash')) {
     throw new Error('PROVIDER_RECONCILIATION_EVIDENCE_HASH_REQUIRED');
@@ -60,46 +59,61 @@ export function verifyAuthorityProviderEvidence(
   const payload = { ...canonical };
   delete payload.evidenceHash;
 
-  const expected = canonicalHash128(payload);
-  if (actual === expected) {
-    const version = payload.evidenceSchemaVersion;
-    if (version !== undefined
-      && version !== AUTHORITY_PROVIDER_EVIDENCE_SCHEMA_VERSION) {
+  const version = payload.evidenceSchemaVersion;
+  if (version !== undefined) {
+    if (version !== AUTHORITY_PROVIDER_EVIDENCE_SCHEMA_VERSION) {
       throw new Error(
         `PROVIDER_RECONCILIATION_EVIDENCE_SCHEMA_UNSUPPORTED version=${String(version)}`,
       );
     }
+    if (payload.evidenceHashAlgorithm !== AUTHORITY_PROVIDER_EVIDENCE_HASH_ALGORITHM) {
+      throw new Error(
+        `PROVIDER_RECONCILIATION_EVIDENCE_HASH_ALGORITHM_UNSUPPORTED algorithm=${String(payload.evidenceHashAlgorithm)}`,
+      );
+    }
+    if (!/^[0-9a-f]{64}$/.test(actual)) {
+      throw new Error('PROVIDER_RECONCILIATION_EVIDENCE_SHA256_INVALID');
+    }
+    const expected = await sha256Hex(payload);
+    if (actual !== expected) {
+      throw new Error(
+        `PROVIDER_RECONCILIATION_EVIDENCE_HASH_MISMATCH expected=${expected} actual=${actual}`,
+      );
+    }
     return {
       evidence: canonical,
-      sealingMode: version === AUTHORITY_PROVIDER_EVIDENCE_SCHEMA_VERSION
-        ? 'canonical-v2'
-        : 'canonical-v1',
+      sealingMode: 'canonical-v2-sha256',
       originalEvidenceHash: actual,
+      hashAlgorithm: 'sha256',
     };
   }
 
-  const legacyExpected = legacyRetryEvidenceHash(payload);
-  if (legacyExpected !== null && actual === legacyExpected) {
+  const expectedLegacy = canonicalHash128(payload);
+  if (actual === expectedLegacy) {
     return {
       evidence: canonical,
-      sealingMode: 'legacy-retry-v1',
+      sealingMode: 'canonical-v1-fnv128',
       originalEvidenceHash: actual,
+      hashAlgorithm: 'fnv128-legacy',
+    };
+  }
+
+  const legacyRetryExpected = legacyRetryEvidenceHash(payload);
+  if (legacyRetryExpected !== null && actual === legacyRetryExpected) {
+    return {
+      evidence: canonical,
+      sealingMode: 'legacy-retry-v1-fnv128',
+      originalEvidenceHash: actual,
+      hashAlgorithm: 'fnv128-legacy',
     };
   }
 
   throw new Error(
-    `PROVIDER_RECONCILIATION_EVIDENCE_HASH_MISMATCH expected=${expected} actual=${actual}`,
+    `PROVIDER_RECONCILIATION_EVIDENCE_HASH_MISMATCH expectedLegacy=${expectedLegacy} actual=${actual}`,
   );
 }
 
-/**
- * Bind verified evidence to the exact durable operation attempt.
- *
- * Operation ID, provider idempotency key and historical fencing token always
- * bind the envelope. New v2 evidence additionally binds project, capability,
- * resource and operation content hash. The caller chooses those stronger checks
- * only after `verifyAuthorityProviderEvidence` classifies the schema as v2.
- */
+/** Bind already-verified evidence to the exact durable operation attempt. */
 export function assertAuthorityProviderEvidenceBinding(
   evidence: Record<string, unknown>,
   expected: AuthorityProviderEvidenceBinding,
