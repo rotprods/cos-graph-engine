@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T0502D",
+  "status": "TARGETED_PASS_WITH_REAL_POSTGRES_PENDING",
+  "branch": "hardening/t0502d-durable-absence-store-postgres",
+  "baseSha": "d50a2d12f5db7d7c35c25126f5cac4f5bf528b12",
+  "implementationSha": "71a69656d978732ce31729abb524e4037e6012b9",
+  "executedAt": "2026-08-31T22:59:11Z",
+  "sessionId": "ses_0fb1e6c0-936a-46e8-9fae-855664992aca",
+  "claimId": "claim_8a4e9c9e-1eb9-43d1-a230-061bb61cd5e1",
+  "correlationId": "corr_4771ed75-e40d-44ae-8f0f-6d3dd3fd4a34",
+  "environment": {
+    "node": "v22.16.0",
+    "typescript": "5.8.3",
+    "webCrypto": "available",
+    "execution": "local exact store/test sources with inspected PostgresExecutor type contract and T0502 shared kernel"
+  },
+  "exactGitBlobMatches": {
+    "packages/execution/src/providers/authority-absence-observation-store-postgres.ts": "b772f6a8d9f32fc29d02a4fce05ae11df8cd006d",
+    "scripts/test-authority-absence-observation-store-postgres.ts": "f9832a3e9ccf00750d8aae94338d0149f2063d6a",
+    "packages/execution/src/providers/authority-provider-inspection-shared.ts@base": "ce1eeafccab7a34bab1f3ab1eca49e624c740656",
+    "packages/runtime/src/postgres-event-log.ts@base": "08b10e47b9b4febb6c37a141c8eec19b58126171"
+  },
+  "results": [
+    {
+      "id": "t0502d-targeted-typecheck",
+      "status": "PASS",
+      "command": "tsc -p tsconfig-t0502d.json",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "postgres-absence-store-contract",
+      "status": "PASS",
+      "command": "node dist-t0502d/scripts/test-authority-absence-observation-store-postgres.js",
+      "assertions": 16,
+      "logSha256": "3e04837934eff348771301f86140b1c4dea4c984c713ca7b9e13e04545bb2de8"
+    }
+  ],
+  "invariantsCovered": [
+    "DDL and public store API expose no history UPDATE or DELETE path",
+    "identical append is idempotent",
+    "concurrent identical retry converges to one semantic row",
+    "same observation identity with different valid content is a conflict and cannot overwrite history",
+    "returned observations are detached from persisted state",
+    "new store instance reconstructs observations after restart",
+    "repeated absence proof can combine observations written before and after store recreation",
+    "evidence tampering at rest is rejected by recomputed SHA-256 evidence hash",
+    "content hash tampering at rest is rejected",
+    "DB insertion timestamp is not part of semantic identity or content hash"
+  ],
+  "proofBoundary": {
+    "realPostgresOrSupabase": "NOT_RUN",
+    "actualTransactionIsolation": "NOT_RUN",
+    "multiProcessConcurrentTransactions": "NOT_RUN",
+    "realProviderReadClients": "NOT_IMPLEMENTED",
+    "productionSupabaseMutation": "NONE",
+    "automaticGitHubActions": "OFF",
+    "cdDeployRelease": "OFF"
+  },
+  "authorityEffect": "TARGETED_DURABILITY_ASSURANCE_ONLY_NO_GLOBAL_SCORE_PROMOTION",
+  "runtimeAuthority": "SHADOW_ONLY",
+  "globalScoreMovement": "NONE",
+  "nextSafeAction": "Implement real read-only GitHub and Google Drive client adapters behind the T0502 inspector ports, using connector/provider reads only and preserving ambiguous outcomes as unknown; then run sandbox/provider contract fixtures before any retry path is allowed."
+}

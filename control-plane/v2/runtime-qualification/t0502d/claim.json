@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "claimId": "claim_8a4e9c9e-1eb9-43d1-a230-061bb61cd5e1",
+  "sessionId": "ses_0fb1e6c0-936a-46e8-9fae-855664992aca",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_phase05_durable_absence_store",
+  "objectiveId": "T0502D",
+  "createdAt": "2026-08-31T22:53:05Z",
+  "heartbeatAt": "2026-08-31T22:59:11Z",
+  "expiresAt": "2026-09-01T06:53:05Z",
+  "revision": 2,
+  "fencingToken": 1,
+  "status": "RELEASED",
+  "baseSha": "d50a2d12f5db7d7c35c25126f5cac4f5bf528b12",
+  "releasedAt": "2026-08-31T22:59:11Z",
+  "releaseReason": "T0502D append-only Postgres absence-store targeted exact-source contract passed at implementation SHA 71a69656d978732ce31729abb524e4037e6012b9.",
+  "evidencePath": "control-plane/v2/runtime-qualification/t0502d/evidence.json",
+  "exclusiveResourceScopes": [
+    "packages/execution/src/providers/authority-absence-observation-store-postgres.ts",
+    "scripts/test-authority-absence-observation-store-postgres.ts",
+    "control-plane/v2/runtime-qualification/t0502d/**"
+  ],
+  "sharedResourceScopes": [
+    "packages/execution/src/providers/authority-provider-inspection-shared.ts"
+  ],
+  "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "writeContract": {
+    "perMutationParentCas": true,
+    "required": ["claimId", "revision", "fencingToken", "liveParentSha"],
+    "staleWriterResult": "REJECT_STALE_PARENT"
+  }
+}
