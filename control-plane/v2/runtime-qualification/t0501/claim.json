@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "claimId": "claim_6c897ae6-b6b9-4f58-b70b-16f658cfdbfe",
   "sessionId": "ses_3c90a1d5-8a81-4ad0-b3cb-24f0d099ca8a",
   "projectId": "COS_GRAPH_ENGINE",
@@ -7,23 +7,31 @@
   "workstreamId": "ws_phase05_provider_evidence_integrity",
   "objectiveId": "T0501",
   "createdAt": "2026-08-31T09:10:00Z",
-  "heartbeatAt": "2026-08-31T09:10:00Z",
+  "heartbeatAt": "2026-08-31T09:38:00Z",
   "expiresAt": "2026-08-31T17:10:00Z",
-  "revision": 1,
-  "fencingToken": 1,
+  "revision": 2,
+  "fencingToken": 2,
   "status": "ACTIVE",
-  "expectedCandidateSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "initialCandidateSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "lastObservedHeadSha": "ec7f02657251f71655d0a40c1c2b1feec45faf84",
   "exclusiveResourceScopes": [
     "packages/execution/src/authority-provider-reconciliation.ts",
+    "packages/execution/src/authority-provider-evidence-integrity.ts",
     "packages/execution/src/authority-observed-outcome-recorder.ts",
+    "packages/execution/src/authority-phase05-clean.ts",
     "scripts/test-authority-observed-outcome-recorder.ts",
     "scripts/test-authority-provider-evidence-integrity.ts",
+    "scripts/test-authority-provider-reconciler-evidence.ts",
     "control-plane/v2/runtime-qualification/t0501/**"
   ],
   "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
   "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
   "writeContract": {
-    "required": ["claimId", "expectedRevision", "fencingToken", "expectedCandidateSha"],
+    "required": ["claimId", "expectedRevision", "fencingToken", "expectedParentSha"],
+    "headFenceMode": "PER_MUTATION_CAS",
+    "rule": "expectedParentSha is read live immediately before each mutation and is compared by the Git ref update; the claim projection itself does not attempt to equal the post-mutation branch head.",
     "staleWriterResult": "REJECT_STALE_CLAIM_FENCE"
-  }
+  },
+  "supersedesRevision": 1,
+  "supersessionReason": "Revision 1 incorrectly modeled a persistent expectedCandidateSha as if it could equal a moving branch after its own commits. Revision 2 separates scope/fencing ownership from per-mutation Git CAS."
 }

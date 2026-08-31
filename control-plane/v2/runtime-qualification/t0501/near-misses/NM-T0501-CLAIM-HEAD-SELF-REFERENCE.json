@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "nearMissId": "NM-T0501-CLAIM-HEAD-SELF-REFERENCE",
+  "detectedAt": "2026-08-31T09:38:00Z",
+  "projectId": "COS_GRAPH_ENGINE",
+  "taskId": "T0501",
+  "severity": "P1_COORDINATION",
+  "status": "MITIGATED_UNVERIFIED",
+  "observation": "The active claim stored one persistent expectedCandidateSha. After an accepted branch commit, that field necessarily became stale even when the same legitimate session continued.",
+  "brokenInvariant": "A mutable branch CAS must be evaluated against the immediate pre-mutation parent; a persistent claim projection cannot equal both the pre- and post-mutation head.",
+  "failureFamily": [
+    "self-referential coordination projection",
+    "stale-writer false positive after successful own commit",
+    "claim projection masquerading as mutation CAS authority"
+  ],
+  "selectedRepair": "Claim owns scope, revision and fencing token. Every mutation supplies a live expectedParentSha separately and GitHub rejects non-fast-forward/stale-parent updates. The claim projection records lastObservedHeadSha but does not assert it remains current after its own mutation.",
+  "introducedRisks": [
+    "caller may forget to re-read live head before mutation"
+  ],
+  "defenses": [
+    "per-mutation live head reconstruction",
+    "non-force Git ref update",
+    "event records expected parent and resulting commit",
+    "claim fencing still invalidates superseded writers"
+  ],
+  "rollback": "Release T0501 claim and abandon PR #60 without merge.",
+  "permanentRegression": "A future coordination validator must reject any claim model that requires a mutable branch projection to equal its own post-write head without a separate per-mutation CAS input."
+}

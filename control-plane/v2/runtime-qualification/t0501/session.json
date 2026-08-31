@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "sessionId": "ses_3c90a1d5-8a81-4ad0-b3cb-24f0d099ca8a",
   "projectId": "COS_GRAPH_ENGINE",
   "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
@@ -7,27 +7,32 @@
   "objectiveId": "T0501",
   "correlationId": "corr_7c1b2f9a-9c0f-4e6e-9896-8dc58f8436f2",
   "createdAt": "2026-08-31T09:10:00Z",
-  "heartbeatAt": "2026-08-31T09:10:00Z",
+  "heartbeatAt": "2026-08-31T09:38:00Z",
   "status": "ACTIVE",
   "branch": "hardening/t0501-provider-evidence-integrity-v2",
-  "expectedBaseSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "baseSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+  "lastObservedHeadSha": "ec7f02657251f71655d0a40c1c2b1feec45faf84",
   "claimId": "claim_6c897ae6-b6b9-4f58-b70b-16f658cfdbfe",
-  "claimRevision": 1,
-  "fencingToken": 1,
+  "claimRevision": 2,
+  "fencingToken": 2,
   "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
   "resourceScopes": [
     "packages/execution/src/authority-provider-reconciliation.ts",
+    "packages/execution/src/authority-provider-evidence-integrity.ts",
     "packages/execution/src/authority-observed-outcome-recorder.ts",
+    "packages/execution/src/authority-phase05-clean.ts",
     "scripts/test-authority-observed-outcome-recorder.ts",
     "scripts/test-authority-provider-evidence-integrity.ts",
+    "scripts/test-authority-provider-reconciler-evidence.ts",
     "control-plane/v2/runtime-qualification/t0501/**"
   ],
   "semanticScopes": [
     "provider evidence canonicalization",
-    "evidence hash independent verification",
+    "schema-versioned evidence verification",
     "cross-operation replay rejection",
-    "historical fence evidence binding"
+    "historical fence evidence binding",
+    "claim/head CAS near-miss correction"
   ],
-  "summary": "Close T0501 by making provider reconciliation evidence independently reproducible and verified before historical provider truth can mutate the operation ledger.",
-  "nextAction": "Implement one canonical seal/verify contract, harden observed-outcome recovery, add tamper/replay regression tests, then execute an isolated exact-SHA harness if dependency closure permits."
+  "summary": "T0501 now owns a versioned canonical provider-evidence envelope. New v2 evidence binds project/capability/resource/contentHash; historical v1/legacy evidence remains truthfully weaker. Claim ownership uses per-mutation Git CAS instead of a self-referential persistent head fence.",
+  "nextAction": "Execute exact-byte local tests for the current head, persist bounded evidence, then either close T0501 or continue only on failures exposed by that evidence."
 }
