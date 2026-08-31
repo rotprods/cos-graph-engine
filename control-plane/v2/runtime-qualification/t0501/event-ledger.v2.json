@@ -15,13 +15,23 @@
       "eventCount": 2,
       "lastEventHash": "eb2ef9b05990276eb4053ae69b6e907bf7dee06bdda7afb3a7dd4ac4a5cc4905",
       "status": "SEALED"
+    },
+    {
+      "path": "control-plane/v2/runtime-qualification/t0501/events-000003.ndjson",
+      "firstSequence": 4,
+      "lastSequence": 5,
+      "eventCount": 2,
+      "lastEventHash": "4917bdbb8ea14bfe0cfe5881fe753b41154d770ad58d9d92b80d7c0ee07e8be3",
+      "status": "SEALED"
     }
   ],
-  "eventWatermark": 3,
+  "eventWatermark": 5,
+  "lastEventHash": "4917bdbb8ea14bfe0cfe5881fe753b41154d770ad58d9d92b80d7c0ee07e8be3",
   "rules": [
     "history is never silently rewritten",
     "new segments chain from the prior accepted event hash",
     "event IDs and idempotency keys are unique within this task ledger",
-    "claim/head model corrections are near-miss evidence, not hidden cleanup"
+    "claim/head model corrections are near-miss evidence, not hidden cleanup",
+    "targeted evidence never implies full repository or production qualification"
   ]
 }

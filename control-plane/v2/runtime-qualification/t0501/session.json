@@ -7,32 +7,16 @@
   "objectiveId": "T0501",
   "correlationId": "corr_7c1b2f9a-9c0f-4e6e-9896-8dc58f8436f2",
   "createdAt": "2026-08-31T09:10:00Z",
-  "heartbeatAt": "2026-08-31T09:38:00Z",
-  "status": "ACTIVE",
+  "completedAt": "2026-08-31T09:48:00Z",
+  "status": "HANDOFF_READY",
   "branch": "hardening/t0501-provider-evidence-integrity-v2",
   "baseSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
-  "lastObservedHeadSha": "ec7f02657251f71655d0a40c1c2b1feec45faf84",
+  "evidenceImplementationSha": "ec7f02657251f71655d0a40c1c2b1feec45faf84",
   "claimId": "claim_6c897ae6-b6b9-4f58-b70b-16f658cfdbfe",
   "claimRevision": 2,
   "fencingToken": 2,
   "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
-  "resourceScopes": [
-    "packages/execution/src/authority-provider-reconciliation.ts",
-    "packages/execution/src/authority-provider-evidence-integrity.ts",
-    "packages/execution/src/authority-observed-outcome-recorder.ts",
-    "packages/execution/src/authority-phase05-clean.ts",
-    "scripts/test-authority-observed-outcome-recorder.ts",
-    "scripts/test-authority-provider-evidence-integrity.ts",
-    "scripts/test-authority-provider-reconciler-evidence.ts",
-    "control-plane/v2/runtime-qualification/t0501/**"
-  ],
-  "semanticScopes": [
-    "provider evidence canonicalization",
-    "schema-versioned evidence verification",
-    "cross-operation replay rejection",
-    "historical fence evidence binding",
-    "claim/head CAS near-miss correction"
-  ],
-  "summary": "T0501 now owns a versioned canonical provider-evidence envelope. New v2 evidence binds project/capability/resource/contentHash; historical v1/legacy evidence remains truthfully weaker. Claim ownership uses per-mutation Git CAS instead of a self-referential persistent head fence.",
-  "nextAction": "Execute exact-byte local tests for the current head, persist bounded evidence, then either close T0501 or continue only on failures exposed by that evidence."
+  "evidencePath": "control-plane/v2/runtime-qualification/t0501/evidence.json",
+  "summary": "T0501 closes the provider-evidence hash/binding defect at a targeted level. New v2 evidence is independently verifiable and fully operation-bound; historical v1 evidence remains truthfully weaker. Exact helper and reconciler contracts passed; recorder exact source typechecked. Full repository integration remains NOT_RUN.",
+  "nextAction": "Start T0502 provider-specific GitHub/Drive reconciliation adapters from this bounded checkpoint, while retaining full recorder integration as a Phase 07 mandatory gate."
 }
