@@ -40,7 +40,7 @@ jobs:
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
       - run: npm ci
       - name: TypeScript check
-        run: npx tsc --noEmit
+        run: npx tsc -p tsconfig.build.json --noEmit
 
   test-graph-csr:
     name: CSR Graph (77 tests)
