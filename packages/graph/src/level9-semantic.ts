@@ -29,6 +29,28 @@ export class SemanticGraph {
     }
   }
 
+  private ancestorDistances(startId: string): Map<string, number> {
+    const distances = new Map<string, number>();
+    if (!this.getNode(startId)) return distances;
+
+    const queue: Array<{ id: string; distance: number }> = [{ id: startId, distance: 0 }];
+    distances.set(startId, 0);
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const edge of this.edges) {
+        // Taxonomy edges are child -> parent.
+        if (edge.relation !== 'is_a' || edge.source !== current.id) continue;
+        if (distances.has(edge.target)) continue;
+        const distance = current.distance + 1;
+        distances.set(edge.target, distance);
+        queue.push({ id: edge.target, distance });
+      }
+    }
+
+    return distances;
+  }
+
   addNode(n: SemanticNode): string {
     if (this.nodes.some(x => x.id === n.id)) throw new Error(`Duplicate semantic node ID: ${n.id}`);
     this.nodes.push(n); this.buildAdjacency(); return n.id;
@@ -72,40 +94,40 @@ export class SemanticGraph {
   }
 
   lca(id1: string, id2: string): SemanticNode | null {
-    const ancestors1 = new Set<string>();
-    const collect = (id: string, set: Set<string>) => {
-      set.add(id);
-      for (const e of this.edges.filter(e => e.target === id && e.relation === 'is_a')) {
-        collect(e.source, set);
-      }
-    };
-    collect(id1, ancestors1);
-    const queue = [id2]; const visited = new Set<string>();
-    while (queue.length) {
-      const id = queue.shift()!;
-      if (ancestors1.has(id)) return this.getNode(id) || null;
-      if (visited.has(id)) continue; visited.add(id);
-      for (const e of this.edges.filter(e => e.target === id && e.relation === 'is_a')) {
-        queue.push(e.source);
+    const ancestors1 = this.ancestorDistances(id1);
+    const ancestors2 = this.ancestorDistances(id2);
+    if (ancestors1.size === 0 || ancestors2.size === 0) return null;
+
+    let bestId: string | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const [candidateId, distance1] of ancestors1) {
+      const distance2 = ancestors2.get(candidateId);
+      if (distance2 === undefined) continue;
+      const totalDistance = distance1 + distance2;
+      if (totalDistance < bestDistance || (totalDistance === bestDistance && candidateId < (bestId ?? candidateId))) {
+        bestId = candidateId;
+        bestDistance = totalDistance;
       }
     }
-    return null;
+
+    return bestId ? this.getNode(bestId) ?? null : null;
   }
 
   similarity(id1: string, id2: string): number {
+    if (!this.getNode(id1) || !this.getNode(id2)) return 0;
+    if (id1 === id2) return 1;
+
     const ancestor = this.lca(id1, id2);
     if (!ancestor) return 0;
-    const depth = (id: string): number => {
-      let d = 0; let cur = id;
-      while (true) {
-        const parent = this.edges.find(e => e.target === cur && e.relation === 'is_a');
-        if (!parent) break;
-        cur = parent.source; d++;
-      }
-      return d;
-    };
-    const d1 = depth(id1); const d2 = depth(id2); const da = depth(ancestor.id);
-    return (2 * da) / (d1 + d2);
+
+    const distance1 = this.ancestorDistances(id1).get(ancestor.id);
+    const distance2 = this.ancestorDistances(id2).get(ancestor.id);
+    if (distance1 === undefined || distance2 === undefined) return 0;
+
+    // Distance-to-LCA similarity: identical nodes -> 1, increasingly distant
+    // relatives approach 0 while remaining bounded in (0, 1].
+    return 1 / (1 + distance1 + distance2);
   }
 
   toMermaid(): string {

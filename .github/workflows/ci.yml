@@ -10,18 +10,20 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '18.20.4'
-  WORKING_DIR: cos
+  NODE_VERSION: '22.12.0'
+  WORKING_DIR: .
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ─── Lint & Type Check ──────────────────────────────────────────
   lint:
     name: Lint + Type Check
     runs-on: ubuntu-latest
@@ -30,17 +32,16 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
       - run: npm ci
       - name: TypeScript check
-        run: npx tsc --noEmit 2>&1 || echo "Type check complete (may warn on missing tsc)"
+        run: npx tsc -p tsconfig.build.json --noEmit
 
-  # ─── Packages: Graph Engine ────────────────────────────────────
   test-graph-csr:
     name: CSR Graph (77 tests)
     runs-on: ubuntu-latest
@@ -49,8 +50,8 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -67,8 +68,8 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -85,8 +86,8 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -95,7 +96,6 @@ jobs:
       - name: Benchmark tests
         run: npx tsx scripts/test-benchmark.ts
 
-  # ─── Packages: WASM ────────────────────────────────────────────
   test-wasm:
     name: WASM (23 tests)
     runs-on: ubuntu-latest
@@ -104,19 +104,18 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
       - run: npm ci
       - name: Build WASM modules
-        run: npm run asbuild 2>/dev/null || echo "WASM build skipped"
+        run: npm run asbuild
       - name: WASM tests
         run: npx tsx scripts/test-wasm.ts
 
-  # ─── Packages: Observability ───────────────────────────────────
   test-observability:
     name: Observability (228 tests)
     runs-on: ubuntu-latest
@@ -125,8 +124,8 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -141,7 +140,6 @@ jobs:
       - name: Dashboard
         run: npx tsx packages/observability/tests/dashboard.test.ts
 
-  # ─── Packages: Visualization ───────────────────────────────────
   test-visualization:
     name: Visualization (90 tests)
     runs-on: ubuntu-latest
@@ -150,8 +148,8 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -164,7 +162,6 @@ jobs:
       - name: Web Component
         run: npx tsx packages/visualization/tests/web-component.test.ts
 
-  # ─── COS Core Test Suite ───────────────────────────────────────
   test-core:
     name: COS Core (390+ tests)
     runs-on: ubuntu-latest
@@ -173,8 +170,8 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
@@ -194,10 +191,7 @@ jobs:
           npx tsx scripts/test-level5-cfg.ts
           npx tsx scripts/test-level6-dataflow.ts
           npx tsx scripts/test-levels-8-11.ts
-      - name: Verify
-        run: echo "All COS core tests passed"
 
-  # ─── Performance Benchmarks ────────────────────────────────────
   benchmark:
     name: Performance Benchmarks
     runs-on: ubuntu-latest
@@ -206,31 +200,30 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
       - run: npm ci
       - name: Build WASM
-        run: npm run asbuild 2>/dev/null || echo "WASM build skipped"
+        run: npm run asbuild
       - name: Run benchmarks
-        run: npx tsx scripts/benchmark-perf.ts 2>&1
+        run: npx tsx scripts/benchmark-perf.ts
       - name: Generate HTML report
-        run: npx tsx scripts/generate-benchmark-report.ts 2>&1
+        run: npx tsx scripts/generate-benchmark-report.ts
       - name: Upload benchmark report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-report
           path: ${{ env.WORKING_DIR }}/benchmark-report.html
       - name: Upload benchmark history
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: benchmark-history
           path: ${{ env.WORKING_DIR }}/benchmark-reports/
 
-  # ─── Code Coverage ─────────────────────────────────────────────
   coverage:
     name: Code Coverage (c8)
     runs-on: ubuntu-latest
@@ -239,61 +232,21 @@ jobs:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
       - run: npm ci
       - name: Run with coverage
-        run: npm run coverage 2>&1
+        run: npm run coverage
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: coverage-report
           path: ${{ env.WORKING_DIR }}/coverage/
 
-  # ─── Docker Build (on main only) ───────────────────────────────
-  docker:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: [lint, test-graph-csr, test-graph-pruning, test-graph-benchmark, test-wasm, test-observability, test-visualization, test-core]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    permissions:
-      contents: read
-      packages: write
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ env.WORKING_DIR }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ─── Full Regression ───────────────────────────────────────────
   full-regression:
     name: Full Regression
     runs-on: ubuntu-latest
@@ -308,28 +261,65 @@ jobs:
       - test-visualization
       - test-core
       - benchmark
-    if: always() && !cancelled()
     defaults:
       run:
         working-directory: ${{ env.WORKING_DIR }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
       - run: npm ci
       - name: Run all suites
-        run: npm run test:all 2>&1
-      - name: Verify
-        run: echo "✅ All 552 tests passed"
+        run: npm run test:all
 
-  # ─── Complete ──────────────────────────────────────────────────
   complete:
-    name: ✅ All Checks Passed
+    name: CI Required Gates Complete
     runs-on: ubuntu-latest
-    needs: [full-regression]
-    if: success()
+    needs:
+      - full-regression
+      - coverage
     steps:
-      - run: echo "✅ CI complete — all tests, benchmarks, and Docker build passed"
+      - run: echo "Required CI gates completed successfully"
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs:
+      - full-regression
+      - coverage
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ env.WORKING_DIR }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
