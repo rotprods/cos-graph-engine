@@ -30,29 +30,22 @@ export interface AuthorityProviderExplicitPartial {
 }
 
 export interface AuthorityProviderReadObservation {
-  /** Provider/resource read was strong enough for an absence observation. */
   authoritativeAbsence: boolean;
-  /** Optional provider revision/etag/change token used only as evidence. */
   providerRevision?: string | number | null;
   candidates: AuthorityProviderReadCandidate[];
-  /** Provider-specific evidence about the read itself. */
   evidence: Record<string, unknown>;
-  /** Explicit provider evidence that only part of the intended effect exists. */
   partial?: AuthorityProviderExplicitPartial;
 }
 
 export interface AuthorityProviderReadTarget {
   provider: AuthorityReadOnlyProvider;
-  /** Canonical stable identity of the resource/query being inspected. */
   targetKey: string;
-  /** Minimum elapsed time between authoritative absence observations. */
   minimumConsistencyWindowMs: number;
-  /** Provider-specific target description; must be canonical JSON-like data. */
   descriptor: Record<string, unknown>;
 }
 
 export interface AuthorityAbsenceObservation {
-  /** Deterministic identity only; not an integrity primitive. */
+  /** Deterministic identity only; never an integrity primitive. */
   observationId: string;
   provider: AuthorityReadOnlyProvider;
   targetKey: string;
@@ -61,6 +54,8 @@ export interface AuthorityAbsenceObservation {
   operationContentHash: string;
   observedAt: string;
   providerRevision: string | number | null;
+  /** Canonical provider read evidence retained so its digest can be recomputed after restore. */
+  evidence: Record<string, unknown>;
   evidenceHashAlgorithm: typeof AUTHORITY_ABSENCE_HASH_ALGORITHM;
   evidenceHash: string;
   contentHashAlgorithm: typeof AUTHORITY_ABSENCE_HASH_ALGORITHM;
@@ -143,6 +138,7 @@ export class AuthorityRepeatedAbsenceGate {
     const content = {
       ...identity,
       providerRevision: normalizeRevision(input.providerRevision),
+      evidence,
       evidenceHashAlgorithm: AUTHORITY_ABSENCE_HASH_ALGORITHM,
       evidenceHash,
       contentHashAlgorithm: AUTHORITY_ABSENCE_HASH_ALGORITHM,
@@ -371,6 +367,11 @@ async function normalizeObservation(input: AuthorityAbsenceObservation): Promise
   if (!/^[0-9a-f]{64}$/.test(copy.evidenceHash) || !/^[0-9a-f]{64}$/.test(copy.contentHash)) {
     throw new Error('ABSENCE_OBSERVATION_SHA256_INVALID');
   }
+  const evidence = canonicalClone(copy.evidence, 'absence observation evidence');
+  const expectedEvidenceHash = await sha256Hex(evidence);
+  if (copy.evidenceHash !== expectedEvidenceHash) {
+    throw new Error(`ABSENCE_OBSERVATION_EVIDENCE_HASH_MISMATCH expected=${expectedEvidenceHash} actual=${copy.evidenceHash}`);
+  }
   const content = {
     provider: copy.provider,
     targetKey: nonEmpty(copy.targetKey, 'absence targetKey'),
@@ -379,8 +380,9 @@ async function normalizeObservation(input: AuthorityAbsenceObservation): Promise
     operationContentHash: nonEmpty(copy.operationContentHash, 'operationContentHash'),
     observedAt: canonicalTime(copy.observedAt, 'absence observedAt'),
     providerRevision: normalizeRevision(copy.providerRevision),
+    evidence,
     evidenceHashAlgorithm: AUTHORITY_ABSENCE_HASH_ALGORITHM,
-    evidenceHash: copy.evidenceHash,
+    evidenceHash: expectedEvidenceHash,
     contentHashAlgorithm: AUTHORITY_ABSENCE_HASH_ALGORITHM,
   };
   const expectedId = `absence_${canonicalHash128({
