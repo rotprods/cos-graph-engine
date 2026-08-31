@@ -19,7 +19,7 @@ concurrency:
 
 env:
   NODE_VERSION: '18.20.4'
-  WORKING_DIR: cos
+  WORKING_DIR: .
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
