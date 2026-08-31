@@ -43,6 +43,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     timeout-minutes: 20
+    outputs:
+      tested_sha: ${{ steps.source.outputs.sha }}
     defaults:
       run:
         working-directory: ${{ env.WORKING_DIR }}
@@ -51,6 +53,9 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      - name: Capture exact tested commit
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -76,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: main
+          ref: ${{ needs.test.outputs.tested_sha }}
           fetch-depth: 0
       - name: Verify package version matches requested release
         env:
@@ -90,11 +95,12 @@ jobs:
       - name: Generate release notes
         env:
           VERSION: ${{ inputs.version }}
+          TESTED_SHA: ${{ needs.test.outputs.tested_sha }}
         run: |
           {
             echo "### COS Graph Engine Release v${VERSION}"
             echo
-            echo "Commit: ${GITHUB_SHA}"
+            echo "Commit: ${TESTED_SHA}"
             echo
             echo "#### Changes"
             git log --oneline "$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)"..HEAD --no-merges
@@ -104,7 +110,7 @@ jobs:
         with:
           tag_name: v${{ inputs.version }}
           name: v${{ inputs.version }}
-          target_commitish: main
+          target_commitish: ${{ needs.test.outputs.tested_sha }}
           body_path: ${{ env.WORKING_DIR }}/release-notes.md
           generate_release_notes: true
           make_latest: true
