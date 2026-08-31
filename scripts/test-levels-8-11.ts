@@ -1,5 +1,5 @@
 // T-6.6: 40+ Tests for L8-L11
-// Knowledge (addEntity/addRelation), Semantic (addNode/addEdge/findSimilar/lca)
+// Knowledge (addEntity/addRelation), Semantic (addNode/addEdge/similarity/lca)
 // Embedding (addNode/buildKNN/cluster), GraphRAG (addChunk/addEntity/retrieve)
 
 import { KnowledgeGraphEngine } from '../packages/graph/src/level8-knowledge';
@@ -18,9 +18,9 @@ function assert(cond: boolean, msg: string) { if (cond) { p++; } else { f++; con
   assert(kg.relations.length === 0, 'L8: Empty has 0 relations');
 
   // addEntity
-  const e1 = kg.addEntity({ id: 'einstein', name: 'Einstein', type: 'person', description: 'Physicist', aliases: ['Albert'] });
-  const e2 = kg.addEntity({ id: 'relativity', name: 'Relativity', type: 'concept', description: 'Theory' });
-  const e3 = kg.addEntity({ id: 'physics', name: 'Physics', type: 'concept', description: 'Science' });
+  kg.addEntity({ id: 'einstein', name: 'Einstein', type: 'person', description: 'Physicist', aliases: ['Albert'] });
+  kg.addEntity({ id: 'relativity', name: 'Relativity', type: 'concept', description: 'Theory' });
+  kg.addEntity({ id: 'physics', name: 'Physics', type: 'concept', description: 'Science' });
   assert(kg.entities.length === 3, 'L8: addEntity adds entities');
 
   // duplicate
@@ -37,7 +37,7 @@ function assert(cond: boolean, msg: string) { if (cond) { p++; } else { f++; con
   catch (e) { assert(true, 'L8: Rejects dangling relation source'); }
 
   // removeEntity
-  const tmp = kg.addEntity({ id: 'tmp', name: 'Temp', type: 'concept' });
+  kg.addEntity({ id: 'tmp', name: 'Temp', type: 'concept' });
   kg.removeEntity('tmp');
   assert(kg.entities.length === 3, 'L8: removeEntity removes entity');
 
@@ -62,31 +62,32 @@ function assert(cond: boolean, msg: string) { if (cond) { p++; } else { f++; con
   // buildAIEcosystem
   const kg2 = new KnowledgeGraphEngine();
   kg2.buildAIEcosystem();
-  assert(kg2.entities.length >= 5, 'L8: AI ecosystem has 5+ entities');
-  assert(kg2.relations.length >= 4, 'L8: AI ecosystem has 4+ relations');
+  assert(kg2.entities.length === 6, 'L8: AI ecosystem has documented 6 entities');
+  assert(kg2.relations.length === 5, 'L8: AI ecosystem has documented 5 relations');
 
   // buildCOS
   const kg3 = new KnowledgeGraphEngine();
   kg3.buildCOS();
-  assert(kg3.entities.length >= 8, 'L8: COS has 8+ entities');
+  assert(kg3.entities.length === 6, 'L8: COS has documented 6 entities');
+  assert(kg3.relations.length === 5, 'L8: COS has 5 component relations');
 
   // SPARQL
   const sparql = kg.sparql({ select: ['*'], where: [{ subject: 'einstein', predicate: 'created', object: 'relativity' }] });
-  assert(sparql.length >= 0, 'L8: SPARQL query works');
+  assert(Array.isArray(sparql), 'L8: SPARQL query returns bindings array');
 
   // validate
   assert(kg.validate().length === 0, 'L8: Valid graph validates');
 
   // metrics
   const mt = kg.metrics();
-  assert(mt.entityCount >= 3, 'L8: Metrics entity count');
-  assert(mt.relationCount >= 2, 'L8: Metrics relation count');
+  assert(mt.nodeCount === 3, 'L8: Metrics node count');
+  assert(mt.edgeCount === 2, 'L8: Metrics edge count');
 
   // serialization
   const saved = kg.toJSON();
-  assert(saved.entities.length >= 3, 'L8: toJSON preserves entities');
+  assert(saved.entities.length === 3, 'L8: toJSON preserves entities');
   const restored = KnowledgeGraphEngine.fromJSON(saved);
-  assert(restored.entities.length >= 3, 'L8: fromJSON restores entities');
+  assert(restored.entities.length === 3, 'L8: fromJSON restores entities');
 
   // toMermaid
   assert(kg.toMermaid().includes('graph'), 'L8: Mermaid output');
@@ -100,64 +101,64 @@ function assert(cond: boolean, msg: string) { if (cond) { p++; } else { f++; con
 
   assert(sg.nodes.length === 0, 'L9: Empty has 0 nodes');
 
-  // addNode
-  sg.addNode({ id: 'dog', name: 'Dog', concepts: ['mammal', 'pet'] });
-  sg.addNode({ id: 'cat', name: 'Cat', concepts: ['mammal', 'pet'] });
-  sg.addNode({ id: 'car', name: 'Car', concepts: ['vehicle'] });
-  sg.addNode({ id: 'mammal', name: 'Mammal', concepts: ['animal'] });
+  // Canonical SemanticNode contract: id, concept, type.
+  sg.addNode({ id: 'dog', concept: 'Dog', type: 'entity' });
+  sg.addNode({ id: 'cat', concept: 'Cat', type: 'entity' });
+  sg.addNode({ id: 'car', concept: 'Car', type: 'entity' });
+  sg.addNode({ id: 'mammal', concept: 'Mammal', type: 'class' });
   assert(sg.nodes.length === 4, 'L9: addNode adds nodes');
 
-  // addEdge
-  sg.addEdge({ id: 'e1', source: 'dog', target: 'cat', type: 'similar', weight: 0.9 });
-  sg.addEdge({ id: 'e2', source: 'dog', target: 'mammal', type: 'is_a', weight: 1.0 });
-  sg.addEdge({ id: 'e3', source: 'cat', target: 'mammal', type: 'is_a', weight: 1.0 });
-  sg.addEdge({ id: 'e4', source: 'car', target: 'cat', type: 'dissimilar', weight: 0.1 });
-  assert(sg.edges.length === 4, 'L9: addEdge adds edges');
+  // Canonical SemanticEdge contract: relation + strength; is_a is child -> parent.
+  sg.addEdge({ id: 'e1', source: 'dog', target: 'mammal', relation: 'is_a', strength: 1.0 });
+  sg.addEdge({ id: 'e2', source: 'cat', target: 'mammal', relation: 'is_a', strength: 1.0 });
+  sg.addEdge({ id: 'e3', source: 'car', target: 'cat', relation: 'related_to', strength: 0.1 });
+  assert(sg.edges.length === 3, 'L9: addEdge adds edges');
 
   // removeNode
-  sg.addNode({ id: 'tmp', name: 'Temp', concepts: [] });
+  sg.addNode({ id: 'tmp', concept: 'Temp', type: 'entity' });
   sg.removeNode('tmp');
   assert(sg.nodes.length === 4, 'L9: removeNode removes node');
 
   // removeEdge
-  sg.removeEdge('e4');
-  assert(sg.edges.length === 3, 'L9: removeEdge removes edge');
-  sg.addEdge({ id: 'e4', source: 'car', target: 'cat', type: 'dissimilar', weight: 0.1 });
+  sg.removeEdge('e3');
+  assert(sg.edges.length === 2, 'L9: removeEdge removes edge');
+  sg.addEdge({ id: 'e3', source: 'car', target: 'cat', relation: 'related_to', strength: 0.1 });
 
-  // getNode
+  // getNode / getEdge
   assert(sg.getNode('dog') !== undefined, 'L9: getNode returns node');
   assert(sg.getEdge('e1') !== undefined, 'L9: getEdge returns edge');
 
-  // findSimilar
-  const similar = sg.findSimilar('dog', 2);
-  assert(similar.length >= 1, 'L9: findSimilar returns results');
+  // similarity — documented API
+  const similarity = sg.similarity('dog', 'cat');
+  assert(similarity > 0 && similarity <= 1, 'L9: sibling semantic similarity is bounded and positive');
+  assert(sg.similarity('dog', 'dog') === 1, 'L9: identity similarity is 1');
+  assert(sg.similarity('dog', 'car') === 0, 'L9: unrelated taxonomy nodes have 0 similarity');
 
-  // findPath
-  const path = sg.findPath('dog', 'mammal');
-  assert(path.length >= 1, 'L9: findPath returns path');
-
-  // lca
+  // lca — dog and cat share Mammal.
   const lca = sg.lca('dog', 'cat');
-  assert(lca !== null, 'L9: LCA of dog and cat exists');
+  assert(lca?.id === 'mammal', 'L9: LCA of dog and cat is mammal');
 
   // buildAnimalTaxonomy
   const sg2 = new SemanticGraph();
   sg2.buildAnimalTaxonomy();
-  assert(sg2.nodes.length >= 5, 'L9: Animal taxonomy has 5+ nodes');
+  assert(sg2.nodes.length === 6, 'L9: Animal taxonomy has documented 6 nodes');
+  assert(sg2.lca('dog', 'cat')?.id === 'mammal', 'L9: Built taxonomy LCA is mammal');
+  assert(sg2.similarity('dog', 'eagle') > 0, 'L9: Built taxonomy relates nodes through animal ancestor');
 
   // validate
   assert(sg.validate().length === 0, 'L9: Valid graph validates');
 
   // metrics
   const mt = sg.metrics();
-  assert(mt.nodeCount >= 4, 'L9: Metrics node count');
-  assert(mt.edgeCount >= 4, 'L9: Metrics edge count');
+  assert(mt.nodeCount === 4, 'L9: Metrics node count');
+  assert(mt.edgeCount === 3, 'L9: Metrics edge count');
 
   // serialization
   const saved = sg.toJSON();
-  assert(saved.nodes.length >= 4, 'L9: toJSON preserves nodes');
+  assert(saved.nodes.length === 4, 'L9: toJSON preserves nodes');
   const restored = SemanticGraph.fromJSON(saved);
-  assert(restored.nodes.length >= 4, 'L9: fromJSON restores nodes');
+  assert(restored.nodes.length === 4, 'L9: fromJSON restores nodes');
+  assert(restored.lca('dog', 'cat')?.id === 'mammal', 'L9: fromJSON rebuilds taxonomy traversal');
 
   // toMermaid
   assert(sg.toMermaid().includes('graph'), 'L9: Mermaid output');
