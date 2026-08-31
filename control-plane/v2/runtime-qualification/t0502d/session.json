@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "ses_0fb1e6c0-936a-46e8-9fae-855664992aca",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_phase05_durable_absence_store",
+  "objectiveId": "T0502D",
+  "correlationId": "corr_4771ed75-e40d-44ae-8f0f-6d3dd3fd4a34",
+  "createdAt": "2026-08-31T22:53:05Z",
+  "heartbeatAt": "2026-08-31T22:53:05Z",
+  "status": "ACTIVE",
+  "branch": "hardening/t0502d-durable-absence-store-postgres",
+  "baseSha": "d50a2d12f5db7d7c35c25126f5cac4f5bf528b12",
+  "claimId": "claim_8a4e9c9e-1eb9-43d1-a230-061bb61cd5e1",
+  "claimRevision": 1,
+  "fencingToken": 1,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "semanticScopes": [
+    "append-only durable absence observation persistence",
+    "Postgres/Supabase semantic parity",
+    "restart-safe repeated absence proof",
+    "cryptographic observation verification"
+  ],
+  "summary": "Make repeated authoritative absence survive process restart using the existing driver-neutral PostgresExecutor contract, without adding infrastructure or mutating a real database.",
+  "nextAction": "Implement insert-only Postgres store, fake transactional driver and restart/tamper/idempotency contracts."
+}
