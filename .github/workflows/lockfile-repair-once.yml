@@ -1,4 +1,4 @@
-name: Repository Hygiene Repair Once
+name: TypeScript 5.9 Diagnostic Once
 
 on:
   push:
@@ -6,40 +6,34 @@ on:
       - repair/cos-lockfile-v21-20260901
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: cos-repository-hygiene-v21
+  group: cos-typescript-59-diagnostic
   cancel-in-progress: true
 
 jobs:
-  repair:
+  diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Checkout isolated target branch
+      - name: Checkout current remediation branch
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: security/actions-cost-failclosed-20260831
-          fetch-depth: 0
-      - name: Remove stale unconfigured gitlink
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.12.0'
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Compare against TypeScript 5.9 without mutating target
         shell: bash
         run: |
-          set -euo pipefail
-          path='cos-graph-engine-026bb43d-eec2-4a08-872e-020acdbf97cf'
-          git ls-files --stage "$path"
-          git rm -f "$path"
-          test ! -e "$path"
-          if git ls-files --stage "$path" | grep -q .; then
-            echo 'stale gitlink still tracked' >&2
-            exit 1
-          fi
-      - name: Commit repository hygiene fix
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git diff --cached --check
-          git commit -m 'fix(repo): remove stale unconfigured gitlink'
-          git push origin HEAD:security/actions-cost-failclosed-20260831
+          set -uo pipefail
+          status=0
+          npx --yes --package typescript@5.9.3 tsc -p tsconfig.build.json --noEmit > /tmp/tsc59.log 2>&1 || status=$?
+          cat /tmp/tsc59.log
+          printf 'TSC59_EXIT=%s\n' "$status"
+          printf 'TSC59_ERROR_COUNT=%s\n' "$(grep -c 'error TS' /tmp/tsc59.log || true)"
+          exit 0
