@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T0501_CRYPTO_CLEAN",
+  "status": "TARGETED_PASS_WITH_FULL_INTEGRATION_PENDING",
+  "branch": "hardening/t0501-provider-evidence-integrity-v4-crypto-clean",
+  "baseSha": "6eb3cee68aa6b4a08fdb09db54807142696183d9",
+  "implementationSha": "b8e582f4f8bce2521224d3ae2319b365bdf57927",
+  "executedAt": "2026-08-31T22:28:58Z",
+  "sessionId": "ses_7a8b3c5a-1756-4c9f-85d4-61281c96ecfc",
+  "claimId": "claim_787c4ca2-fedc-4f49-8be4-cab7183aa362",
+  "correlationId": "corr_a1a5d108-840f-4bf8-915b-2beec3be8105",
+  "environment": {
+    "node": "v22.16.0",
+    "typescript": "5.8.3",
+    "webCrypto": "available",
+    "execution": "local minimal dependency closure reconstructed from inspected repository contracts"
+  },
+  "exactGitBlobMatches": {
+    "packages/execution/src/authority-provider-evidence-integrity.ts": "ebccb090924e70fdf1a811beca94174bf987fc3f",
+    "scripts/test-authority-provider-evidence-integrity.ts": "b2103f9832a98bb1464b1bd7148cb6366c7b47ea",
+    "packages/execution/src/authority-provider-reconciliation.ts": "aaf8904a286244012c10f0dbfb856ac283f73eeb",
+    "scripts/test-authority-provider-reconciler-evidence.ts": "a833c5aa9764002bf926eb9b54a6ef6d8bdf80dd",
+    "packages/execution/src/authority-observed-outcome-recorder.ts": "da8cb76617d6b225737cb40372755f2215b8257d"
+  },
+  "inspectedDependencyBlobs": {
+    "packages/core/src/integrity.ts@6eb3cee68aa6b4a08fdb09db54807142696183d9": "1ec7f1572cc8a7566a354a1070bf4ef4c90af4e4",
+    "packages/core/src/index.ts@6eb3cee68aa6b4a08fdb09db54807142696183d9": "30108410f5f81f23a2b34b33fd5b5a4240adb6ad"
+  },
+  "results": [
+    {
+      "id": "helper-typecheck",
+      "status": "PASS",
+      "command": "tsc -p tsconfig-helper.json",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "helper-contract",
+      "status": "PASS",
+      "command": "node dist-helper/scripts/test-authority-provider-evidence-integrity.js",
+      "assertions": 29,
+      "logSha256": "f3cefc6cb0eeaef9f95cb76f7a45d550b543cf4e481f7e72a6721614c82f4bfe"
+    },
+    {
+      "id": "reconciler-typecheck",
+      "status": "PASS",
+      "command": "tsc -p tsconfig.json",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "reconciler-contract",
+      "status": "PASS",
+      "command": "node dist/scripts/test-authority-provider-reconciler-evidence.js",
+      "assertions": 18,
+      "logSha256": "c6389d116c18f213de808a80a093c69ab498bdc6ad6afe9e11e883ced6ca1880"
+    },
+    {
+      "id": "recorder-exact-source-typecheck",
+      "status": "PASS",
+      "command": "tsc -p tsconfig-recorder.json",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "securityInvariantsCovered": [
+    "provider evidence schema v2 uses SHA-256 rather than FNV identity hashing",
+    "schema-v2 evidence declares evidenceHashAlgorithm=sha256",
+    "schema-v2 FNV digest is rejected",
+    "unknown evidence hash algorithm is rejected",
+    "tamper and forged hashes are rejected",
+    "provider evidence is bound to operation, project, capability, resource, provider attempt, fence and operation content hash",
+    "retry evidence remains reproducibly SHA-256 sealed",
+    "historical canonical-v1/retry-v1 FNV envelopes remain legacy provenance and are never relabelled v2",
+    "unknown provider outcome never becomes blind retry"
+  ],
+  "nearMisses": [
+    {
+      "id": "NM-T0501-CRYPTO-PR62-CHURN",
+      "signal": "PR #62 fixed the algorithm but rewrote/reformatted two large files, producing 510 deleted lines.",
+      "resolution": "PR #64 reimplemented only the semantic SHA-256 delta from the exact PR #60 evidence head; PR #62 is a donor, not the selected merge candidate."
+    },
+    {
+      "id": "NM-T0501-NONEXACT-LOCAL-HARNESS",
+      "signal": "An earlier semantic harness did not byte-match the GitHub source.",
+      "resolution": "The evidence was rejected; all accepted source/test files above were re-created byte-for-byte and verified by Git blob SHA before execution."
+    },
+    {
+      "id": "NM-T0501-HARNESS-EXIT-AGGREGATION",
+      "signal": "A shell pipeline attempt could misreport child exit status while a helper dependency was missing.",
+      "resolution": "Accepted evidence uses direct subprocess return codes per command; the corrected exact-source run is the only persisted PASS."
+    }
+  ],
+  "proofBoundary": {
+    "fullRepositoryTypecheck": "NOT_RUN",
+    "fullObservedOutcomeIntegrationSuite": "NOT_RUN",
+    "realPostgres": "NOT_RUN",
+    "realGitHubDriveTimeoutAfterAcceptance": "NOT_RUN",
+    "multiProcessContentionRestart": "NOT_RUN",
+    "automaticGitHubActions": "OFF",
+    "cdDeployRelease": "OFF",
+    "productionSupabaseMutation": "NONE"
+  },
+  "authorityEffect": "TARGETED_SECURITY_ASSURANCE_ONLY_NO_GLOBAL_SCORE_PROMOTION",
+  "runtimeAuthority": "SHADOW_ONLY",
+  "globalScoreMovement": "NONE",
+  "nextSafeAction": "Mark PR #62 superseded by clean PR #64, then rebuild T0502 from the exact PR #64 evidence head so GitHub/Drive adapters emit and consume SHA-256 provider evidence v2 before any wider integration campaign."
+}

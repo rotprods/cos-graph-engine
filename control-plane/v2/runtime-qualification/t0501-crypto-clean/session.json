@@ -7,12 +7,14 @@
   "objectiveId": "T0501_CRYPTO_CLEAN",
   "correlationId": "corr_a1a5d108-840f-4bf8-915b-2beec3be8105",
   "createdAt": "2026-08-31T22:06:00Z",
-  "heartbeatAt": "2026-08-31T22:06:00Z",
-  "status": "ACTIVE",
+  "heartbeatAt": "2026-08-31T22:28:58Z",
+  "completedAt": "2026-08-31T22:28:58Z",
+  "status": "HANDOFF_READY",
   "branch": "hardening/t0501-provider-evidence-integrity-v4-crypto-clean",
   "baseSha": "6eb3cee68aa6b4a08fdb09db54807142696183d9",
+  "implementationSha": "b8e582f4f8bce2521224d3ae2319b365bdf57927",
   "claimId": "claim_787c4ca2-fedc-4f49-8be4-cab7183aa362",
-  "claimRevision": 1,
+  "claimRevision": 2,
   "fencingToken": 1,
   "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
   "semanticScopes": [
@@ -21,6 +23,7 @@
     "minimal-diff migration from PR #62",
     "exact-source local contract execution"
   ],
-  "summary": "Supersede the formatting-heavy PR #62 with a minimal-diff SHA-256 evidence boundary built from the exact targeted-pass head of PR #60.",
-  "nextAction": "Port only SHA-256 semantic changes, migrate contracts, execute exact-source tests, persist evidence, then mark PR #62 superseded."
+  "summary": "T0501 crypto-clean replaced FNV provider evidence v2 integrity with SHA-256 while preserving legacy read compatibility and avoiding PR #62 formatting churn.",
+  "evidencePath": "control-plane/v2/runtime-qualification/t0501-crypto-clean/evidence.json",
+  "nextAction": "Supersede PR #62 and rebuild T0502 on this SHA-256 evidence lineage before real provider integration."
 }
