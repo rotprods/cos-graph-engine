@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T0502_CRYPTO",
+  "status": "TARGETED_PASS_WITH_DURABLE_STORE_AND_REAL_PROVIDER_PENDING",
+  "branch": "hardening/t0502-provider-reconciliation-adapters-v3-crypto",
+  "baseSha": "dba070ffcf74511493e2e08890222dab27cbad78",
+  "implementationSha": "47fae26950c010dceca6a0eb9de962071bf1ab7d",
+  "executedAt": "2026-08-31T22:47:33Z",
+  "sessionId": "ses_4e28664d-23ae-4e6c-a905-05324fe988a5",
+  "claimId": "claim_ed951c97-e038-4c6e-9eec-b0fd4cf4e9e7",
+  "correlationId": "corr_1f08b4a4-b60c-4cf6-b4d3-28fcfe2acb62",
+  "environment": {
+    "node": "v22.16.0",
+    "typescript": "5.8.3",
+    "webCrypto": "available",
+    "execution": "local minimal dependency closure reconstructed from inspected repository contracts"
+  },
+  "exactGitBlobMatches": {
+    "packages/execution/src/providers/authority-provider-inspection-shared.ts": "ce1eeafccab7a34bab1f3ab1eca49e624c740656",
+    "packages/execution/src/providers/authority-github-reconciliation-inspector.ts": "d4e2893bbcc8e952278bfe69a6c1216d89882af0",
+    "packages/execution/src/providers/authority-drive-reconciliation-inspector.ts": "62347549db76e361d94fa45c81cb8efb50186923",
+    "scripts/test-authority-provider-inspection-shared.ts": "6c5b6042cfd8547de71db739e5d40aaf07d52510",
+    "scripts/test-authority-provider-inspectors.ts": "35585f39bd1f9d014e448659a053716a3ce18ad1"
+  },
+  "results": [
+    {
+      "id": "t0502-targeted-typecheck",
+      "status": "PASS",
+      "command": "tsc -p tsconfig.json",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "shared-classification-contract",
+      "status": "PASS",
+      "command": "node dist/scripts/test-authority-provider-inspection-shared.js",
+      "assertions": 16,
+      "logSha256": "83e5daa3fae4d8fc7b0be11d6d3e53e7ef8df69b9a15bc6113493a5e97064c5e"
+    },
+    {
+      "id": "github-drive-inspector-contract",
+      "status": "PASS",
+      "command": "node dist/scripts/test-authority-provider-inspectors.js",
+      "assertions": 16,
+      "logSha256": "fb67522a26760ad14938bf0c5d884828a4c3e35b5a448dac245808ed91973678"
+    }
+  ],
+  "invariantsCovered": [
+    "observationId uses deterministic compact identity hashing only",
+    "absence evidenceHash/contentHash/absenceProofHash are SHA-256 and algorithm-labelled",
+    "absence observation stores canonical evidence so evidenceHash can be recomputed after restore",
+    "one absence observation never proves not_applied",
+    "repeated absence must satisfy an explicit consistency window",
+    "missing or mismatched operation content hash never becomes applied",
+    "multiple exact matches and mismatched existing resources remain unknown",
+    "explicit partial application remains partial",
+    "non-authoritative empty reads remain unknown",
+    "same observation identity with conflicting content fails closed",
+    "GitHub inspector accepts only allowlisted HTTPS API host and repository-shaped target",
+    "Drive inspector accepts only allowlisted HTTPS provider hosts and supported target kinds",
+    "provider inspector ports expose injected read clients only and no mutation method"
+  ],
+  "nearMisses": [
+    {
+      "id": "NM-T0502-PR61-FNV-INTEGRITY",
+      "signal": "PR #61 used canonicalHash128 for absence evidence/content/proof integrity.",
+      "resolution": "PR #65 retains compact identity hashing only for observationId and moves all integrity hashes to SHA-256."
+    },
+    {
+      "id": "NM-T0502-HASH-WITHOUT-PREIMAGE",
+      "signal": "Initial crypto-aware absence observation retained evidenceHash but not the canonical evidence itself, preventing independent recomputation after restore.",
+      "resolution": "Observation now stores canonical evidence and recomputes evidenceHash/contentHash on read/restore."
+    }
+  ],
+  "proofBoundary": {
+    "durablePostgresAbsenceStore": "NOT_IMPLEMENTED",
+    "realGitHubReadClient": "NOT_IMPLEMENTED",
+    "realGoogleDriveReadClient": "NOT_IMPLEMENTED",
+    "realProviderTimeoutAfterAcceptance": "NOT_RUN",
+    "fullRepositoryTypecheck": "NOT_RUN",
+    "realPostgres": "NOT_RUN",
+    "multiProcessRestart": "NOT_RUN",
+    "automaticGitHubActions": "OFF",
+    "cdDeployRelease": "OFF",
+    "productionSupabaseMutation": "NONE"
+  },
+  "securityNote": "SHA-256 proves integrity/corruption resistance for trusted store boundaries; it does not authenticate a malicious writer that can replace evidence and recompute hashes. Store authorization/audit remains a separate trust boundary.",
+  "authorityEffect": "TARGETED_PROVIDER_RECONCILIATION_ASSURANCE_ONLY_NO_GLOBAL_SCORE_PROMOTION",
+  "runtimeAuthority": "SHADOW_ONLY",
+  "globalScoreMovement": "NONE",
+  "nextSafeAction": "Implement a driver-neutral append-only Postgres/Supabase AuthorityAbsenceObservationStore on this exact lineage, with insert-only idempotency, conflict detection and recomputation of evidence/content hashes before any real provider retry path."
+}
