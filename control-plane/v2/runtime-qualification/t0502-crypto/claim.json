@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "claimId": "claim_ed951c97-e038-4c6e-9eec-b0fd4cf4e9e7",
+  "sessionId": "ses_4e28664d-23ae-4e6c-a905-05324fe988a5",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_phase05_provider_reconciliation_adapters_crypto",
+  "objectiveId": "T0502_CRYPTO",
+  "createdAt": "2026-08-31T22:33:14Z",
+  "heartbeatAt": "2026-08-31T22:33:14Z",
+  "expiresAt": "2026-09-01T06:33:14Z",
+  "revision": 1,
+  "fencingToken": 1,
+  "status": "ACTIVE",
+  "baseSha": "dba070ffcf74511493e2e08890222dab27cbad78",
+  "exclusiveResourceScopes": [
+    "packages/execution/src/providers/authority-provider-inspection-shared.ts",
+    "packages/execution/src/providers/authority-github-reconciliation-inspector.ts",
+    "packages/execution/src/providers/authority-drive-reconciliation-inspector.ts",
+    "scripts/test-authority-provider-inspection-shared.ts",
+    "scripts/test-authority-provider-inspectors.ts",
+    "control-plane/v2/runtime-qualification/t0502-crypto/**"
+  ],
+  "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "writeContract": {
+    "perMutationParentCas": true,
+    "required": ["claimId", "revision", "fencingToken", "liveParentSha"],
+    "staleWriterResult": "REJECT_STALE_PARENT"
+  }
+}
