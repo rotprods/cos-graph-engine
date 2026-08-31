@@ -139,6 +139,14 @@ function evidenceBoundReconciler(
         operationId: operation.operationId,
         providerIdempotencyKey,
         fencingToken: historicalFence.fencingToken,
+        ...(verified.sealingMode === 'canonical-v1'
+          ? {
+              projectId: operation.projectId,
+              capability: operation.capability,
+              resourceUri: operation.resourceUri,
+              operationContentHash: operation.contentHash,
+            }
+          : {}),
       });
 
       const combined = {
