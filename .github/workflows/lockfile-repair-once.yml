@@ -1,0 +1,53 @@
+name: Lockfile Repair Once
+
+on:
+  push:
+    branches:
+      - repair/cos-lockfile-v21-20260901
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cos-lockfile-repair-v21
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout isolated target branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: security/actions-cost-failclosed-20260831
+          fetch-depth: 0
+      - name: Setup supported Node runtime
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.12.0'
+      - name: Reconcile canonical v2.1 workspace metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const p = 'packages/api/package.json';
+          const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
+          pkg.dependencies['@cos/observability'] = '2.1.0';
+          fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + '\n');
+          NODE
+          npm install --package-lock-only --ignore-scripts
+          npm ci --ignore-scripts
+          git diff --check
+          node -e "const p=require('./package-lock.json'); if(p.version!=='2.1.0') throw new Error('root lock version is not 2.1.0'); const w=p.packages?.['']?.workspaces||[]; for (const x of ['packages/visualization','packages/wasm']) if(!w.includes(x)) throw new Error('missing workspace '+x); if(p.packages?.['packages/observability']?.version!=='2.1.0') throw new Error('observability lock version drift');"
+      - name: Commit only reconciled dependency metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json packages/api/package.json
+          git diff --cached --quiet && { echo 'No lockfile changes required'; exit 0; }
+          git commit -m 'fix(deps): reconcile v2.1 workspace lockfile'
+          git push origin HEAD:security/actions-cost-failclosed-20260831
