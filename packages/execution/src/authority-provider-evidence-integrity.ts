@@ -4,6 +4,10 @@ export interface AuthorityProviderEvidenceBinding {
   operationId: string;
   providerIdempotencyKey: string;
   fencingToken: number;
+  projectId?: string;
+  capability?: string;
+  resourceUri?: string;
+  operationContentHash?: string;
 }
 
 export interface VerifiedAuthorityProviderEvidence {
@@ -75,8 +79,10 @@ export function verifyAuthorityProviderEvidence(
  * Bind verified evidence to the exact durable operation attempt.
  *
  * Operation ID is the primary anti-replay identity. Provider idempotency key and
- * historical fencing token are independently checked so evidence from another
- * provider attempt or owner cannot be transplanted onto this operation.
+ * historical fencing token are always required. New canonical evidence may also
+ * be bound to project, capability, resource and operation content hash. Legacy
+ * evidence is accepted only with the smaller historical binding that actually
+ * existed when it was written.
  */
 export function assertAuthorityProviderEvidenceBinding(
   evidence: Record<string, unknown>,
@@ -108,6 +114,11 @@ export function assertAuthorityProviderEvidenceBinding(
     );
   }
 
+  assertOptionalBinding(evidence, 'projectId', expected.projectId);
+  assertOptionalBinding(evidence, 'capability', expected.capability);
+  assertOptionalBinding(evidence, 'resourceUri', expected.resourceUri);
+  assertOptionalBinding(evidence, 'operationContentHash', expected.operationContentHash);
+
   nonEmptyString(evidence.inspectorId, 'evidence inspectorId');
   nonEmptyString(evidence.inspectorVersion, 'evidence inspectorVersion');
   const inspectedAt = nonEmptyString(evidence.inspectedAt, 'evidence inspectedAt');
@@ -120,6 +131,29 @@ export function assertAuthorityProviderEvidenceBinding(
   if (!Object.hasOwn(evidence, 'providerEvidence')) {
     throw new Error('PROVIDER_RECONCILIATION_PROVIDER_EVIDENCE_REQUIRED');
   }
+}
+
+function assertOptionalBinding(
+  evidence: Record<string, unknown>,
+  field: 'projectId' | 'capability' | 'resourceUri' | 'operationContentHash',
+  expected: string | undefined,
+): void {
+  if (expected === undefined) return;
+  const actual = nonEmptyString(evidence[field], `evidence ${field}`);
+  if (actual !== expected) {
+    throw new Error(
+      `PROVIDER_RECONCILIATION_EVIDENCE_${fieldToCode(field)}_MISMATCH expected=${expected} actual=${actual}`,
+    );
+  }
+}
+
+function fieldToCode(
+  field: 'projectId' | 'capability' | 'resourceUri' | 'operationContentHash',
+): string {
+  if (field === 'projectId') return 'PROJECT';
+  if (field === 'capability') return 'CAPABILITY';
+  if (field === 'resourceUri') return 'RESOURCE';
+  return 'CONTENT_HASH';
 }
 
 function legacyRetryEvidenceHash(payload: Record<string, unknown>): string | null {
