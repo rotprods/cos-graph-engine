@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   }).inspect(OPERATION as never);
   check(applied.status === 'applied', 'applied provider outcome is preserved');
   const appliedVerified = verifyAuthorityProviderEvidence(applied.evidence);
-  check(appliedVerified.sealingMode === 'canonical-v1', 'new applied evidence is canonical-v1');
+  check(appliedVerified.sealingMode === 'canonical-v2', 'new applied evidence is canonical-v2');
   assertFullBinding(appliedVerified.evidence);
   assertions += 1;
   check(
@@ -72,7 +72,7 @@ async function main(): Promise<void> {
   check(notApplied.nextFencingToken === 8, 'retry fence is monotonic');
   check(notApplied.nextProviderIdempotencyKey === 'provider-attempt-2', 'retry provider key rotates');
   const retryVerified = verifyAuthorityProviderEvidence(notApplied.evidence);
-  check(retryVerified.sealingMode === 'canonical-v1', 'new retry evidence no longer requires legacy verification');
+  check(retryVerified.sealingMode === 'canonical-v2', 'new retry evidence uses the v2 canonical envelope');
   assertFullBinding(retryVerified.evidence);
   assertions += 1;
   check(
@@ -88,7 +88,7 @@ async function main(): Promise<void> {
   }).inspect(OPERATION as never);
   check(partial.status === 'partial', 'partial application remains compensation-required evidence');
   const partialVerified = verifyAuthorityProviderEvidence(partial.evidence);
-  check(partialVerified.sealingMode === 'canonical-v1', 'partial evidence is canonical-v1');
+  check(partialVerified.sealingMode === 'canonical-v2', 'partial evidence is canonical-v2');
   assertFullBinding(partialVerified.evidence);
   assertions += 1;
 
