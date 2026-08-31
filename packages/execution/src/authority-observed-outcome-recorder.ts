@@ -128,7 +128,7 @@ function evidenceBoundReconciler(
   return {
     async inspect(operation: AuthoritySideEffectView): Promise<ProviderReconciliationResult> {
       const outcome = await delegate.inspect(structuredClone(operation));
-      const verified = verifyAuthorityProviderEvidence(
+      const verified = await verifyAuthorityProviderEvidence(
         canonicalClone(outcome.evidence, 'provider reconciliation evidence') as Record<string, unknown>,
       );
       const providerIdempotencyKey = nonEmpty(
@@ -139,7 +139,7 @@ function evidenceBoundReconciler(
         operationId: operation.operationId,
         providerIdempotencyKey,
         fencingToken: historicalFence.fencingToken,
-        ...(verified.sealingMode === 'canonical-v2'
+        ...(verified.sealingMode === 'canonical-v2-sha256'
           ? {
               projectId: operation.projectId,
               capability: operation.capability,
@@ -153,11 +153,12 @@ function evidenceBoundReconciler(
         providerEvidence: verified.evidence,
         providerEvidenceVerification: {
           sealingMode: verified.sealingMode,
+          hashAlgorithm: verified.hashAlgorithm,
           originalEvidenceHash: verified.originalEvidenceHash,
         },
         historicalFence: structuredClone(historicalFence),
       };
-      const evidence = sealAuthorityProviderEvidence(combined);
+      const evidence = await sealAuthorityProviderEvidence(combined);
       return { ...outcome, evidence } as ProviderReconciliationResult;
     },
   };
