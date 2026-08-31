@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "evidence_t0501_provider_integrity_ec7f026",
+  "taskId": "T0501",
+  "projectId": "COS_GRAPH_ENGINE",
+  "pullRequest": 60,
+  "implementation": {
+    "baseSha": "789edef87549d4f173de03f73e54f5b6193c2e98",
+    "implementationSha": "ec7f02657251f71655d0a40c1c2b1feec45faf84",
+    "implementationTreeSha": "4cfb05cd50bd8cf96a113be32534bcba7618f6bc",
+    "coordinationParentSha": "fc7ddb29ffc0368721c5b3f6ae9e777d374f62ca"
+  },
+  "exactBlobBindings": {
+    "authority-provider-evidence-integrity.ts": {
+      "gitBlobSha1": "c64801dad7d6a6df3f3949f875f18188aafd9da4",
+      "sha256": "5400cb64c9f6bf22279639311273d19b40395ca84129c0d56491826215e71911",
+      "exactLocalMatch": true
+    },
+    "test-authority-provider-evidence-integrity.ts": {
+      "gitBlobSha1": "d548115472936448ff45bcf389546cbd72d0779e",
+      "sha256": "01c7a609482aee603119283e7c394e424af4050e9385eb0f1945b8d5a1d84046",
+      "exactLocalMatch": true
+    },
+    "authority-provider-reconciliation.ts": {
+      "gitBlobSha1": "f0da18a946ad0fd4634107b45f6ade79eaa5eeec",
+      "sha256": "4b95a6ec9ec318495a39fac7f63bb53dd2f7176662061b9a46de5f9199699e26",
+      "exactLocalMatch": true
+    },
+    "test-authority-provider-reconciler-evidence.ts": {
+      "gitBlobSha1": "65f5fcea39a4735ad68b09ec51ef1c7eefa1624d",
+      "sha256": "3132314b670833a9b1459045b0c88d40a3ebdcf116494a09eefce4f80aab1273",
+      "exactLocalMatch": true
+    },
+    "authority-observed-outcome-recorder.ts": {
+      "gitBlobSha1": "4550dcac1eb45f948bad97f5dc481a908f5051a0",
+      "sha256": "99c5fad39260b8a80b2a39d9d78281a7b1b1f1f22282febb4a5ce01d71a2070d",
+      "exactLocalMatch": true
+    }
+  },
+  "execution": {
+    "environment": {
+      "node": "v22.16.0",
+      "typescript": "5.8.3",
+      "networkToGitHubFromContainer": "UNAVAILABLE"
+    },
+    "results": [
+      {
+        "gate": "provider-evidence-helper-typecheck",
+        "status": "PASS",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "gate": "provider-evidence-integrity-contract",
+        "status": "PASS",
+        "assertions": 22,
+        "logSha256": "96f2d9ffd3969202c6eb36cbee276ad85101e447f7937a63774e402f8cc514b0"
+      },
+      {
+        "gate": "provider-reconciler-typecheck",
+        "status": "PASS",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "gate": "provider-reconciler-contract",
+        "status": "PASS",
+        "assertions": 16,
+        "logSha256": "c1c0d5d76e1cb113afaf0cfa9009e47390dd4e56a3bf3c15e945b18c39eca76a"
+      },
+      {
+        "gate": "observed-outcome-recorder-exact-source-typecheck",
+        "status": "PASS",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "guaranteesTargeted": [
+    "new provider evidence is explicitly schema v2 and independently rehashed",
+    "new evidence binds operation, project, capability, resource, provider attempt, fencing token and operation content hash",
+    "key reordering cannot change the canonical hash",
+    "resealing v2 evidence is idempotent",
+    "tampered, missing-hash, forged-hash, cross-operation, cross-provider-attempt, stale-fence and wrong resource/content bindings fail closed",
+    "pre-T0501 canonical-v1 and legacy retry evidence can be verified without being retroactively relabelled as v2",
+    "unsupported future evidence schema fails closed",
+    "new retry evidence uses canonical-v2 rather than the historical retry-seal shape",
+    "unknown provider outcome remains inconclusive and cannot authorize retry"
+  ],
+  "proofBoundary": {
+    "status": "TARGETED_PASS_WITH_INTEGRATION_PENDING",
+    "exactSourceBytes": true,
+    "coreDependencyExecution": "CANONICAL_HASH_SUBSET_STUB_MATCHING_CURRENT_SEMANTICS",
+    "sideEffectRuntimeDependencyForRecorder": "TYPE_STUB_ONLY",
+    "fullRepoTypecheck": "NOT_RUN",
+    "existingObservedOutcomeIntegrationTest": "NOT_RUN",
+    "realPostgres": "NOT_RUN",
+    "realGitHubOrDriveProviderTimeoutAfterAcceptance": "NOT_RUN",
+    "multiProcessContention": "NOT_RUN",
+    "globalScoreMovement": "NONE",
+    "runtimeAuthority": "SHADOW_ONLY"
+  },
+  "nearMisses": [
+    "NM-T0501-CLAIM-HEAD-SELF-REFERENCE"
+  ],
+  "result": "TARGETED_PASS",
+  "nextRequiredEvidence": [
+    "full repository strict typecheck",
+    "existing AuthorityObservedOutcomeRecorder integration contract",
+    "provider-specific adapter timeout-after-acceptance fixtures",
+    "multi-writer/restart campaign before authority promotion"
+  ]
+}

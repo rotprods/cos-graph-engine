@@ -1,4 +1,4 @@
-import { canonicalHash128, canonicalSerialize } from '@cos/core';
+import { canonicalSerialize } from '@cos/core';
 import type {
   ProviderReconciliationResult,
   ProviderSideEffectReconciler,
@@ -7,6 +7,7 @@ import type {
   AuthorityOperationError,
   AuthoritySideEffectView,
 } from './authority-side-effect';
+import { sealAuthorityProviderEvidence } from './authority-provider-evidence-integrity';
 
 export type AuthorityProviderTarget =
   | {
@@ -144,13 +145,17 @@ export class AuthorityProviderReconciler implements ProviderSideEffectReconciler
       operationContentHash: operation.contentHash,
     };
     const outcome = await this.options.inspection.inspect(canonicalClone(request, 'provider inspection request'));
-    const baseEvidence = sealEvidence({
+    const baseEvidence = sealAuthorityProviderEvidence({
       inspectorId: this.options.inspection.inspectorId,
       inspectorVersion: this.options.inspection.inspectorVersion,
       inspectedAt: this.inspectedAt,
       operationId: operation.operationId,
+      projectId: operation.projectId,
+      capability: operation.capability,
+      resourceUri: operation.resourceUri,
       providerIdempotencyKey,
       fencingToken,
+      operationContentHash: operation.contentHash,
       target,
       providerEvidence: outcome.evidence,
     });
@@ -225,7 +230,7 @@ export class AuthorityProviderReconciler implements ProviderSideEffectReconciler
     if (nextProviderIdempotencyKey === providerIdempotencyKey) {
       throw new Error('PROVIDER_RETRY_IDEMPOTENCY_KEY_MUST_ROTATE');
     }
-    const retryEvidence = sealEvidence({
+    const retryEvidence = sealAuthorityProviderEvidence({
       ...baseEvidence,
       retryPlannerEvidence: plan.evidence,
       nextFencingToken,
@@ -305,14 +310,6 @@ function extractProviderTarget(
   }
 
   throw new Error('PROVIDER_RECONCILIATION_TARGET_UNSUPPORTED');
-}
-
-function sealEvidence(value: Record<string, unknown>): Record<string, unknown> {
-  const canonical = canonicalClone(value, 'provider reconciliation evidence');
-  return {
-    ...canonical,
-    evidenceHash: canonicalHash128(canonical),
-  };
 }
 
 function normalizeOperationError(error: AuthorityOperationError): AuthorityOperationError {

@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 2,
+  "ledgerId": "ledger_t0501_runtime_qualification",
+  "legacyAnchor": {
+    "sequence": 1,
+    "eventHash": "ae057c9cd8388a6cd2b13e60947c0e701a77fdbc80709a88f93129c70edfa6af",
+    "sourceCommitSha": "68b79238ee4723b22080d7705ea28212ef93c26d",
+    "segment": "control-plane/v2/runtime-qualification/t0501/events.ndjson"
+  },
+  "segments": [
+    {
+      "path": "control-plane/v2/runtime-qualification/t0501/events-000002.ndjson",
+      "firstSequence": 2,
+      "lastSequence": 3,
+      "eventCount": 2,
+      "lastEventHash": "eb2ef9b05990276eb4053ae69b6e907bf7dee06bdda7afb3a7dd4ac4a5cc4905",
+      "status": "SEALED"
+    },
+    {
+      "path": "control-plane/v2/runtime-qualification/t0501/events-000003.ndjson",
+      "firstSequence": 4,
+      "lastSequence": 5,
+      "eventCount": 2,
+      "lastEventHash": "4917bdbb8ea14bfe0cfe5881fe753b41154d770ad58d9d92b80d7c0ee07e8be3",
+      "status": "SEALED"
+    }
+  ],
+  "eventWatermark": 5,
+  "lastEventHash": "4917bdbb8ea14bfe0cfe5881fe753b41154d770ad58d9d92b80d7c0ee07e8be3",
+  "rules": [
+    "history is never silently rewritten",
+    "new segments chain from the prior accepted event hash",
+    "event IDs and idempotency keys are unique within this task ledger",
+    "claim/head model corrections are near-miss evidence, not hidden cleanup",
+    "targeted evidence never implies full repository or production qualification"
+  ]
+}
