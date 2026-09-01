@@ -1,0 +1,51 @@
+{
+  "status": "PARTIAL_RUNTIME_IMPLEMENTATION_IN_DRAFT_PRS",
+  "target": "COS_20D_MOUNTED",
+  "levels": {
+    "L0": "PROFILE_DEFINED_VIEW_RUNTIME_PENDING",
+    "L1": "RUNTIME_PROJECTOR_DRAFT_PR72",
+    "L2": "RUNTIME_STATE_POLICY_DRAFT_PR72",
+    "L3": "RUNTIME_PROJECTOR_DRAFT_PR72",
+    "L4": "OPERATIONAL_PROJECTION_DRAFT_PR77",
+    "L5": "OPERATIONAL_PROJECTION_DRAFT_PR77",
+    "L6": "OPERATIONAL_PROJECTION_DRAFT_PR77",
+    "L7": "OPERATIONAL_PROJECTION_DRAFT_PR77",
+    "L8": "KNOWLEDGE_PROJECTOR_DRAFT_PR73",
+    "L9": "SEMANTIC_ONTOLOGY_DRAFT_PR73",
+    "L10": "OPERATIONAL_PROJECTION_DRAFT_PR77",
+    "L11": "AUTHORITY_GRAPHRAG_DRAFT_PR74",
+    "L12": "MEMORY_PROJECTION_DRAFT_PR77",
+    "L13": "AGENT_RUNTIME_DRAFT_PR75",
+    "L14": "TOOL_FABRIC_DRAFT_PR75",
+    "L15": "WORKFLOW_RUNTIME_DRAFT_PR75",
+    "L16": "PROVIDER_NETWORK_DRAFT_PR77",
+    "L17": "COUNTERPARTY_PROJECTION_DRAFT_PR77",
+    "L18": "DOMAIN_SEMANTIC_ADAPTER_DRAFT_PR77",
+    "L19": "DOMAIN_SEMANTIC_ADAPTER_DRAFT_PR77"
+  },
+  "infrastructure": {
+    "ci_fix_pr": 76,
+    "ci_issue": 71,
+    "lock_regenerated": true,
+    "frozen_install_verified_in_regeneration_workflow": true,
+    "clean_full_ci": "RUNNING"
+  },
+  "known_review_items": [
+    "GraphRAG graph-overlap should use canonical entity IDs as well as names",
+    "L6 test should give deterministic positive latencies for critical-path assertion",
+    "PR72 was created independently from PR70 and must be reconciled before merge",
+    "all stacked branches must be rebased after infrastructure/profile merge",
+    "no private fiscal evidence may enter the public kernel repo"
+  ],
+  "release_gate": [
+    "green CI",
+    "integrated projector",
+    "persistence/replay equivalence",
+    "zero-context recovery benchmark",
+    "GraphQL reads live projections",
+    "GraphRAG returns evidence paths and authority gates",
+    "agent/tool/workflow traces persistent",
+    "security/RBAC/sensitivity review",
+    "adversarial gauntlet"
+  ]
+}
