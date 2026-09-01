@@ -1,0 +1,1 @@
+Workflows now use repository root (`WORKING_DIR: .`) because the root contains `package-lock.json`, `package.json`, `Dockerfile`, `packages/`, and `scripts/`. The prior `cos/` prefix was invalid in this repository.
