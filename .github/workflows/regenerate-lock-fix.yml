@@ -1,0 +1,44 @@
+name: Regenerate lock (temporary fix branch)
+
+on:
+  push:
+    branches: [fix/ci-working-directory-root]
+    paths:
+      - package.json
+      - packages/**/package.json
+      - .github/workflows/regenerate-lock-fix.yml
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/ci-working-directory-root
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18.20.4'
+      - name: Regenerate lock from current workspace manifests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify frozen install resolves
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Commit regenerated lock
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json already current"
+            exit 0
+          fi
+          git config user.name "COS CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "fix(workspaces): regenerate package lock"
+          git push origin HEAD:fix/ci-working-directory-root
