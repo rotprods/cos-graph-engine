@@ -37,13 +37,13 @@ for (const kind of ['filed-status', 'payment-status', 'invoice-validity', 'forei
   assert.ok(cfg.graph.edges.length >= 5);
 }
 
-// L6 — evidence lineage
+// L6 — evidence lineage. Latencies are explicit because critical-path analysis must never invent timing.
 const dataFlow = buildFiscalDataFlow([
-  { id: 'pdf', name: 'Invoice PDF', type: 'source', evidenceIds: ['pdf:1'], artifactType: 'invoice' },
-  { id: 'parse', name: 'Parse Invoice', type: 'parse', transformVersion: '1' },
-  { id: 'normalize', name: 'Normalize Invoice', type: 'normalize', transformVersion: '1' },
-  { id: 'calc', name: 'VAT Calculation', type: 'calculate', transformVersion: '1' },
-  { id: 'return', name: 'Modelo 303 Working Projection', type: 'projection' },
+  { id: 'pdf', name: 'Invoice PDF', type: 'source', evidenceIds: ['pdf:1'], artifactType: 'invoice', latencyMs: 1 },
+  { id: 'parse', name: 'Parse Invoice', type: 'parse', transformVersion: '1', latencyMs: 2 },
+  { id: 'normalize', name: 'Normalize Invoice', type: 'normalize', transformVersion: '1', latencyMs: 3 },
+  { id: 'calc', name: 'VAT Calculation', type: 'calculate', transformVersion: '1', latencyMs: 4 },
+  { id: 'return', name: 'Modelo 303 Working Projection', type: 'projection', latencyMs: 1 },
 ], [
   { source: 'pdf', target: 'parse', dataType: 'pdf', relation: 'PARSED_INTO' },
   { source: 'parse', target: 'normalize', dataType: 'invoice-json', relation: 'NORMALIZED_INTO' },
@@ -52,6 +52,7 @@ const dataFlow = buildFiscalDataFlow([
 ]);
 assert.deepEqual(dataFlow.validate(), []);
 assert.deepEqual(dataFlow.criticalPath().map(n => n.id), ['pdf', 'parse', 'normalize', 'calc', 'return']);
+assert.equal(dataFlow.totalLatency(), 11);
 assert.equal(dataFlow.edges[0].partitionKey, 'PARSED_INTO');
 
 // L7 — integer-cent deterministic computation
