@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "evidence_v4_1_contract_kernel_v3_ed26f178",
+  "status": "TARGETED_PASS",
+  "executedAt": "2026-09-01T14:02:00+02:00",
+  "sourceParentSha": "7578c5827b46d6ca6f1ac8258f706af546723e2b",
+  "implementationSha": "ed26f178c648ef92335b127bf97470ad29adeab3",
+  "contractVersion": "4.1.0-alpha.3",
+  "authorityCeiling": "TARGETED_PASS_SHADOW_ONLY",
+  "supersession": {
+    "v1Evidence": "control-plane/v4.1/evidence/contract-kernel/EVIDENCE_PACKET.json",
+    "v1Status": "SUPERSEDED_BY_STRONGER_CONTRACT",
+    "v2Status": "IMPLEMENTED_REVIEWED_NOT_QUALIFIED",
+    "reason": "independent review found remaining candidate self-attestation of open P0/P1 counts before v2 evidence was promoted"
+  },
+  "environment": {
+    "node": "v22.16.0",
+    "network": "unavailable in execution container",
+    "executionMode": "published-byte-equivalent local reconstruction verified by Git blob identity"
+  },
+  "artifacts": [
+    {
+      "path": "control-plane/v4.1/model/contracts.v3.json",
+      "gitBlobSha": "8012e932f59eb6aa225d29ac3ad1b24dac12a1df",
+      "sha256": "2ef64cb3bb66b63063c09d1c47ba5d010bbb9ff947cd61eba03c71d3fd1d97b9",
+      "exactPublishedBlobMatched": true
+    },
+    {
+      "path": "scripts/validate-v4.1-contract-kernel.mjs",
+      "gitBlobSha": "fa5a9d6a0a5feb3a83a53af81908819d4c37a64b",
+      "sha256": "c37638b02d898bb51f5f78ca6f637483e210f5f9437744f5523cb2a83f30438b",
+      "exactPublishedBlobMatched": true
+    }
+  ],
+  "executions": [
+    {
+      "command": "node --check scripts/validate-v4.1-contract-kernel.mjs",
+      "result": "PASS",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/validate-v4.1-contract-kernel.mjs --self-test",
+      "result": "PASS",
+      "exitCode": 0,
+      "assertions": 27,
+      "failures": 0
+    }
+  ],
+  "reviewFindingsClosed": [
+    {
+      "id": "V41-ESC-001",
+      "finding": "candidate cleanroom metadata could outrank weaker TARGETED_PASS evidence",
+      "rootCause": "promotion state partly trusted declarative candidate fields",
+      "permanentDefense": "typed CLEANROOM evidence requirement",
+      "regression": "targeted-cleanroom-cannot-promote"
+    },
+    {
+      "id": "V41-ESC-002",
+      "finding": "candidate could self-attest required checks, security and authority consistency",
+      "rootCause": "hard gates were represented as candidate-supplied booleans",
+      "permanentDefense": "typed required evidence kinds and candidate field allowlist",
+      "regression": "candidate-security-self-attestation-forbidden"
+    },
+    {
+      "id": "V41-ESC-003",
+      "finding": "candidate could self-report openP0/openP1 as zero",
+      "rootCause": "defect blockers were supplied by the promotion request rather than an evidence surface",
+      "permanentDefense": "DEFECT_INVENTORY evidence plus candidateSha-only request shape",
+      "regressions": [
+        "candidate-p0-self-attestation-forbidden",
+        "open-p0-from-evidence-blocks-promotion",
+        "open-p1-from-evidence-blocks-promotion",
+        "duplicate-defect-inventory-rejected"
+      ]
+    },
+    {
+      "id": "V41-ESC-004",
+      "finding": "evidence strength depended on mutable array ordering",
+      "rootCause": "rank semantics existed operationally but were not themselves invariant-checked",
+      "permanentDefense": "canonical pass-status ordering is validated exactly",
+      "regression": "model-rejects-pass-order-mutation"
+    }
+  ],
+  "assuranceCoverage": [
+    "authority promotion shortcuts",
+    "exact candidate SHA binding",
+    "unexecuted/invalidated evidence rejection",
+    "typed evidence kind validation",
+    "executed evidence exit-code enforcement",
+    "candidate self-attestation rejection",
+    "P0/P1 blockers derived from defect-inventory evidence",
+    "security and cleanroom minimum evidence strength",
+    "defect-inventory cardinality",
+    "projection authority escalation",
+    "checkpoint sequence integrity",
+    "required defect lifecycle transitions",
+    "canonical evidence strength ordering",
+    "required promotion gate presence"
+  ],
+  "proofBoundary": [
+    "proves only V4.1 alpha.3 contract model and validator targeted behavior",
+    "EvidencePackets are not yet cryptographically sealed executable receipts; that is a subsequent V4.1 slice and later V6 responsibility",
+    "does not prove discovery completeness of a real DefectGraph",
+    "does not prove full COS repository build/typecheck/tests",
+    "does not prove runtime hardening PRs #59 onward",
+    "does not prove real PostgreSQL/provider behavior",
+    "does not prove concurrency/recovery/security-isolation campaigns",
+    "does not authorize merge to main, deployment or production authority"
+  ],
+  "nextSafeAction": "independent exact-head review, then V4.1 typed Observation/Event/Evidence receipt schema slice with cryptographic integrity and explicit supersession"
+}
