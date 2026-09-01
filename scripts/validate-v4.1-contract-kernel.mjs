@@ -2,14 +2,14 @@
 import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
-const CONTRACTS_PATH = 'control-plane/v4.1/model/contracts.v2.json';
+const CONTRACTS_PATH = 'control-plane/v4.1/model/contracts.v3.json';
 const SHA40 = /^[0-9a-f]{40}$/;
-const SELF_ATTEST_FIELDS = [
-  'requiredChecks',
-  'cleanroom',
-  'security',
-  'authorityConsistent',
-  'criticalEvidenceExactSha',
+const CANONICAL_PASS_ORDER = [
+  'TARGETED_PASS',
+  'SYSTEM_PASS',
+  'PHYSICAL_PASS',
+  'ADVERSARIAL_PASS',
+  'CLEANROOM_PASS',
 ];
 
 class GateError extends Error {
@@ -60,7 +60,7 @@ function validateMachine(name, machine) {
 }
 
 function validateModel(model) {
-  eq(model.schemaVersion, 2, 'SCHEMA_VERSION');
+  eq(model.schemaVersion, 3, 'SCHEMA_VERSION');
   eq(model.contractId, 'cos_repo_assurance_v4_1_contract_kernel', 'CONTRACT_ID');
   ok(SHA40.test(model.sourceParentSha), 'SOURCE_PARENT_SHA');
   eq(model.authorityCeiling, 'IMPLEMENTED_UNVERIFIED', 'AUTHORITY_CEILING');
@@ -68,8 +68,7 @@ function validateModel(model) {
   uniq(model.authorityLattice, 'AUTHORITY_DUPLICATE');
   eq(model.authorityLattice[0], 'UNTRUSTED_DATA', 'AUTHORITY_LATTICE_FLOOR');
   eq(model.authorityLattice.at(-1), 'CANONICAL_AUTHORITY', 'AUTHORITY_LATTICE_CEILING');
-  ok(model.authorityLattice.indexOf('IMPLEMENTED_UNVERIFIED') < model.authorityLattice.indexOf('TARGETED_PASS'), 'AUTHORITY_ORDER_IMPLEMENTED');
-  ok(model.authorityLattice.indexOf('CLEANROOM_PASS') < model.authorityLattice.indexOf('PROMOTION_ELIGIBLE'), 'AUTHORITY_ORDER_CLEANROOM');
+  eq(JSON.stringify(model.passLikeEvidenceStates), JSON.stringify(CANONICAL_PASS_ORDER), 'PASS_STATUS_ORDER');
 
   for (const name of ['Defect', 'Evidence', 'Candidate', 'ClaimLease']) {
     validateMachine(name, model.stateMachines[name]);
@@ -113,9 +112,9 @@ function validateModel(model) {
     'PROMOTION_IS_CONJUNCTIVE_NOT_AVERAGED',
     'PROJECTION_CANNOT_ASSIGN_CANONICAL_AUTHORITY',
     'IMPLEMENTED_UNVERIFIED_CANNOT_SKIP_TO_AUTHORITY',
-    'CANDIDATE_CANNOT_SELF_ATTEST_REQUIRED_CHECKS',
-    'CANDIDATE_CANNOT_SELF_ATTEST_SECURITY',
-    'CANDIDATE_CANNOT_SELF_ATTEST_AUTHORITY_CONSISTENCY',
+    'CANDIDATE_CANNOT_SELF_ATTEST_GATES',
+    'CANDIDATE_CANNOT_SELF_ATTEST_DEFECT_COUNTS',
+    'PASS_STATUS_ORDER_CANONICAL',
   ];
   for (const invariant of requiredHardInvariants) {
     ok(model.hardInvariants.includes(invariant), 'HARD_INVARIANT_MISSING', invariant);
@@ -128,11 +127,12 @@ function validateModel(model) {
     ok(typeof checkpoint.name === 'string' && checkpoint.name.length > 0, 'CHECKPOINT_NAME', checkpoint.id);
   });
 
-  eq(model.promotionRequirements.openP0, 0, 'PROMOTION_P0');
-  eq(model.promotionRequirements.openP1, 0, 'PROMOTION_P1');
+  eq(JSON.stringify(model.candidateRequirements.allowedFields), JSON.stringify(['candidateSha']), 'CANDIDATE_ALLOWED_FIELDS');
+  eq(model.promotionRequirements.requiredDefectCounts.openP0, 0, 'PROMOTION_P0');
+  eq(model.promotionRequirements.requiredDefectCounts.openP1, 0, 'PROMOTION_P1');
   ok(model.promotionRequirements.requiredEvidenceKinds && typeof model.promotionRequirements.requiredEvidenceKinds === 'object', 'PROMOTION_EVIDENCE_KINDS');
   uniq(model.evidenceRequirements.allowedKinds, 'EVIDENCE_KIND_DUPLICATE');
-  for (const requiredKind of ['REQUIRED_CHECKS', 'SECURITY', 'CLEANROOM', 'AUTHORITY_CONSISTENCY']) {
+  for (const requiredKind of ['DEFECT_INVENTORY', 'REQUIRED_CHECKS', 'SECURITY', 'CLEANROOM', 'AUTHORITY_CONSISTENCY']) {
     ok(Object.hasOwn(model.promotionRequirements.requiredEvidenceKinds, requiredKind), 'PROMOTION_REQUIRED_KIND_MISSING', requiredKind);
   }
   for (const [kind, requiredStatus] of Object.entries(model.promotionRequirements.requiredEvidenceKinds)) {
@@ -169,22 +169,29 @@ function validateEvidence(model, evidence, candidateSha) {
     eq(evidence.exitCode, 0, 'EVIDENCE_EXIT_CODE_NONZERO');
   }
 
+  if (evidence.kind === 'DEFECT_INVENTORY') {
+    ok(evidence.details && typeof evidence.details === 'object', 'DEFECT_INVENTORY_DETAILS');
+    for (const key of ['openP0', 'openP1']) {
+      ok(Number.isSafeInteger(evidence.details[key]) && evidence.details[key] >= 0, 'DEFECT_COUNT_INVALID', key);
+    }
+  }
+
   ok(!model.evidenceRequirements.terminalNonQualifyingStates.includes(evidence.status), 'EVIDENCE_NON_QUALIFYING_STATE', evidence.status);
   ok(!model.evidenceRequirements.writtenOnlyStates.includes(evidence.status), 'EVIDENCE_UNEXECUTED', evidence.status);
   return true;
 }
 
-function evaluatePromotion(model, candidate, evidence = []) {
-  ok(candidate && typeof candidate === 'object', 'PROMOTION_INPUT');
+function validateCandidate(model, candidate) {
+  ok(candidate && typeof candidate === 'object' && !Array.isArray(candidate), 'PROMOTION_INPUT');
   ok(SHA40.test(candidate.candidateSha ?? ''), 'PROMOTION_CANDIDATE_SHA');
-
-  for (const field of SELF_ATTEST_FIELDS) {
-    ok(!Object.hasOwn(candidate, field), 'CANDIDATE_SELF_ATTESTATION_FORBIDDEN', field);
+  const allowed = new Set(model.candidateRequirements.allowedFields);
+  for (const field of Object.keys(candidate)) {
+    ok(allowed.has(field), 'CANDIDATE_SELF_ATTESTATION_FORBIDDEN', field);
   }
+}
 
-  eq(candidate.openP0, model.promotionRequirements.openP0, 'PROMOTION_BLOCKED_P0');
-  eq(candidate.openP1, model.promotionRequirements.openP1, 'PROMOTION_BLOCKED_P1');
-
+function evaluatePromotion(model, candidate, evidence = []) {
+  validateCandidate(model, candidate);
   ok(evidence.length > 0, 'PROMOTION_EVIDENCE_EMPTY');
   for (const packet of evidence) validateEvidence(model, packet, candidate.candidateSha);
 
@@ -196,6 +203,12 @@ function evaluatePromotion(model, candidate, evidence = []) {
     const strongest = Math.max(...packets.map(packet => evidenceRank(model, packet.status)));
     ok(strongest >= requiredRank, 'PROMOTION_EVIDENCE_TOO_WEAK', `${kind}: requires ${requiredStatus}`);
   }
+
+  const defectPackets = evidence.filter(packet => packet.kind === 'DEFECT_INVENTORY');
+  ok(defectPackets.length === 1, 'PROMOTION_DEFECT_INVENTORY_CARDINALITY', String(defectPackets.length));
+  const defectInventory = defectPackets[0];
+  eq(defectInventory.details.openP0, model.promotionRequirements.requiredDefectCounts.openP0, 'PROMOTION_BLOCKED_P0');
+  eq(defectInventory.details.openP1, model.promotionRequirements.requiredDefectCounts.openP1, 'PROMOTION_BLOCKED_P1');
 
   return {
     eligible: true,
@@ -239,24 +252,23 @@ function selfTests(model) {
 
   const shaA = 'a'.repeat(40);
   const shaB = 'b'.repeat(40);
-  const packet = (kind, status, candidateSha = shaA, exitCode = 0) => ({
+  const packet = (kind, status, candidateSha = shaA, exitCode = 0, details = undefined) => ({
     kind,
     status,
     candidateSha,
     command: `verify:${kind}`,
     exitCode,
+    ...(details === undefined ? {} : { details }),
   });
+  const defectPacket = (openP0 = 0, openP1 = 0) => packet('DEFECT_INVENTORY', 'SYSTEM_PASS', shaA, 0, { openP0, openP1 });
   const goodEvidence = [
+    defectPacket(),
     packet('REQUIRED_CHECKS', 'SYSTEM_PASS'),
     packet('SECURITY', 'ADVERSARIAL_PASS'),
     packet('CLEANROOM', 'CLEANROOM_PASS'),
     packet('AUTHORITY_CONSISTENCY', 'SYSTEM_PASS'),
   ];
-  const goodCandidate = {
-    candidateSha: shaA,
-    openP0: 0,
-    openP1: 0,
-  };
+  const goodCandidate = { candidateSha: shaA };
 
   expectPass('baseline-model', () => validateModel(model));
   expectPass('legal-candidate-promotion-path', () => {
@@ -272,13 +284,16 @@ function selfTests(model) {
   expectReject('invalidated-evidence', 'EVIDENCE_NON_QUALIFYING_STATE', () => validateEvidence(model, { kind: 'OTHER', status: 'INVALIDATED' }, shaA));
   expectReject('unknown-evidence-kind', 'EVIDENCE_KIND_UNKNOWN', () => validateEvidence(model, packet('MAGIC_PASS', 'CLEANROOM_PASS'), shaA));
   expectReject('nonzero-pass-evidence', 'EVIDENCE_EXIT_CODE_NONZERO', () => validateEvidence(model, packet('CLEANROOM', 'CLEANROOM_PASS', shaA, 1), shaA));
+  expectReject('defect-inventory-missing-details', 'DEFECT_INVENTORY_DETAILS', () => validateEvidence(model, packet('DEFECT_INVENTORY', 'SYSTEM_PASS'), shaA));
   expectPass('promotion-happy-path', () => evaluatePromotion(model, goodCandidate, goodEvidence));
-  expectReject('candidate-self-attestation-forbidden', 'CANDIDATE_SELF_ATTESTATION_FORBIDDEN', () => evaluatePromotion(model, { ...goodCandidate, security: 'PASS' }, goodEvidence));
+  expectReject('candidate-security-self-attestation-forbidden', 'CANDIDATE_SELF_ATTESTATION_FORBIDDEN', () => evaluatePromotion(model, { ...goodCandidate, security: 'PASS' }, goodEvidence));
+  expectReject('candidate-p0-self-attestation-forbidden', 'CANDIDATE_SELF_ATTESTATION_FORBIDDEN', () => evaluatePromotion(model, { ...goodCandidate, openP0: 0 }, goodEvidence));
   expectReject('missing-security-evidence', 'PROMOTION_REQUIRED_EVIDENCE_MISSING', () => evaluatePromotion(model, goodCandidate, goodEvidence.filter(item => item.kind !== 'SECURITY')));
   expectReject('weak-security-evidence', 'PROMOTION_EVIDENCE_TOO_WEAK', () => evaluatePromotion(model, goodCandidate, goodEvidence.map(item => item.kind === 'SECURITY' ? packet('SECURITY', 'TARGETED_PASS') : item)));
   expectReject('targeted-cleanroom-cannot-promote', 'PROMOTION_EVIDENCE_TOO_WEAK', () => evaluatePromotion(model, goodCandidate, goodEvidence.map(item => item.kind === 'CLEANROOM' ? packet('CLEANROOM', 'TARGETED_PASS') : item)));
-  expectReject('open-p0-blocks-promotion', 'PROMOTION_BLOCKED_P0', () => evaluatePromotion(model, { ...goodCandidate, openP0: 1 }, goodEvidence));
-  expectReject('open-p1-blocks-promotion', 'PROMOTION_BLOCKED_P1', () => evaluatePromotion(model, { ...goodCandidate, openP1: 1 }, goodEvidence));
+  expectReject('open-p0-from-evidence-blocks-promotion', 'PROMOTION_BLOCKED_P0', () => evaluatePromotion(model, goodCandidate, [defectPacket(1, 0), ...goodEvidence.filter(item => item.kind !== 'DEFECT_INVENTORY')]));
+  expectReject('open-p1-from-evidence-blocks-promotion', 'PROMOTION_BLOCKED_P1', () => evaluatePromotion(model, goodCandidate, [defectPacket(0, 1), ...goodEvidence.filter(item => item.kind !== 'DEFECT_INVENTORY')]));
+  expectReject('duplicate-defect-inventory-rejected', 'PROMOTION_DEFECT_INVENTORY_CARDINALITY', () => evaluatePromotion(model, goodCandidate, [defectPacket(), ...goodEvidence]));
   expectReject('projection-cannot-assign-authority', 'PROJECTION_AUTHORITY_ESCALATION', () => validateProjectionAuthority({ id: 'projection:test', authority: 'CANONICAL_AUTHORITY' }));
 
   const mutated = structuredClone(model);
@@ -296,11 +311,19 @@ function selfTests(model) {
 
   const unknownPass = structuredClone(model);
   unknownPass.passLikeEvidenceStates.push('UNKNOWN');
-  expectReject('model-rejects-unknown-as-pass', 'UNKNOWN_MARKED_PASS', () => validateModel(unknownPass));
+  expectReject('model-rejects-unknown-as-pass', 'PASS_STATUS_ORDER', () => validateModel(unknownPass));
+
+  const reorderedPass = structuredClone(model);
+  [reorderedPass.passLikeEvidenceStates[0], reorderedPass.passLikeEvidenceStates[4]] = [reorderedPass.passLikeEvidenceStates[4], reorderedPass.passLikeEvidenceStates[0]];
+  expectReject('model-rejects-pass-order-mutation', 'PASS_STATUS_ORDER', () => validateModel(reorderedPass));
 
   const missingKind = structuredClone(model);
   delete missingKind.promotionRequirements.requiredEvidenceKinds.SECURITY;
   expectReject('model-rejects-missing-security-gate-contract', 'PROMOTION_REQUIRED_KIND_MISSING', () => validateModel(missingKind));
+
+  const candidateFields = structuredClone(model);
+  candidateFields.candidateRequirements.allowedFields.push('security');
+  expectReject('model-rejects-candidate-gate-field', 'CANDIDATE_ALLOWED_FIELDS', () => validateModel(candidateFields));
 
   const failed = scenarios.filter(scenario => !scenario.passed);
   return { passed: failed.length === 0, total: scenarios.length, failed: failed.length, scenarios };
