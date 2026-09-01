@@ -122,12 +122,21 @@ export function fiscalPolicyForIntent(
   if (intent === 'FILED_STATUS') {
     base.requireOfficialForAnswer = true;
     base.minimumAuthorityScore = 1.0;
-    base.forbiddenEvidenceClasses = ['TEMPLATE_NOT_FILING', 'PREPARED_NOT_FILED'];
+    base.forbiddenEvidenceClasses = [
+      'TEMPLATE_NOT_FILING',
+      'PREPARED_NOT_FILED',
+      'PREPARED_COPY_NOT_FILING_PROOF',
+      'STALE_TEMPLATE_NOT_FILING',
+    ];
   }
   if (intent === 'PAYMENT_STATUS') {
     base.requireOfficialForAnswer = true;
     base.minimumAuthorityScore = 0.9;
-    base.forbiddenEvidenceClasses = ['PAYMENT_LETTER_NOT_PROOF', 'INSTRUCTION_NOT_SETTLEMENT'];
+    base.forbiddenEvidenceClasses = [
+      'PAYMENT_LETTER_NOT_PROOF',
+      'INSTRUCTION_NOT_SETTLEMENT',
+      'CARTA_DE_PAGO_NOT_SETTLEMENT_PROOF',
+    ];
   }
   if (intent === 'DEDUCTIBILITY') {
     base.minimumAuthorityScore = 0.65;
@@ -137,6 +146,10 @@ export function fiscalPolicyForIntent(
   }
 
   return { ...base, ...overrides };
+}
+
+function normalizeEntityKey(value: string): string {
+  return value.trim().toLowerCase();
 }
 
 function cosine(a: number[], b: number[]): number {
@@ -222,7 +235,19 @@ export class FiscalAuthorityGraphRAG {
     policy: FiscalQueryPolicy = fiscalPolicyForIntent('GENERAL'),
   ): FiscalContextPack {
     const native = this.engine.retrieve(queryEmbedding, queryEntities);
-    const graphEntitySet = new Set(native.entities.map(e => e.toLowerCase()));
+
+    // Native L11 returns entity names for display, while chunks and relations use canonical IDs.
+    // Build overlap on IDs first and add names only as a compatibility fallback.
+    const graphEntitySet = new Set<string>(queryEntities.map(normalizeEntityKey));
+    for (const relation of native.relations) {
+      graphEntitySet.add(normalizeEntityKey(relation.source));
+      graphEntitySet.add(normalizeEntityKey(relation.target));
+    }
+    for (const name of native.entities) {
+      graphEntitySet.add(normalizeEntityKey(name));
+      const entity = this.engine.entities.find(e => e.name === name);
+      if (entity) graphEntitySet.add(normalizeEntityKey(entity.id));
+    }
 
     const candidates: FiscalContextCandidate[] = [];
     const contradictions: FiscalContextCandidate[] = [];
@@ -239,7 +264,7 @@ export class FiscalAuthorityGraphRAG {
       const semanticScore = clamp01((cosine(chunk.embedding, queryEmbedding) + 1) / 2);
       const graphOverlap = chunk.entities.length === 0
         ? 0
-        : chunk.entities.filter(e => graphEntitySet.has(e.toLowerCase())).length / chunk.entities.length;
+        : chunk.entities.filter(e => graphEntitySet.has(normalizeEntityKey(e))).length / chunk.entities.length;
       const authorityScore = AUTHORITY_SCORE[chunk.authorityRank];
       const provenanceScore = clamp01(chunk.provenanceCompleteness);
       const entityResolutionScore = clamp01(chunk.entityResolutionConfidence);
@@ -299,9 +324,19 @@ export class FiscalAuthorityGraphRAG {
     candidates.sort((a, b) => b.retrievalScore - a.retrievalScore);
     contradictions.sort((a, b) => b.retrievalScore - a.retrievalScore);
 
-    const selected = candidates.slice(0, this.finalTopK);
-    const unresolvedGaps: string[] = [];
+    let selected = candidates.slice(0, this.finalTopK);
 
+    // For authority-gated intents, never accidentally discard the best qualifying official
+    // candidate merely because a semantic candidate occupied the finalTopK boundary.
+    if (policy.minimumAuthorityScore !== undefined) {
+      const bestQualified = candidates.find(c => c.authorityScore >= policy.minimumAuthorityScore!);
+      if (bestQualified && !selected.some(c => c.chunk.id === bestQualified.chunk.id)) {
+        selected = [...selected.slice(0, Math.max(0, this.finalTopK - 1)), bestQualified]
+          .sort((a, b) => b.retrievalScore - a.retrievalScore);
+      }
+    }
+
+    const unresolvedGaps: string[] = [];
     if (selected.length === 0) unresolvedGaps.push('No eligible evidence chunks survived retrieval/policy filters.');
     if (policy.minimumAuthorityScore !== undefined && !selected.some(c => c.authorityScore >= policy.minimumAuthorityScore!)) {
       unresolvedGaps.push(`No evidence meets minimum authority score ${policy.minimumAuthorityScore}.`);
