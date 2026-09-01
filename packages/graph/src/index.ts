@@ -25,6 +25,8 @@ export * from './pipeline-l4l5l6';
 export * from './pipeline-l8l9l10l11';
 export * from './pipeline-l12l13l14l15';
 export * from './pipeline-l16l17l18l19';
+export * from './profiles/fiscal-events';
+export * from './profiles/fiscal-recovery-projector';
 export * from './cli';
 export * from './visualizer';
 export * from './security';
