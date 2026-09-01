@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "evidence_v4_1_receipt_kernel_94c0654e",
+  "status": "TARGETED_PASS",
+  "recordedAt": "2026-09-01T14:26:11+02:00",
+  "sourceParentSha": "ba7ec597428f66bb635f80d14d51df1542a7e059",
+  "implementationSha": "94c0654ea6c9e52dda6b8febf70d33fa3946bb1e",
+  "authorityCeiling": "TARGETED_PASS_SHADOW_ONLY",
+  "environment": {
+    "node": "v22.16.0",
+    "executionMode": "clean reconstruction of exact Git-published bytes",
+    "networkDuringExecution": "not required"
+  },
+  "artifactIdentity": [
+    {
+      "path": "control-plane/v4.1/model/receipt-contract.v1.json",
+      "gitBlobSha": "b7e835eaaddea4c002d763b1454557c924f62a0d",
+      "sha256": "5f0c180be783cd82d28549f6161dd28c648063efe9d069ac7f152999065e408c",
+      "exactPublishedBytesExecuted": true
+    },
+    {
+      "path": "control-plane/v4.1/kernel/receipt-canonical.mjs",
+      "gitBlobSha": "1483ee6ac56aca09e3eebdd167d1ab58adb6cf50",
+      "sha256": "0d2b057ca60610835b09ad56ca4939480acf796d18fb3427e73efbb0b7941206",
+      "exactPublishedBytesExecuted": true
+    },
+    {
+      "path": "control-plane/v4.1/kernel/receipt-verify.mjs",
+      "gitBlobSha": "6d5f2e25f613bba0fa77ef8de4906335cd57f584",
+      "sha256": "ded7690cc8dc0de68c04ee7b5a85d320293b185eb5c21edce3e16114277a5925",
+      "exactPublishedBytesExecuted": true
+    },
+    {
+      "path": "control-plane/v4.1/kernel/receipt-selftest.mjs",
+      "gitBlobSha": "6fc0bdb0a830319800f971285325aad78aafb224",
+      "sha256": "af5f73f58401fcf5094681ebd4c9f051145d1992feb027206cd2217c2b5ddbcb",
+      "exactPublishedBytesExecuted": true
+    },
+    {
+      "path": "scripts/validate-v4.1-receipts.mjs",
+      "gitBlobSha": "ba682e2b16e60d0f5cf6d65f90a037321b870406",
+      "sha256": "7a395b4752c876a89049f1b536755e3ad0229d88cc3365b8caa63ea452012065",
+      "exactPublishedBytesExecuted": true
+    }
+  ],
+  "executions": [
+    {
+      "command": "node --check control-plane/v4.1/kernel/receipt-canonical.mjs && node --check control-plane/v4.1/kernel/receipt-verify.mjs && node --check control-plane/v4.1/kernel/receipt-selftest.mjs && node --check scripts/validate-v4.1-receipts.mjs",
+      "result": "PASS",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/validate-v4.1-receipts.mjs --self-test",
+      "result": "PASS",
+      "exitCode": 0,
+      "assertions": 38,
+      "failures": 0
+    }
+  ],
+  "escapedFailureCorrections": [
+    {
+      "id": "V41-REC-ESC-001",
+      "finding": "the initially recorded local expected blob SHA for receipt-selftest.mjs did not match the Git-published object",
+      "handling": "the 38/38 local result was refused as authority; the exact Git object was reconstructed, its Git blob SHA and SHA-256 recomputed, and the complete published byte set was re-executed",
+      "correctGitBlobSha": "6fc0bdb0a830319800f971285325aad78aafb224",
+      "correctSha256": "af5f73f58401fcf5094681ebd4c9f051145d1992feb027206cd2217c2b5ddbcb"
+    },
+    {
+      "id": "V41-REC-ESC-002",
+      "finding": "modularization exposed accidental self-test coupling to a helper from the earlier monolithic validator scope",
+      "handling": "self-test owns a minimal local assertion helper; production receipt core does not export test-only internals"
+    }
+  ],
+  "adversarialCoverage": [
+    "canonical payload and receipt tamper detection",
+    "pre-sealed input rejection",
+    "hash-algorithm mismatch",
+    "PASS/non-zero and failure/zero exit contradictions",
+    "invalid artifact digest",
+    "time-order violations",
+    "explicit UNKNOWN observation requirements",
+    "duplicate receipt identity",
+    "supersession old/new hash binding",
+    "missing supersession target",
+    "cross-type supersession",
+    "observation subject substitution",
+    "event supersession rejection",
+    "cross-candidate evidence supersession",
+    "evidence-kind substitution",
+    "replacement time reversal",
+    "duplicate supersession of one historical receipt",
+    "supersession cycles",
+    "event chain continuity and anchoring",
+    "duplicate event receipt identity",
+    "event sequence reorder",
+    "event recorded-time reversal",
+    "previous-hash tamper",
+    "duplicate event idempotency key",
+    "non-finite canonical values",
+    "sparse arrays",
+    "Unicode-normalized key collisions",
+    "canonical cycles"
+  ],
+  "proofBoundary": [
+    "proves only the V4.1 cryptographic receipt integrity, supersession and event-chain kernel at implementation SHA 94c0654ea6c9e52dda6b8febf70d33fa3946bb1e",
+    "SHA-256 here establishes integrity under a trusted storage/authorization boundary; it is not authenticity against an authorized malicious writer able to replace the full receipt set and recompute hashes",
+    "no external signature, transparency log, hardware root or V6 independent verifier is claimed",
+    "does not prove repository observation/discovery completeness",
+    "does not prove full COS build/typecheck/runtime",
+    "does not qualify runtime hardening PRs #59 onward",
+    "does not prove real PostgreSQL/provider behavior, concurrency, recovery or deployment isolation",
+    "does not authorize main promotion, deployment or production authority"
+  ],
+  "nextSafeAction": "independent review of the exact receipt kernel and evidence pair, then integrate active cryptographic receipts into the V4.1 promotion evaluator without widening runtime scope"
+}
