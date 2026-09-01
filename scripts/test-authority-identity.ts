@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   IdentityRegistry,
+  canonicalizeJsonValue,
   canonicalHash128,
   canonicalIdentity,
   canonicalSerialize,
@@ -34,6 +35,12 @@ async function main(): Promise<void> {
   const nullPrototype = Object.create(null) as Record<string, unknown>;
   nullPrototype.a = 1;
   check(canonicalSerialize(nullPrototype) === '{"a":1}', 'null-prototype plain objects are canonicalizable');
+
+  const protoKeyInput = JSON.parse('{"__proto__":{"polluted":true},"safe":"ok"}') as Record<string, unknown>;
+  const protoKeyCanonical = canonicalizeJsonValue(protoKeyInput) as Record<string, unknown>;
+  check(Object.getPrototypeOf(protoKeyCanonical) === Object.prototype, '__proto__ JSON key does not mutate canonical object prototype');
+  check(Object.prototype.hasOwnProperty.call(protoKeyCanonical, '__proto__'), '__proto__ JSON key remains own canonical data');
+  check((protoKeyCanonical.__proto__ as Record<string, unknown>).polluted === true, '__proto__ canonical data value is preserved');
 
   assert.throws(() => canonicalSerialize(undefined), /unsupported canonical type/); assertions += 1;
   assert.throws(() => canonicalSerialize({ value: undefined }), /unsupported canonical type/); assertions += 1;
