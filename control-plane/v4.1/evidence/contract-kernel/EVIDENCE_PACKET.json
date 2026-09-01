@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "evidence_v4_1_contract_kernel_2426810d",
+  "status": "TARGETED_PASS",
+  "executedAt": "2026-09-01T13:49:21+02:00",
+  "sourceParentSha": "7578c5827b46d6ca6f1ac8258f706af546723e2b",
+  "implementationSha": "2426810d45a41543b63ab475a1ba18e79973506b",
+  "authorityCeiling": "TARGETED_PASS_SHADOW_ONLY",
+  "environment": {
+    "node": "v22.16.0",
+    "network": "unavailable in execution container",
+    "repositoryClone": "not available; exact published blobs reconstructed and verified independently"
+  },
+  "artifacts": [
+    {
+      "path": "control-plane/v4.1/model/contracts.v1.json",
+      "gitBlobSha": "ff2a785a5ebec14d3ec92efc5bb7ae2b6e3998ae",
+      "sha256": "0c518a9e7e5fb13799c9fc99c5dfbba08b4a5d82968b87d500ddb3ffae6dbf98",
+      "exactPublishedBlobMatched": true
+    },
+    {
+      "path": "scripts/validate-v4.1-contract-kernel.mjs",
+      "gitBlobSha": "bca145e3ff015c927e8a910e3c77ebe7b4b35c79",
+      "sha256": "83c8fc13806993fea806ee0addef7d189ea0e891c54802b7dd1f60c235c61121",
+      "exactPublishedBlobMatched": true
+    }
+  ],
+  "executions": [
+    {
+      "command": "node --check scripts/validate-v4.1-contract-kernel.mjs",
+      "result": "PASS",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/validate-v4.1-contract-kernel.mjs --self-test",
+      "result": "PASS",
+      "exitCode": 0,
+      "assertions": 19,
+      "failures": 0
+    }
+  ],
+  "adversarialCoverage": [
+    "illegal targeted-pass to canonical-authority transition",
+    "missing evidence candidate SHA",
+    "stale evidence SHA",
+    "written-but-unexecuted evidence",
+    "invalidated evidence",
+    "non-zero executed evidence",
+    "targeted-only evidence attempting promotion without cleanroom proof",
+    "open P0 promotion",
+    "open P1 promotion",
+    "UNKNOWN required checks",
+    "security failure",
+    "authority inconsistency",
+    "projection authority escalation",
+    "checkpoint duplication/gap",
+    "model-level authority skip mutation",
+    "UNKNOWN injected into pass-like evidence states"
+  ],
+  "escapedBugDuringImplementation": {
+    "finding": "initial promotion evaluator could accept TARGETED_PASS evidence while candidate metadata claimed cleanroom PASS",
+    "rootCause": "promotion relied on declarative candidate fields without requiring the corresponding evidence state",
+    "repair": "promotionRequiredStates now requires CLEANROOM_PASS and evaluator verifies its presence",
+    "regression": "targeted-only-evidence-cannot-promote",
+    "result": "PASS"
+  },
+  "proofBoundary": [
+    "proves only V4.1 contract model and validator targeted behavior",
+    "does not prove full COS repository typecheck/tests",
+    "does not prove runtime hardening PRs #59 onward",
+    "does not prove real PostgreSQL/provider behavior",
+    "does not prove concurrency/recovery/security isolation campaigns",
+    "does not authorize merge to main, deployment or production authority"
+  ],
+  "nextSafeAction": "independent review of this exact implementation/evidence pair, then extend V4.1 with typed event/evidence schemas without importing runtime hardening lanes"
+}
