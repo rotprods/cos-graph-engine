@@ -1,0 +1,25 @@
+{
+  "profile_pr": 70,
+  "ci_blocker_issue": 71,
+  "slice": "PR-B",
+  "status": "DRAFT_BLOCKED_BY_CI_INFRA",
+  "implemented": [
+    "append_only_event_store",
+    "hash_chain_verification",
+    "canonical_identity_registry",
+    "l1_execution_projector",
+    "l2_state_machines",
+    "l2_policy_gates",
+    "l3_dependency_projector",
+    "runtime_contract_tests"
+  ],
+  "private_evidence_committed": false,
+  "next": [
+    "fix_ci_root_path",
+    "run_tests",
+    "stack_or_rebase_on_pr70",
+    "add_l8_l9_projector",
+    "add_graphql_read_resolvers",
+    "add_authority_aware_graphrag"
+  ]
+}
