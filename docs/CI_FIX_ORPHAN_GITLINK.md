@@ -1,1 +1,0 @@
-The main tree contains `cos-graph-engine-026bb43d-eec2-4a08-872e-020acdbf97cf` with mode `160000`, type `commit`, sha `5c5a0e1e754a732d90dedbbd1688f01206d85fd7`, but no corresponding `.gitmodules` entry. Contents API cannot delete it because it is a gitlink, so cleanup requires a Git tree mutation.
