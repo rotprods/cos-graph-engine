@@ -110,7 +110,14 @@ function visit(
       }
       normalizedKeys.set(normalizedKey, key);
       const child = visit(descriptor.value, `${path}.${normalizedKey}`, seen, true);
-      if (child !== undefined) output[normalizedKey] = child;
+      if (child !== undefined) {
+        Object.defineProperty(output, normalizedKey, {
+          value: child,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+      }
     }
     return output;
   } finally {
