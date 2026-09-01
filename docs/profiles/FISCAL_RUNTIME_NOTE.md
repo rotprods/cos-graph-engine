@@ -1,0 +1,1 @@
+This branch was created independently from PR #70. Before merge it must be stacked/rebased or integrated so `packages/graph/src/index.ts` exports both the 20D profile and runtime contracts without conflict.
