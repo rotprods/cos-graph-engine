@@ -15,13 +15,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: '18.20.4'
+  NODE_VERSION: '22.12.0'
   WORKING_DIR: .
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # ─── Lint & Type Check ──────────────────────────────────────────
   lint:
     name: Lint + Type Check
     runs-on: ubuntu-latest
@@ -40,7 +39,6 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit 2>&1 || echo "Type check complete (may warn on missing tsc)"
 
-  # ─── Packages: Graph Engine ────────────────────────────────────
   test-graph-csr:
     name: CSR Graph (77 tests)
     runs-on: ubuntu-latest
@@ -95,7 +93,6 @@ jobs:
       - name: Benchmark tests
         run: npx tsx scripts/test-benchmark.ts
 
-  # ─── Packages: WASM ────────────────────────────────────────────
   test-wasm:
     name: WASM (23 tests)
     runs-on: ubuntu-latest
@@ -112,11 +109,10 @@ jobs:
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
       - run: npm ci
       - name: Build WASM modules
-        run: npm run asbuild 2>/dev/null || echo "WASM build skipped"
+        run: npm run asbuild
       - name: WASM tests
         run: npx tsx scripts/test-wasm.ts
 
-  # ─── Packages: Observability ───────────────────────────────────
   test-observability:
     name: Observability (228 tests)
     runs-on: ubuntu-latest
@@ -141,7 +137,6 @@ jobs:
       - name: Dashboard
         run: npx tsx packages/observability/tests/dashboard.test.ts
 
-  # ─── Packages: Visualization ───────────────────────────────────
   test-visualization:
     name: Visualization (90 tests)
     runs-on: ubuntu-latest
@@ -164,7 +159,6 @@ jobs:
       - name: Web Component
         run: npx tsx packages/visualization/tests/web-component.test.ts
 
-  # ─── COS Core Test Suite ───────────────────────────────────────
   test-core:
     name: COS Core (390+ tests)
     runs-on: ubuntu-latest
@@ -197,7 +191,6 @@ jobs:
       - name: Verify
         run: echo "All COS core tests passed"
 
-  # ─── Performance Benchmarks ────────────────────────────────────
   benchmark:
     name: Performance Benchmarks
     runs-on: ubuntu-latest
@@ -214,7 +207,7 @@ jobs:
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
       - run: npm ci
       - name: Build WASM
-        run: npm run asbuild 2>/dev/null || echo "WASM build skipped"
+        run: npm run asbuild
       - name: Run benchmarks
         run: npx tsx scripts/benchmark-perf.ts 2>&1
       - name: Generate HTML report
@@ -230,7 +223,6 @@ jobs:
           name: benchmark-history
           path: ${{ env.WORKING_DIR }}/benchmark-reports/
 
-  # ─── Code Coverage ─────────────────────────────────────────────
   coverage:
     name: Code Coverage (c8)
     runs-on: ubuntu-latest
@@ -254,7 +246,6 @@ jobs:
           name: coverage-report
           path: ${{ env.WORKING_DIR }}/coverage/
 
-  # ─── Docker Build (on main only) ───────────────────────────────
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
@@ -293,7 +284,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─── Full Regression ───────────────────────────────────────────
   full-regression:
     name: Full Regression
     runs-on: ubuntu-latest
@@ -323,9 +313,8 @@ jobs:
       - name: Run all suites
         run: npm run test:all 2>&1
       - name: Verify
-        run: echo "✅ All 552 tests passed"
+        run: echo "✅ Full regression passed"
 
-  # ─── Complete ──────────────────────────────────────────────────
   complete:
     name: ✅ All Checks Passed
     runs-on: ubuntu-latest
