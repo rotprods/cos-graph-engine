@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: '18.20.4'
+  NODE_VERSION: '22.12.0'
   WORKING_DIR: .
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
           cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
       - run: npm ci
       - name: Build WASM
-        run: npm run asbuild 2>/dev/null || echo "WASM build skipped"
+        run: npm run asbuild
       - name: Run CSR tests
         run: npx tsx scripts/test-csr.ts
       - name: Run pruning tests
@@ -53,7 +53,7 @@ jobs:
       - name: Run core test suite
         run: npm run test:all 2>&1
       - name: Verify
-        run: echo "✅ All 552 tests passed"
+        run: echo "✅ All tests passed"
 
   version:
     name: Version Bump
@@ -110,19 +110,17 @@ jobs:
           cat > release-notes.md << 'EOF'
           ### COS Graph Engine Release v${{ needs.version.outputs.new_version }}
 
-          **Tests:** 552+ passing, 0 failures
-          **Coverage:** 63%+
-          **Dependencies:** 0 (zero-dep rule)
+          **Runtime:** Node 22.12+
+          **Dependencies:** monorepo workspaces + declared external tooling
 
           #### What's New
 
           - CSR Graph Engine: compressed adjacency storage, bidirectional BFS
           - Pruning: 7 strategies with composable pipeline
-          - WASM: AssemblyScript bindings, up to 10.49x speedup
+          - WASM: AssemblyScript bindings and accelerated graph algorithms
           - Observability: tracing, collector, profiler, Prometheus, telemetry dashboard
-          - Visualization: SVG renderer (force/tree/radial), Canvas (quadtree culling), Web Component
-          - Docker: multi-stage build, Prometheus + Grafana stack
-          - Kubernetes: deployment, HPA, ingress, RBAC
+          - Visualization: SVG renderer, Canvas, Web Component
+          - Docker + Kubernetes deployment stack
 
           #### Changes
           EOF
