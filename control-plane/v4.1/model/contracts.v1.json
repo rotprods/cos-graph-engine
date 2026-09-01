@@ -33,9 +33,32 @@
   "stateMachines": {
     "Defect": {
       "initial": "DISCOVERED",
-      "terminal": ["CLOSED", "FALSE_POSITIVE", "CROSS_REPO_BLOCKER"],
-      "states": ["DISCOVERED", "REPRODUCED", "ROOT_CAUSED", "PATCHED", "TARGETED_PASS", "SYSTEM_PASS", "ADVERSARIAL_PASS", "CLOSED", "FALSE_POSITIVE", "DUPLICATE", "DEFERRED", "CROSS_REPO_BLOCKER"],
-      "transitions": [["DISCOVERED", "REPRODUCED"], ["DISCOVERED", "FALSE_POSITIVE"], ["DISCOVERED", "DUPLICATE"], ["DISCOVERED", "CROSS_REPO_BLOCKER"], ["REPRODUCED", "ROOT_CAUSED"], ["ROOT_CAUSED", "PATCHED"], ["PATCHED", "TARGETED_PASS"], ["TARGETED_PASS", "SYSTEM_PASS"], ["SYSTEM_PASS", "ADVERSARIAL_PASS"], ["ADVERSARIAL_PASS", "CLOSED"], ["REPRODUCED", "DEFERRED"], ["ROOT_CAUSED", "DEFERRED"]]
+      "terminal": [
+        "CLOSED",
+        "FALSE_POSITIVE",
+        "CROSS_REPO_BLOCKER"
+      ],
+      "states": [
+        "DISCOVERED",
+        "REPRODUCED",
+        "ROOT_CAUSED",
+        "PATCHED",
+        "TARGETED_PASS",
+        "SYSTEM_PASS",
+        "ADVERSARIAL_PASS",
+        "CLOSED",
+        "FALSE_POSITIVE",
+        "DUPLICATE",
+        "DEFERRED",
+        "CROSS_REPO_BLOCKER"
+      ],
+      "transitions": [
+        ["DISCOVERED", "REPRODUCED"],
+        ["DISCOVERED", "FALSE_POSITIVE"],
+        ["DISCOVERED", "DUPLICATE"],
+        ["DISCOVERED", "CROSS_REPO_BLOCKER"],
+        ["REPRODUED", "ROOT_CAUSED"]
+      ]
     },
     "Evidence": {
       "initial": "PROPOSED",
@@ -71,7 +94,8 @@
     "writtenOnlyStates": ["PROPOSED", "WRITTEN_UNEXECUTED"],
     "mustBindExactCandidate": true,
     "mustRecordCommandForExecutedEvidence": true,
-    "mustRecordExitCodeForExecutedEvidence": true
+    "mustRecordExitCodeForExecutedEvidence": true,
+    "promotionRequiredStates": ["CLEANROOM_PASS"]
   },
   "checkpoints": [
     {"id": "CP0", "name": "LIVE_TRUTH"},
