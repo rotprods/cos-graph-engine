@@ -8,7 +8,6 @@ import {
 } from '../level8-knowledge';
 import {
   SemanticGraph,
-  type SemanticNode,
   type SemanticEdge,
 } from '../level9-semantic';
 
@@ -52,6 +51,7 @@ export type FiscalKnowledgeRelation =
   | 'CONSUMES_LOT'
   | 'OWNED_BY'
   | 'HELD_AT'
+  | 'PART_OF'
   | 'REVIEWED_BY'
   | 'APPROVED_BY'
   | 'EXECUTED_BY'
@@ -135,7 +135,7 @@ function mapRelationType(relation: FiscalKnowledgeRelation): RelationType {
   switch (relation) {
     case 'OWNED_BY':
     case 'HELD_AT':
-    case 'PART_OF' as FiscalKnowledgeRelation:
+    case 'PART_OF':
       return 'part_of';
     case 'EXECUTED_BY':
     case 'REVIEWED_BY':
@@ -146,16 +146,6 @@ function mapRelationType(relation: FiscalKnowledgeRelation): RelationType {
     case 'CALCULATED_FROM':
     case 'DERIVED_FROM':
       return 'uses';
-    case 'EVIDENCED_BY':
-    case 'AFFECTS_TAX_YEAR':
-    case 'FILED_AS':
-    case 'PAID_BY':
-    case 'BLOCKED_BY':
-    case 'CONSUMES_LOT':
-    case 'PRODUCED_EVENT':
-    case 'CONTRADICTS':
-    case 'SUPERSEDES':
-    case 'RELATED_TO':
     default:
       return 'related_to';
   }
@@ -233,6 +223,12 @@ export function projectFiscalKnowledge(
   return { knowledge, semantic };
 }
 
+interface FiscalSemanticTypeDefinition {
+  id: FiscalKnowledgeNodeType;
+  parent: string;
+  definition: string;
+}
+
 export function buildFiscalSemanticOntology(): SemanticGraph {
   const semantic = new SemanticGraph();
 
@@ -250,32 +246,32 @@ export function buildFiscalSemanticOntology(): SemanticGraph {
     semantic.addNode({ id: c.id, concept: c.concept, type: 'class', definition: c.definition });
   }
 
-  const types: Array<{ id: string; parent: string; definition: string }> = [
-    ['EvidenceArtifact', 'fiscal:evidence', 'Evidence artifact'] as any,
-    ['EvidencePage', 'fiscal:evidence', 'Evidence page/chunk'] as any,
-    ['Claim', 'fiscal:assertion', 'Unconfirmed assertion'] as any,
-    ['Fact', 'fiscal:assertion', 'Evidence-promoted assertion'] as any,
-    ['Hypothesis', 'fiscal:assertion', 'Scenario or hypothesis'] as any,
-    ['TaxReturn', 'fiscal:obligation', 'Tax return / filed model'] as any,
-    ['TaxObligation', 'fiscal:obligation', 'Tax obligation'] as any,
-    ['TaxRule', 'fiscal:obligation', 'Tax rule'] as any,
-    ['Invoice', 'fiscal:financial-object', 'Invoice'] as any,
-    ['Payment', 'fiscal:financial-object', 'Payment'] as any,
-    ['TaxLot', 'fiscal:financial-object', 'Tax lot'] as any,
-    ['Asset', 'fiscal:financial-object', 'Asset'] as any,
-    ['Account', 'fiscal:financial-object', 'Account'] as any,
-    ['Counterparty', 'fiscal:actor', 'Counterparty'] as any,
-    ['Authority', 'fiscal:actor', 'Tax/social-security authority'] as any,
-    ['Adviser', 'fiscal:actor', 'Professional adviser'] as any,
-    ['Agent', 'fiscal:actor', 'Runtime agent'] as any,
-    ['Tool', 'fiscal:actor', 'Connector/tool'] as any,
-    ['Task', 'fiscal:governance', 'Recovery/execution task'] as any,
-    ['Decision', 'fiscal:governance', 'Decision'] as any,
-    ['Risk', 'fiscal:governance', 'Risk'] as any,
-    ['Incident', 'fiscal:governance', 'Incident'] as any,
-    ['WorkflowRun', 'fiscal:governance', 'Workflow run'] as any,
-    ['Event', 'fiscal:governance', 'Event'] as any,
-  ].map(([id, parent, definition]) => ({ id, parent, definition }));
+  const types: FiscalSemanticTypeDefinition[] = [
+    { id: 'EvidenceArtifact', parent: 'fiscal:evidence', definition: 'Evidence artifact' },
+    { id: 'EvidencePage', parent: 'fiscal:evidence', definition: 'Evidence page/chunk' },
+    { id: 'Claim', parent: 'fiscal:assertion', definition: 'Unconfirmed assertion' },
+    { id: 'Fact', parent: 'fiscal:assertion', definition: 'Evidence-promoted assertion' },
+    { id: 'Hypothesis', parent: 'fiscal:assertion', definition: 'Scenario or hypothesis' },
+    { id: 'TaxReturn', parent: 'fiscal:obligation', definition: 'Tax return / filed model' },
+    { id: 'TaxObligation', parent: 'fiscal:obligation', definition: 'Tax obligation' },
+    { id: 'TaxRule', parent: 'fiscal:obligation', definition: 'Tax rule' },
+    { id: 'Invoice', parent: 'fiscal:financial-object', definition: 'Invoice' },
+    { id: 'Payment', parent: 'fiscal:financial-object', definition: 'Payment' },
+    { id: 'TaxLot', parent: 'fiscal:financial-object', definition: 'Tax lot' },
+    { id: 'Asset', parent: 'fiscal:financial-object', definition: 'Asset' },
+    { id: 'Account', parent: 'fiscal:financial-object', definition: 'Account' },
+    { id: 'Counterparty', parent: 'fiscal:actor', definition: 'Counterparty' },
+    { id: 'Authority', parent: 'fiscal:actor', definition: 'Tax/social-security authority' },
+    { id: 'Adviser', parent: 'fiscal:actor', definition: 'Professional adviser' },
+    { id: 'Agent', parent: 'fiscal:actor', definition: 'Runtime agent' },
+    { id: 'Tool', parent: 'fiscal:actor', definition: 'Connector/tool' },
+    { id: 'Task', parent: 'fiscal:governance', definition: 'Recovery/execution task' },
+    { id: 'Decision', parent: 'fiscal:governance', definition: 'Decision' },
+    { id: 'Risk', parent: 'fiscal:governance', definition: 'Risk' },
+    { id: 'Incident', parent: 'fiscal:governance', definition: 'Incident' },
+    { id: 'WorkflowRun', parent: 'fiscal:governance', definition: 'Workflow run' },
+    { id: 'Event', parent: 'fiscal:governance', definition: 'Event' },
+  ];
 
   for (const t of types) {
     semantic.addNode({ id: `fiscal:type:${t.id}`, concept: t.id, type: 'class', definition: t.definition });
