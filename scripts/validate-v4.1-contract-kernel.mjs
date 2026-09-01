@@ -149,6 +149,9 @@ function evaluatePromotion(model, candidate, evidence = []) {
 
   ok(evidence.length > 0, 'PROMOTION_EVIDENCE_EMPTY');
   for (const packet of evidence) validateEvidence(model, packet, candidate.candidateSha);
+  for (const requiredStatus of model.evidenceRequirements.promotionRequiredStates ?? []) {
+    ok(evidence.some(packet => packet.status === requiredStatus), 'PROMOTION_REQUIRED_EVIDENCE_MISSING', requiredStatus);
+  }
 
   return {
     eligible: true,
@@ -223,6 +226,7 @@ function selfTests(model) {
   expectReject('invalidated-evidence', 'EVIDENCE_NON_QUALIFYING_STATE', () => validateEvidence(model, { status: 'INVALIDATED' }, shaA));
   expectReject('nonzero-pass-evidence', 'EVIDENCE_EXIT_CODE_NONZERO', () => validateEvidence(model, { ...goodEvidence, exitCode: 1 }, shaA));
   expectPass('promotion-happy-path', () => evaluatePromotion(model, goodCandidate, [goodEvidence]));
+  expectReject('targeted-only-evidence-cannot-promote', 'PROMOTION_REQUIRED_EVIDENCE_MISSING', () => evaluatePromotion(model, goodCandidate, [{ ...goodEvidence, status: 'TARGETED_PASS' }]));
   expectReject('open-p0-blocks-promotion', 'PROMOTION_BLOCKED_P0', () => evaluatePromotion(model, { ...goodCandidate, openP0: 1 }, [goodEvidence]));
   expectReject('open-p1-blocks-promotion', 'PROMOTION_BLOCKED_P1', () => evaluatePromotion(model, { ...goodCandidate, openP1: 1 }, [goodEvidence]));
   expectReject('unknown-check-cannot-pass', 'PROMOTION_BLOCKED_CHECKS', () => evaluatePromotion(model, { ...goodCandidate, requiredChecks: 'UNKNOWN' }, [goodEvidence]));
