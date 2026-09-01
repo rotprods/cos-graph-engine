@@ -2,8 +2,15 @@
 import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
-const CONTRACTS_PATH = 'control-plane/v4.1/model/contracts.v1.json';
+const CONTRACTS_PATH = 'control-plane/v4.1/model/contracts.v2.json';
 const SHA40 = /^[0-9a-f]{40}$/;
+const SELF_ATTEST_FIELDS = [
+  'requiredChecks',
+  'cleanroom',
+  'security',
+  'authorityConsistent',
+  'criticalEvidenceExactSha',
+];
 
 class GateError extends Error {
   constructor(code, detail = '') {
@@ -36,13 +43,16 @@ function transitionSet(machine) {
 function validateMachine(name, machine) {
   ok(machine && typeof machine === 'object', 'MACHINE_MISSING', name);
   ok(Array.isArray(machine.states) && machine.states.length > 0, 'MACHINE_STATES', name);
+  ok(Array.isArray(machine.transitions), 'MACHINE_TRANSITIONS', name);
   uniq(machine.states, 'MACHINE_DUPLICATE_STATE');
   ok(machine.states.includes(machine.initial), 'MACHINE_INITIAL_UNKNOWN', name);
   for (const terminal of machine.terminal ?? []) {
     ok(machine.states.includes(terminal), 'MACHINE_TERMINAL_UNKNOWN', `${name}:${terminal}`);
   }
   uniq(machine.transitions.map(pair => pair.join('=>')), 'MACHINE_DUPLICATE_TRANSITION');
-  for (const [from, to] of machine.transitions) {
+  for (const pair of machine.transitions) {
+    ok(Array.isArray(pair) && pair.length === 2, 'MACHINE_TRANSITION_SHAPE', name);
+    const [from, to] = pair;
     ok(machine.states.includes(from), 'MACHINE_TRANSITION_FROM_UNKNOWN', `${name}:${from}`);
     ok(machine.states.includes(to), 'MACHINE_TRANSITION_TO_UNKNOWN', `${name}:${to}`);
     ok(from !== to, 'MACHINE_SELF_TRANSITION', `${name}:${from}`);
@@ -50,7 +60,7 @@ function validateMachine(name, machine) {
 }
 
 function validateModel(model) {
-  eq(model.schemaVersion, 1, 'SCHEMA_VERSION');
+  eq(model.schemaVersion, 2, 'SCHEMA_VERSION');
   eq(model.contractId, 'cos_repo_assurance_v4_1_contract_kernel', 'CONTRACT_ID');
   ok(SHA40.test(model.sourceParentSha), 'SOURCE_PARENT_SHA');
   eq(model.authorityCeiling, 'IMPLEMENTED_UNVERIFIED', 'AUTHORITY_CEILING');
@@ -65,11 +75,29 @@ function validateModel(model) {
     validateMachine(name, model.stateMachines[name]);
   }
 
+  const defectTransitions = transitionSet(model.stateMachines.Defect);
+  for (const required of [
+    'DISCOVERED=>REPRODUCED',
+    'REPRODUCED=>ROOT_CAUSED',
+    'ROOT_CAUSED=>PATCHED',
+    'PATCHED=>TARGETED_PASS',
+    'TARGETED_PASS=>SYSTEM_PASS',
+    'SYSTEM_PASS=>ADVERSARIAL_PASS',
+    'ADVERSARIAL_PASS=>CLOSED',
+  ]) {
+    ok(defectTransitions.has(required), 'DEFECT_REQUIRED_TRANSITION_MISSING', required);
+  }
+
   const candidateTransitions = transitionSet(model.stateMachines.Candidate);
   ok(candidateTransitions.has('PROMOTION_ELIGIBLE=>CANONICAL_AUTHORITY'), 'CANDIDATE_PROMOTION_PATH_MISSING');
-  ok(!candidateTransitions.has('OBSERVED=>CANONICAL_AUTHORITY'), 'CANDIDATE_PROMOTION_SKIP');
-  ok(!candidateTransitions.has('TARGETED_PASS=>CANONICAL_AUTHORITY'), 'CANDIDATE_TARGETED_SKIP');
-  ok(!candidateTransitions.has('FULL_PASS=>CANONICAL_AUTHORITY'), 'CANDIDATE_FULL_SKIP');
+  for (const forbidden of [
+    'OBSERVED=>CANONICAL_AUTHORITY',
+    'TARGETED_PASS=>CANONICAL_AUTHORITY',
+    'FULL_PASS=>CANONICAL_AUTHORITY',
+    'CLEANROOM_PASS=>CANONICAL_AUTHORITY',
+  ]) {
+    ok(!candidateTransitions.has(forbidden), 'CANDIDATE_PROMOTION_SKIP', forbidden);
+  }
 
   const evidenceTransitions = transitionSet(model.stateMachines.Evidence);
   ok(!evidenceTransitions.has('WRITTEN_UNEXECUTED=>CLEANROOM_PASS'), 'EVIDENCE_SKIP_EXECUTION');
@@ -85,6 +113,9 @@ function validateModel(model) {
     'PROMOTION_IS_CONJUNCTIVE_NOT_AVERAGED',
     'PROJECTION_CANNOT_ASSIGN_CANONICAL_AUTHORITY',
     'IMPLEMENTED_UNVERIFIED_CANNOT_SKIP_TO_AUTHORITY',
+    'CANDIDATE_CANNOT_SELF_ATTEST_REQUIRED_CHECKS',
+    'CANDIDATE_CANNOT_SELF_ATTEST_SECURITY',
+    'CANDIDATE_CANNOT_SELF_ATTEST_AUTHORITY_CONSISTENCY',
   ];
   for (const invariant of requiredHardInvariants) {
     ok(model.hardInvariants.includes(invariant), 'HARD_INVARIANT_MISSING', invariant);
@@ -99,11 +130,15 @@ function validateModel(model) {
 
   eq(model.promotionRequirements.openP0, 0, 'PROMOTION_P0');
   eq(model.promotionRequirements.openP1, 0, 'PROMOTION_P1');
-  eq(model.promotionRequirements.requiredChecks, 'PASS', 'PROMOTION_CHECKS');
-  eq(model.promotionRequirements.cleanroom, 'PASS', 'PROMOTION_CLEANROOM');
-  eq(model.promotionRequirements.security, 'PASS', 'PROMOTION_SECURITY');
-  eq(model.promotionRequirements.authorityConsistent, true, 'PROMOTION_AUTHORITY');
-  eq(model.promotionRequirements.criticalEvidenceExactSha, true, 'PROMOTION_EXACT_SHA');
+  ok(model.promotionRequirements.requiredEvidenceKinds && typeof model.promotionRequirements.requiredEvidenceKinds === 'object', 'PROMOTION_EVIDENCE_KINDS');
+  uniq(model.evidenceRequirements.allowedKinds, 'EVIDENCE_KIND_DUPLICATE');
+  for (const requiredKind of ['REQUIRED_CHECKS', 'SECURITY', 'CLEANROOM', 'AUTHORITY_CONSISTENCY']) {
+    ok(Object.hasOwn(model.promotionRequirements.requiredEvidenceKinds, requiredKind), 'PROMOTION_REQUIRED_KIND_MISSING', requiredKind);
+  }
+  for (const [kind, requiredStatus] of Object.entries(model.promotionRequirements.requiredEvidenceKinds)) {
+    ok(model.evidenceRequirements.allowedKinds.includes(kind), 'PROMOTION_KIND_UNKNOWN', kind);
+    ok(model.passLikeEvidenceStates.includes(requiredStatus), 'PROMOTION_STATUS_NOT_PASSLIKE', `${kind}:${requiredStatus}`);
+  }
 
   ok(model.uncertaintyStates.includes('UNKNOWN'), 'UNKNOWN_STATE_MISSING');
   ok(!model.passLikeEvidenceStates.includes('UNKNOWN'), 'UNKNOWN_MARKED_PASS');
@@ -115,11 +150,16 @@ function canTransition(model, machineName, from, to) {
   return transitionSet(machine).has(`${from}=>${to}`);
 }
 
+function evidenceRank(model, status) {
+  return model.passLikeEvidenceStates.indexOf(status);
+}
+
 function validateEvidence(model, evidence, candidateSha) {
   ok(SHA40.test(candidateSha), 'CANDIDATE_SHA_INVALID', candidateSha);
   ok(evidence && typeof evidence === 'object', 'EVIDENCE_OBJECT');
   ok(typeof evidence.status === 'string', 'EVIDENCE_STATUS');
   ok(model.stateMachines.Evidence.states.includes(evidence.status), 'EVIDENCE_STATUS_UNKNOWN', evidence.status);
+  ok(typeof evidence.kind === 'string' && model.evidenceRequirements.allowedKinds.includes(evidence.kind), 'EVIDENCE_KIND_UNKNOWN', evidence.kind ?? '');
 
   if (model.passLikeEvidenceStates.includes(evidence.status)) {
     ok(SHA40.test(evidence.candidateSha ?? ''), 'EVIDENCE_SHA_MISSING');
@@ -138,19 +178,23 @@ function evaluatePromotion(model, candidate, evidence = []) {
   ok(candidate && typeof candidate === 'object', 'PROMOTION_INPUT');
   ok(SHA40.test(candidate.candidateSha ?? ''), 'PROMOTION_CANDIDATE_SHA');
 
-  const req = model.promotionRequirements;
-  eq(candidate.openP0, req.openP0, 'PROMOTION_BLOCKED_P0');
-  eq(candidate.openP1, req.openP1, 'PROMOTION_BLOCKED_P1');
-  eq(candidate.requiredChecks, req.requiredChecks, 'PROMOTION_BLOCKED_CHECKS');
-  eq(candidate.cleanroom, req.cleanroom, 'PROMOTION_BLOCKED_CLEANROOM');
-  eq(candidate.security, req.security, 'PROMOTION_BLOCKED_SECURITY');
-  eq(candidate.authorityConsistent, req.authorityConsistent, 'PROMOTION_BLOCKED_AUTHORITY');
-  eq(candidate.criticalEvidenceExactSha, req.criticalEvidenceExactSha, 'PROMOTION_BLOCKED_EXACT_SHA');
+  for (const field of SELF_ATTEST_FIELDS) {
+    ok(!Object.hasOwn(candidate, field), 'CANDIDATE_SELF_ATTESTATION_FORBIDDEN', field);
+  }
+
+  eq(candidate.openP0, model.promotionRequirements.openP0, 'PROMOTION_BLOCKED_P0');
+  eq(candidate.openP1, model.promotionRequirements.openP1, 'PROMOTION_BLOCKED_P1');
 
   ok(evidence.length > 0, 'PROMOTION_EVIDENCE_EMPTY');
   for (const packet of evidence) validateEvidence(model, packet, candidate.candidateSha);
-  for (const requiredStatus of model.evidenceRequirements.promotionRequiredStates ?? []) {
-    ok(evidence.some(packet => packet.status === requiredStatus), 'PROMOTION_REQUIRED_EVIDENCE_MISSING', requiredStatus);
+
+  for (const [kind, requiredStatus] of Object.entries(model.promotionRequirements.requiredEvidenceKinds)) {
+    const packets = evidence.filter(packet => packet.kind === kind);
+    ok(packets.length > 0, 'PROMOTION_REQUIRED_EVIDENCE_MISSING', kind);
+    const requiredRank = evidenceRank(model, requiredStatus);
+    ok(requiredRank >= 0, 'PROMOTION_REQUIRED_STATUS_UNKNOWN', `${kind}:${requiredStatus}`);
+    const strongest = Math.max(...packets.map(packet => evidenceRank(model, packet.status)));
+    ok(strongest >= requiredRank, 'PROMOTION_EVIDENCE_TOO_WEAK', `${kind}: requires ${requiredStatus}`);
   }
 
   return {
@@ -195,21 +239,23 @@ function selfTests(model) {
 
   const shaA = 'a'.repeat(40);
   const shaB = 'b'.repeat(40);
-  const goodEvidence = {
-    status: 'CLEANROOM_PASS',
-    candidateSha: shaA,
-    command: 'node scripts/validate-v4.1-contract-kernel.mjs --self-test',
-    exitCode: 0,
-  };
+  const packet = (kind, status, candidateSha = shaA, exitCode = 0) => ({
+    kind,
+    status,
+    candidateSha,
+    command: `verify:${kind}`,
+    exitCode,
+  });
+  const goodEvidence = [
+    packet('REQUIRED_CHECKS', 'SYSTEM_PASS'),
+    packet('SECURITY', 'ADVERSARIAL_PASS'),
+    packet('CLEANROOM', 'CLEANROOM_PASS'),
+    packet('AUTHORITY_CONSISTENCY', 'SYSTEM_PASS'),
+  ];
   const goodCandidate = {
     candidateSha: shaA,
     openP0: 0,
     openP1: 0,
-    requiredChecks: 'PASS',
-    cleanroom: 'PASS',
-    security: 'PASS',
-    authorityConsistent: true,
-    criticalEvidenceExactSha: true,
   };
 
   expectPass('baseline-model', () => validateModel(model));
@@ -220,23 +266,29 @@ function selfTests(model) {
   expectReject('skip-targeted-to-authority', 'ILLEGAL_TRANSITION', () => {
     if (!canTransition(model, 'Candidate', 'TARGETED_PASS', 'CANONICAL_AUTHORITY')) fail('ILLEGAL_TRANSITION', 'TARGETED_PASS=>CANONICAL_AUTHORITY');
   });
-  expectReject('missing-evidence-sha', 'EVIDENCE_SHA_MISSING', () => validateEvidence(model, { ...goodEvidence, candidateSha: undefined }, shaA));
-  expectReject('stale-evidence-sha', 'EVIDENCE_SHA_STALE', () => validateEvidence(model, { ...goodEvidence, candidateSha: shaB }, shaA));
-  expectReject('unexecuted-evidence', 'EVIDENCE_UNEXECUTED', () => validateEvidence(model, { status: 'WRITTEN_UNEXECUTED' }, shaA));
-  expectReject('invalidated-evidence', 'EVIDENCE_NON_QUALIFYING_STATE', () => validateEvidence(model, { status: 'INVALIDATED' }, shaA));
-  expectReject('nonzero-pass-evidence', 'EVIDENCE_EXIT_CODE_NONZERO', () => validateEvidence(model, { ...goodEvidence, exitCode: 1 }, shaA));
-  expectPass('promotion-happy-path', () => evaluatePromotion(model, goodCandidate, [goodEvidence]));
-  expectReject('targeted-only-evidence-cannot-promote', 'PROMOTION_REQUIRED_EVIDENCE_MISSING', () => evaluatePromotion(model, goodCandidate, [{ ...goodEvidence, status: 'TARGETED_PASS' }]));
-  expectReject('open-p0-blocks-promotion', 'PROMOTION_BLOCKED_P0', () => evaluatePromotion(model, { ...goodCandidate, openP0: 1 }, [goodEvidence]));
-  expectReject('open-p1-blocks-promotion', 'PROMOTION_BLOCKED_P1', () => evaluatePromotion(model, { ...goodCandidate, openP1: 1 }, [goodEvidence]));
-  expectReject('unknown-check-cannot-pass', 'PROMOTION_BLOCKED_CHECKS', () => evaluatePromotion(model, { ...goodCandidate, requiredChecks: 'UNKNOWN' }, [goodEvidence]));
-  expectReject('security-fail-blocks-promotion', 'PROMOTION_BLOCKED_SECURITY', () => evaluatePromotion(model, { ...goodCandidate, security: 'FAIL' }, [goodEvidence]));
-  expectReject('authority-inconsistency-blocks-promotion', 'PROMOTION_BLOCKED_AUTHORITY', () => evaluatePromotion(model, { ...goodCandidate, authorityConsistent: false }, [goodEvidence]));
+  expectReject('missing-evidence-sha', 'EVIDENCE_SHA_MISSING', () => validateEvidence(model, { ...packet('CLEANROOM', 'CLEANROOM_PASS'), candidateSha: undefined }, shaA));
+  expectReject('stale-evidence-sha', 'EVIDENCE_SHA_STALE', () => validateEvidence(model, packet('CLEANROOM', 'CLEANROOM_PASS', shaB), shaA));
+  expectReject('unexecuted-evidence', 'EVIDENCE_UNEXECUTED', () => validateEvidence(model, { kind: 'OTHER', status: 'WRITTEN_UNEXECUTED' }, shaA));
+  expectReject('invalidated-evidence', 'EVIDENCE_NON_QUALIFYING_STATE', () => validateEvidence(model, { kind: 'OTHER', status: 'INVALIDATED' }, shaA));
+  expectReject('unknown-evidence-kind', 'EVIDENCE_KIND_UNKNOWN', () => validateEvidence(model, packet('MAGIC_PASS', 'CLEANROOM_PASS'), shaA));
+  expectReject('nonzero-pass-evidence', 'EVIDENCE_EXIT_CODE_NONZERO', () => validateEvidence(model, packet('CLEANROOM', 'CLEANROOM_PASS', shaA, 1), shaA));
+  expectPass('promotion-happy-path', () => evaluatePromotion(model, goodCandidate, goodEvidence));
+  expectReject('candidate-self-attestation-forbidden', 'CANDIDATE_SELF_ATTESTATION_FORBIDDEN', () => evaluatePromotion(model, { ...goodCandidate, security: 'PASS' }, goodEvidence));
+  expectReject('missing-security-evidence', 'PROMOTION_REQUIRED_EVIDENCE_MISSING', () => evaluatePromotion(model, goodCandidate, goodEvidence.filter(item => item.kind !== 'SECURITY')));
+  expectReject('weak-security-evidence', 'PROMOTION_EVIDENCE_TOO_WEAK', () => evaluatePromotion(model, goodCandidate, goodEvidence.map(item => item.kind === 'SECURITY' ? packet('SECURITY', 'TARGETED_PASS') : item)));
+  expectReject('targeted-cleanroom-cannot-promote', 'PROMOTION_EVIDENCE_TOO_WEAK', () => evaluatePromotion(model, goodCandidate, goodEvidence.map(item => item.kind === 'CLEANROOM' ? packet('CLEANROOM', 'TARGETED_PASS') : item)));
+  expectReject('open-p0-blocks-promotion', 'PROMOTION_BLOCKED_P0', () => evaluatePromotion(model, { ...goodCandidate, openP0: 1 }, goodEvidence));
+  expectReject('open-p1-blocks-promotion', 'PROMOTION_BLOCKED_P1', () => evaluatePromotion(model, { ...goodCandidate, openP1: 1 }, goodEvidence));
   expectReject('projection-cannot-assign-authority', 'PROJECTION_AUTHORITY_ESCALATION', () => validateProjectionAuthority({ id: 'projection:test', authority: 'CANONICAL_AUTHORITY' }));
 
   const mutated = structuredClone(model);
   mutated.checkpoints[7].id = 'CP8';
   expectReject('checkpoint-gap-detected', 'CHECKPOINT_DUPLICATE_ID', () => validateModel(mutated));
+
+  const missingDefectStep = structuredClone(model);
+  missingDefectStep.stateMachines.Defect.transitions = missingDefectStep.stateMachines.Defect.transitions
+    .filter(([from, to]) => !(from === 'ROOT_CAUSED' && to === 'PATCHED'));
+  expectReject('model-rejects-missing-defect-transition', 'DEFECT_REQUIRED_TRANSITION_MISSING', () => validateModel(missingDefectStep));
 
   const skip = structuredClone(model);
   skip.stateMachines.Candidate.transitions.push(['OBSERVED', 'CANONICAL_AUTHORITY']);
@@ -245,6 +297,10 @@ function selfTests(model) {
   const unknownPass = structuredClone(model);
   unknownPass.passLikeEvidenceStates.push('UNKNOWN');
   expectReject('model-rejects-unknown-as-pass', 'UNKNOWN_MARKED_PASS', () => validateModel(unknownPass));
+
+  const missingKind = structuredClone(model);
+  delete missingKind.promotionRequirements.requiredEvidenceKinds.SECURITY;
+  expectReject('model-rejects-missing-security-gate-contract', 'PROMOTION_REQUIRED_KIND_MISSING', () => validateModel(missingKind));
 
   const failed = scenarios.filter(scenario => !scenario.passed);
   return { passed: failed.length === 0, total: scenarios.length, failed: failed.length, scenarios };
