@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '18.20.4'
+  NODE_VERSION: '22.12.0'
   WORKING_DIR: .
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
