@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "evidence_v4_1_contract_kernel_alpha4_797c12ea",
+  "status": "TARGETED_PASS",
+  "executedAt": "2026-09-02T10:06:51+02:00",
+  "sourceParentSha": "ba7ec597428f66bb635f80d14d51df1542a7e059",
+  "implementationSha": "797c12eabf64e341796f183bf39c684fab58873e",
+  "contractVersion": "4.1.0-alpha.4",
+  "authorityCeiling": "TARGETED_PASS_SHADOW_ONLY",
+  "supersedes": {
+    "alpha3Evidence": "control-plane/v4.1/evidence/contract-kernel/EVIDENCE_PACKET_V3.json",
+    "alpha3Status": "VALID_FOR_ALPHA3_SCOPE_SUPERSEDED_AS_CURRENT",
+    "reason": "independent review found state-machine topology escape family not covered by alpha.3"
+  },
+  "environment": {
+    "node": "v22.16.0",
+    "executionMode": "local exact-byte candidate followed by Git blob identity verification"
+  },
+  "artifacts": [
+    {
+      "path": "control-plane/v4.1/model/contracts.v4.json",
+      "gitBlobSha": "64896da82186c81445945f2c86ab68c13b4ed390",
+      "sha256": "52aa397a33f5e6de395890cdde6af334ad6a7a72ac6203c56dc2b28e97bb2146",
+      "exactPublishedBlobMatched": true
+    },
+    {
+      "path": "scripts/validate-v4.1-contract-kernel-v4.mjs",
+      "gitBlobSha": "ecd98f614378326d6aa2fc781d9c763991be1a6f",
+      "sha256": "da5fd174f2fefa136d7568ac0a79f12d38fef68a6d7ea5f420cdaf83a72b3cbc",
+      "exactPublishedBlobMatched": true
+    }
+  ],
+  "executions": [
+    {
+      "command": "node --check scripts/validate-v4.1-contract-kernel-v4.mjs",
+      "result": "PASS",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/validate-v4.1-contract-kernel-v4.mjs --self-test",
+      "result": "PASS",
+      "exitCode": 0,
+      "assertions": 24,
+      "failures": 0,
+      "reportSha256": "27cc94eda37f20a5d704192fb47ed989a36c5aa1c04d4d5c55c3f6eb2ae7a751"
+    }
+  ],
+  "escapedBugFamilyClosed": {
+    "finding": "alpha.3 validated selected good/forbidden transitions but did not prove global state-machine topology safety",
+    "instances": [
+      "terminal state could gain an outgoing authority transition",
+      "new non-listed shortcut could enter CANONICAL_AUTHORITY",
+      "Defect could gain a direct DISCOVERED->CLOSED shortcut",
+      "Evidence could gain PROPOSED->CLEANROOM_PASS",
+      "DUPLICATE/DEFERRED were dead-end states without coherent terminal/resume semantics",
+      "authority lattice intermediate ordering could be mutated"
+    ],
+    "repair": [
+      "terminal states have zero outgoing transitions",
+      "nonterminal states require outgoing transitions",
+      "all states reachable from initial",
+      "all nonterminal states can reach a terminal",
+      "critical predecessor sets are exact",
+      "authority lattice order is exact",
+      "DUPLICATE classified terminal; DEFERRED resumes through REPRODUCED"
+    ]
+  },
+  "proofBoundary": [
+    "proves only alpha.4 contract-model topology and promotion evaluator targeted behavior",
+    "does not authenticate arbitrary future EvidencePackets",
+    "does not prove completeness of future DefectGraph producers",
+    "does not prove full COS runtime/build/tests",
+    "does not prove runtime hardening PRs #59 onward",
+    "does not prove real PostgreSQL/provider/concurrency/recovery",
+    "does not authorize merge to main, deployment or production authority"
+  ],
+  "nextSafeAction": "independent review of alpha.4 exact implementation/evidence pair, then build typed cryptographic Observation/Event/Evidence receipts as the next V4.1 slice"
+}
