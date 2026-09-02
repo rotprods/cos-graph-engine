@@ -4,12 +4,22 @@ import {
   COS_GRAPH_PROTOCOL_VERSION,
   GraphCapabilityBase,
   GraphCapabilityDescriptor,
+  GraphExecutionContext,
   GraphModule,
+  GraphModuleManifest,
 } from './protocol';
 
 export interface RegisteredGraphCapability {
   readonly moduleId: string;
   readonly capability: GraphCapabilityBase;
+  readonly descriptor: GraphCapabilityDescriptor;
+  invokeRaw(input: unknown, context: GraphExecutionContext): Promise<unknown>;
+}
+
+interface RegisteredGraphModule {
+  readonly module: GraphModule;
+  readonly manifest: GraphModuleManifest;
+  readonly capabilityIds: readonly string[];
 }
 
 export interface GraphRegistrySnapshot {
@@ -26,8 +36,22 @@ export interface GraphRegistrySnapshot {
   }[];
 }
 
+function snapshotDescriptor(descriptor: GraphCapabilityDescriptor): GraphCapabilityDescriptor {
+  return Object.freeze({ ...descriptor, modes: Object.freeze([...descriptor.modes]) });
+}
+
+function snapshotManifest(manifest: GraphModuleManifest): GraphModuleManifest {
+  return Object.freeze({
+    ...manifest,
+    capabilities: Object.freeze(manifest.capabilities.map(snapshotDescriptor)),
+    requires: manifest.requires
+      ? Object.freeze(manifest.requires.map((requirement) => Object.freeze({ ...requirement })))
+      : undefined,
+  });
+}
+
 export class GraphRegistry {
-  private readonly modules = new Map<string, GraphModule>();
+  private readonly modules = new Map<string, RegisteredGraphModule>();
   private readonly capabilities = new Map<string, RegisteredGraphCapability>();
 
   async install(module: GraphModule): Promise<void> {
@@ -63,20 +87,34 @@ export class GraphRegistry {
       }
     }
 
+    // Snapshot all security- and routing-relevant metadata before lifecycle code can yield.
+    // Third-party module objects are treated as mutable/untrusted configuration surfaces.
+    const manifest = snapshotManifest(module.manifest);
+    const capabilityRecords = module.capabilities.map((capability): RegisteredGraphCapability => {
+      const descriptor = snapshotDescriptor(capability.descriptor);
+      return {
+        moduleId,
+        capability,
+        descriptor,
+        invokeRaw: capability.invokeRaw.bind(capability),
+      };
+    });
+    const capabilityIds = Object.freeze(capabilityRecords.map((registered) => registered.descriptor.id));
+
     await module.onInstall?.({
       protocol: COS_GRAPH_PROTOCOL_VERSION,
       installedModuleIds: this.listModuleIds(),
     });
 
-    this.modules.set(moduleId, module);
-    for (const capability of module.capabilities) {
-      this.capabilities.set(capability.descriptor.id, { moduleId, capability });
+    this.modules.set(moduleId, { module, manifest, capabilityIds });
+    for (const registered of capabilityRecords) {
+      this.capabilities.set(registered.descriptor.id, registered);
     }
   }
 
   async uninstall(moduleId: string): Promise<void> {
-    const module = this.modules.get(moduleId);
-    if (!module) return;
+    const registeredModule = this.modules.get(moduleId);
+    if (!registeredModule) return;
 
     const dependant = Array.from(this.modules.values()).find((candidate) =>
       candidate.manifest.requires?.some((requirement) => !requirement.optional && requirement.moduleId === moduleId),
@@ -89,13 +127,13 @@ export class GraphRegistry {
       );
     }
 
-    await module.onUninstall?.({
+    await registeredModule.module.onUninstall?.({
       protocol: COS_GRAPH_PROTOCOL_VERSION,
       installedModuleIds: this.listModuleIds(),
     });
 
-    for (const capability of module.capabilities) {
-      this.capabilities.delete(capability.descriptor.id);
+    for (const capabilityId of registeredModule.capabilityIds) {
+      this.capabilities.delete(capabilityId);
     }
     this.modules.delete(moduleId);
   }
@@ -122,18 +160,18 @@ export class GraphRegistry {
 
   snapshot(): GraphRegistrySnapshot {
     const modules = Array.from(this.modules.values())
-      .map((module) => ({
-        id: module.manifest.id,
-        name: module.manifest.name,
-        version: module.manifest.version,
-        maturity: module.manifest.maturity,
+      .map((registered) => ({
+        id: registered.manifest.id,
+        name: registered.manifest.name,
+        version: registered.manifest.version,
+        maturity: registered.manifest.maturity,
       }))
       .sort((left, right) => left.id.localeCompare(right.id));
 
     const capabilities = Array.from(this.capabilities.values())
       .map((registered) => ({
         moduleId: registered.moduleId,
-        descriptor: registered.capability.descriptor,
+        descriptor: registered.descriptor,
       }))
       .sort((left, right) => left.descriptor.id.localeCompare(right.descriptor.id));
 

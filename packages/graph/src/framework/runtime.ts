@@ -80,7 +80,7 @@ export class GraphRuntime {
 
     return this.execute(
       registered.moduleId,
-      capability,
+      registered.descriptor,
       options,
       (context) => capability.invoke(input, context),
     );
@@ -94,19 +94,18 @@ export class GraphRuntime {
     const registered = this.registry.resolveCapability(capabilityId);
     return this.execute(
       registered.moduleId,
-      registered.capability,
+      registered.descriptor,
       options,
-      (context) => registered.capability.invokeRaw(input, context),
+      (context) => registered.invokeRaw(input, context),
     );
   }
 
   private async execute<Output>(
     moduleId: string,
-    capability: GraphCapabilityBase,
+    descriptor: GraphCapabilityBase['descriptor'],
     options: GraphInvocationOptions,
     operation: (context: GraphExecutionContext) => Promise<Output>,
   ): Promise<GraphExecutionResult<Output>> {
-    const descriptor = capability.descriptor;
     const operationId = this.operationIdFactory();
     const startedAt = this.clock();
     const diagnostics: GraphDiagnostic[] = [];
@@ -170,7 +169,31 @@ export class GraphRuntime {
         idempotencyKey: options.idempotencyKey,
         metadata,
       };
-      const allowed = await this.policy.authorize(authorization);
+      let allowed: boolean;
+      try {
+        allowed = await this.policy.authorize(authorization);
+      } catch (error: unknown) {
+        const finishedAt = this.clock();
+        await this.notify(
+          {
+            type: 'execution.failed',
+            operationId,
+            moduleId,
+            capabilityId: descriptor.id,
+            mode: options.mode,
+            startedAt,
+            finishedAt,
+            error,
+          },
+          diagnostics,
+        );
+        throw new GraphFrameworkError(
+          'EXECUTION_POLICY_FAILED',
+          `Execution policy failed while authorizing ${descriptor.id}`,
+          { operationId, capabilityId: descriptor.id, mode: options.mode, diagnostics },
+          error,
+        );
+      }
       if (!allowed) {
         await this.notify(
           {
@@ -189,6 +212,14 @@ export class GraphRuntime {
           { operationId, capabilityId: descriptor.id, mode: options.mode },
         );
       }
+    }
+
+    if (options.cancellation?.aborted) {
+      throw new GraphFrameworkError(
+        'EXECUTION_CANCELLED',
+        `Execution ${operationId} was cancelled before capability invocation`,
+        { operationId, capabilityId: descriptor.id, reason: options.cancellation.reason },
+      );
     }
 
     const context: GraphExecutionContext = {

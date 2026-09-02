@@ -5,7 +5,8 @@
   },
   "include": [
     "packages/graph/src/framework/**/*.ts",
-    "scripts/test-framework-protocol.ts"
+    "scripts/test-framework-protocol.ts",
+    "scripts/test-framework-protocol-hardening.ts"
   ],
   "exclude": [
     "node_modules"

@@ -187,11 +187,19 @@ export interface GraphRuntimeObserver {
   observe(event: GraphRuntimeEvent): void | Promise<void>;
 }
 
+function immutableDescriptor(descriptor: GraphCapabilityDescriptor): GraphCapabilityDescriptor {
+  return Object.freeze({
+    ...descriptor,
+    modes: Object.freeze([...descriptor.modes]),
+  });
+}
+
 export function defineGraphCapability<Input, Output>(
   definition: GraphCapabilityDefinition<Input, Output>,
 ): GraphCapability<Input, Output> {
-  return {
-    descriptor: definition.descriptor,
+  const descriptor = immutableDescriptor(definition.descriptor);
+  return Object.freeze({
+    descriptor,
     async invoke(input: Input, context: GraphExecutionContext): Promise<Output> {
       const parsedInput = definition.input.parse(input);
       const value = await definition.execute(parsedInput, context);
@@ -202,14 +210,22 @@ export function defineGraphCapability<Input, Output>(
       const value = await definition.execute(parsedInput, context);
       return definition.output.parse(value);
     },
-  };
+  });
 }
 
 export function defineGraphModule(definition: GraphModuleDefinition): GraphModule {
-  return {
-    manifest: definition.manifest,
-    capabilities: definition.capabilities,
+  const manifest: GraphModuleManifest = Object.freeze({
+    ...definition.manifest,
+    capabilities: Object.freeze(definition.manifest.capabilities.map(immutableDescriptor)),
+    requires: definition.manifest.requires
+      ? Object.freeze(definition.manifest.requires.map((requirement) => Object.freeze({ ...requirement })))
+      : undefined,
+  });
+
+  return Object.freeze({
+    manifest,
+    capabilities: Object.freeze([...definition.capabilities]),
     onInstall: definition.onInstall,
     onUninstall: definition.onUninstall,
-  };
+  });
 }

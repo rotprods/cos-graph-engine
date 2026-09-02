@@ -17,7 +17,7 @@ export interface GraphConformanceReport {
 }
 
 const IDENTIFIER = /^[a-z][a-z0-9._/-]*$/;
-const VERSION = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
+const VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 function descriptorsMatch(left: GraphCapabilityDescriptor, right: GraphCapabilityDescriptor): boolean {
   return (
@@ -30,7 +30,7 @@ function descriptorsMatch(left: GraphCapabilityDescriptor, right: GraphCapabilit
     left.sideEffects === right.sideEffects &&
     left.idempotency === right.idempotency &&
     left.modes.length === right.modes.length &&
-    left.modes.every((mode, index) => mode === right.modes[index])
+    left.modes.every((mode) => right.modes.includes(mode))
   );
 }
 

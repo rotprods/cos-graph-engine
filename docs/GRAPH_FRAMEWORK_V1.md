@@ -34,6 +34,7 @@ source of truth.
 9. **Observability must not corrupt side effects.** Observer failures become diagnostics; they do not
    turn an already-successful write into a false application failure that could be retried blindly.
 10. **Conformance is executable.** Third-party modules can be mechanically checked before installation.
+11. **Install-time metadata is immutable evidence.** Routing and security metadata is snapshotted before lifecycle code can yield, preventing post-conformance TOCTOU drift.
 
 ## Initial public concepts
 
@@ -140,6 +141,7 @@ This protocol slice may move from `v1alpha1` only when:
 - no capability can bypass declared execution modes;
 - side-effecting operations fail closed without policy;
 - invalid module registration is atomic;
+- lifecycle code cannot mutate registered IDs or security metadata after conformance;
 - typed and ID-based invocation produce equivalent validated outputs;
 - observer failure semantics are regression-tested;
 - lifecycle/dependency behavior is regression-tested;

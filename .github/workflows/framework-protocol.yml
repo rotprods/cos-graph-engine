@@ -5,6 +5,7 @@ on:
     paths:
       - 'packages/graph/src/framework/**'
       - 'scripts/test-framework-protocol.ts'
+      - 'scripts/test-framework-protocol-hardening.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
   push:
@@ -13,6 +14,7 @@ on:
     paths:
       - 'packages/graph/src/framework/**'
       - 'scripts/test-framework-protocol.ts'
+      - 'scripts/test-framework-protocol-hardening.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
 
@@ -38,4 +40,6 @@ jobs:
       - name: Targeted strict typecheck
         run: npx --no-install tsc -p tsconfig.framework.json --noEmit
       - name: Protocol conformance regression suite
-        run: npx --no-install tsx scripts/test-framework-protocol.ts
+        run: |
+          npx --no-install tsx scripts/test-framework-protocol.ts
+          npx --no-install tsx scripts/test-framework-protocol-hardening.ts
