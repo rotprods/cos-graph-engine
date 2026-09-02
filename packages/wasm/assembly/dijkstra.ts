@@ -1,23 +1,22 @@
 // Dijkstra shortest path — AssemblyScript
-// Single-source shortest path using priority queue (array-based)
+// Explicit linear-memory ABI. Distances use signed i32 to match the JS loader/fallback.
 
 class MinHeap {
-  data: StaticArray<u32>;
-  dist: StaticArray<u32>;
-  size: u32;
+  data: StaticArray<i32>;
+  dist: StaticArray<i32>;
+  size: i32;
 
-  constructor(capacity: u32) {
-    this.data = new StaticArray<u32>(capacity);
-    this.dist = new StaticArray<u32>(capacity);
+  constructor(capacity: i32) {
+    this.data = new StaticArray<i32>(capacity);
+    this.dist = new StaticArray<i32>(capacity);
     this.size = 0;
   }
 
-  push(node: u32, d: u32): void {
+  push(node: i32, d: i32): void {
     let i = this.size;
     this.data[i] = node;
     this.dist[i] = d;
     this.size++;
-
     while (i > 0) {
       const parent = (i - 1) >> 1;
       if (this.dist[parent] <= this.dist[i]) break;
@@ -27,14 +26,15 @@ class MinHeap {
     }
   }
 
-  pop(): u32 {
+  pop(): i32 {
     const result = this.data[0];
     this.size--;
-    this.data[0] = this.data[this.size];
-    this.dist[0] = this.dist[this.size];
-    let i: u32 = 0;
-
-    while (true) {
+    if (this.size > 0) {
+      this.data[0] = this.data[this.size];
+      this.dist[0] = this.dist[this.size];
+    }
+    let i: i32 = 0;
+    while (this.size > 0) {
       let smallest = i;
       const left = (i << 1) + 1;
       const right = (i << 1) + 2;
@@ -52,44 +52,52 @@ class MinHeap {
 }
 
 export function dijkstra(
-  offsets: StaticArray<u32>,
-  edges: StaticArray<u32>,
-  edgeWeights: StaticArray<u32>,
-  source: u32,
-  numNodes: u32,
-  distances: StaticArray<u32>,
-  parents: StaticArray<u32>
-): u32 {
-  const INF: u32 = u32.MAX_VALUE;
-  const visited = new StaticArray<bool>(numNodes);
+  offsetsPtr: usize,
+  offsetsLen: i32,
+  edgesPtr: usize,
+  edgesLen: i32,
+  weightsPtr: usize,
+  weightsLen: i32,
+  source: i32,
+  distancesPtr: usize,
+  parentsPtr: usize
+): i32 {
+  const numNodes = offsetsLen - 1;
+  const INF: i32 = i32.MAX_VALUE;
+  if (numNodes <= 0 || source < 0 || source >= numNodes) return 0;
 
-  for (let i: u32 = 0; i < numNodes; i++) {
-    distances[i] = INF;
-    parents[i] = numNodes;
+  const visited = new StaticArray<bool>(numNodes);
+  for (let i: i32 = 0; i < numNodes; i++) {
+    store<i32>(distancesPtr + i * 4, INF);
+    store<i32>(parentsPtr + i * 4, numNodes);
     visited[i] = false;
   }
 
-  distances[source] = 0;
-  const heap = new MinHeap(numNodes);
+  store<i32>(distancesPtr + source * 4, 0);
+  const heap = new MinHeap(numNodes + edgesLen + 1);
   heap.push(source, 0);
-
-  let settled: u32 = 0;
+  let settled: i32 = 0;
 
   while (!heap.empty()) {
     const node = heap.pop();
-    if (visited[node]) continue;
+    if (node < 0 || node >= numNodes || visited[node]) continue;
     visited[node] = true;
     settled++;
 
-    const start = offsets[node];
-    const end = offsets[node + 1];
+    const current = load<i32>(distancesPtr + node * 4);
+    const start = load<i32>(offsetsPtr + node * 4);
+    const end = load<i32>(offsetsPtr + (node + 1) * 4);
     for (let i = start; i < end; i++) {
-      const neighbor = edges[i];
-      const weight = edgeWeights[i];
-      const newDist = distances[node] + weight;
-      if (newDist < distances[neighbor]) {
-        distances[neighbor] = newDist;
-        parents[neighbor] = node;
+      if (i < 0 || i >= edgesLen || i >= weightsLen) continue;
+      const neighbor = load<i32>(edgesPtr + i * 4);
+      const weight = load<i32>(weightsPtr + i * 4);
+      if (neighbor < 0 || neighbor >= numNodes || weight < 0 || current == INF) continue;
+      if (current > INF - weight) continue;
+      const newDist = current + weight;
+      const oldDist = load<i32>(distancesPtr + neighbor * 4);
+      if (newDist < oldDist) {
+        store<i32>(distancesPtr + neighbor * 4, newDist);
+        store<i32>(parentsPtr + neighbor * 4, node);
         heap.push(neighbor, newDist);
       }
     }
@@ -98,24 +106,23 @@ export function dijkstra(
 }
 
 export function reconstructPath(
-  parents: StaticArray<u32>,
-  target: u32,
-  output: StaticArray<u32>
-): u32 {
-  let idx: u32 = 0;
-  let cur: u32 = target;
-  const parentCount: u32 = <u32>parents.length;
-  const temp = new StaticArray<u32>(parents.length);
+  parentsPtr: usize,
+  parentCount: i32,
+  target: i32,
+  outputPtr: usize
+): i32 {
+  if (target < 0 || target >= parentCount) return 0;
+  const temp = new StaticArray<i32>(parentCount);
+  let idx: i32 = 0;
+  let cur = target;
 
-  while (cur < parentCount) {
+  while (cur >= 0 && cur < parentCount && idx < parentCount) {
     temp[idx++] = cur;
-    if (parents[cur] >= parentCount) break;
-    cur = parents[cur];
+    const parent = load<i32>(parentsPtr + cur * 4);
+    if (parent < 0 || parent >= parentCount) break;
+    cur = parent;
   }
 
-  // Reverse
-  for (let i: u32 = 0; i < idx; i++) {
-    output[i] = temp[idx - 1 - i];
-  }
+  for (let i: i32 = 0; i < idx; i++) store<i32>(outputPtr + i * 4, temp[idx - 1 - i]);
   return idx;
 }
