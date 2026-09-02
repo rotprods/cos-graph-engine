@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "contractId": "cos_repo_assurance_v4_1_shadow_integration",
+  "version": "4.1.0-alpha.7",
+  "sourceParentSha": "6aa2948e7e5ed6d2ea6bbbed64ef0c29115b7dc4",
+  "authorityCeiling": "SHADOW_ONLY",
+  "promotionMode": "BLOCKED_UNTIL_V6_INDEPENDENT_AUTHENTICITY",
+  "acceptedPromotionTrustClasses": [],
+  "currentReceiptTrustClass": "INTEGRITY_ONLY",
+  "currentReceiptAuthorityCeiling": "SHADOW_ONLY",
+  "futureRequiredTrustBoundary": "V6_INDEPENDENT_VERIFIER_OR_EQUIVALENT",
+  "children": {
+    "stateContract": {
+      "pr": 82,
+      "status": "TARGETED_PASS",
+      "authorityCeiling": "TARGETED_PASS_SHADOW_ONLY",
+      "implementationSha": "797c12eabf64e341796f183bf39c684fab58873e",
+      "evidenceCommit": "5949ba6405f00a566a6ba7622682143fef2c9a66",
+      "modelBlobSha": "64896da82186c81445945f2c86ab68c13b4ed390",
+      "validatorBlobSha": "ecd98f614378326d6aa2fc781d9c763991be1a6f",
+      "evidenceBlobSha": "d9215a6032161627905eab845f6d8fd5b7cefe80",
+      "assertions": 24
+    },
+    "receiptKernel": {
+      "pr": 84,
+      "status": "TARGETED_PASS",
+      "authorityCeiling": "TARGETED_PASS_SHADOW_ONLY",
+      "trustClass": "INTEGRITY_ONLY",
+      "implementationSha": "b3e933901d6ca5cbc1a6733e366457b6ca59b30a",
+      "evidenceCommit": "a02f446c3ce2786a64d0972c40cb48259748bed0",
+      "modelBlobSha": "e557618477c66fe943a2e2dcd2cc134fe5a04fb6",
+      "canonicalBlobSha": "b683b912889e96d30a9a99569cf51b332b8c0d31",
+      "verifierBlobSha": "8b9b177dadc338a2be2f504d6ef694be14b6817b",
+      "selftestBlobSha": "913ad96ce22a85535557938b180e752005886b6d",
+      "runnerBlobSha": "3fe1a43de9f252829db2f45487c3724058454907",
+      "evidenceBlobSha": "1a25599b43316703fd85d2551a020f5980ed46f9",
+      "assertions": 60
+    }
+  },
+  "hardInvariants": [
+    "CHILD_EVIDENCE_PRESERVED_NOT_UPGRADED",
+    "INTEGRITY_ONLY_NEVER_SATISFIES_PROMOTION_AUTHORITY",
+    "COMBINED_AUTHORITY_CEILING_SHADOW_ONLY",
+    "NO_SYNTHETIC_TRUST_UPGRADE",
+    "CHILD_IMPLEMENTATION_AND_EVIDENCE_REFS_EXACT",
+    "PROMOTION_REMAINS_BLOCKED_UNTIL_V6",
+    "TARGETED_PASS_IS_ASSURANCE_NOT_AUTHORITY"
+  ],
+  "proofBoundary": [
+    "consumes independently targeted child evidence; does not reinterpret it as authenticity",
+    "does not re-run or extend COS runtime hardening",
+    "does not assign PROMOTION_ELIGIBLE or CANONICAL_AUTHORITY",
+    "does not prove trusted-runner identity or EvidencePacket writer authenticity",
+    "main, deployment and production authority remain unchanged"
+  ]
+}
