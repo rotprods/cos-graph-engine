@@ -6,9 +6,11 @@
   "projectId": "COS_GRAPH_ENGINE",
   "objectiveId": "T079_GRAPH_STRICT_TYPECHECK",
   "createdAt": "2026-09-02T07:57:00Z",
-  "status": "ACTIVE",
+  "supersededAt": "2026-09-02T08:07:00Z",
+  "status": "SUPERSEDED_SCOPE_COLLISION",
   "branch": "fix/strict-typecheck-graph-cli-viz",
   "baseSha": "7833953b3666502cc206b19fa16e2c19189f4fe6",
+  "observedParentShaAfterClaim": "969aec27d536ca4a59f4c3d2857580556fd84ad5",
   "fencingToken": 1,
   "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
   "exclusiveResourceScopes": [
@@ -18,19 +20,14 @@
     "packages/graph/src/visualizer.ts",
     "docs/hardening/sessions/t079-graph-cli-viz-*"
   ],
-  "observedFailures": [
-    "cli.ts: QueueScheduler export and stale pipeline signatures",
-    "csr.ts: memoryImprovement property mismatch",
-    "playground.ts: stale VisualGraph constructor/renderer contract",
-    "visualizer.ts: stale demo/helper APIs"
-  ],
-  "constraints": [
-    "do not reintroduce deleted compatibility APIs just to satisfy TypeScript",
-    "no ts-ignore or ts-nocheck",
-    "no blanket any escape",
-    "no CI workflow mutation",
-    "no fiscal/runtime/main overlap"
-  ],
-  "successCriterion": "npx --no-install tsc --noEmit advances past this failure family with no new diagnostic caused by these four files",
-  "rollback": "drop this child branch; parent PR #79 remains unchanged"
+  "collisionEvidence": {
+    "parentAdvancedByCommits": 1,
+    "overlappingPath": "packages/graph/src/cli.ts",
+    "parentChange": "+15/-30",
+    "decision": "FAIL_CLOSED_AND_HANDOFF"
+  },
+  "productMutationPerformed": false,
+  "reason": "PR #79 advanced after this claim was created and another agent changed cli.ts inside the claimed exclusive scope. CGEV2 forbids parallel mutation of the same authority surface.",
+  "disposition": "PR #80 closed without merge; parent agent retains the graph/typecheck workstream.",
+  "rollback": "No product rollback required because this lane changed only its session record."
 }
