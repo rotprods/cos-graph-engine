@@ -3,6 +3,7 @@
 Checkpoint: 2026-09-02 Europe/Madrid
 Branch: `fix/strict-typecheck-regressions`
 Parent PR: #79 → PR #76
+Verification head includes bot commit: `49691e5194a370feca1d7d3bea1833db0b738f4b`
 
 ## Gate
 
@@ -30,6 +31,7 @@ W1 is not complete until the Actions-backed sequence below is green:
 - CSR `memoryImprovement()` ghost API
 - playground L0 renderer API drift
 - visualizer universal `buildDemo()/toJSON()` assumption replaced by explicit per-level projection adapters
+- L7 visualizer metrics derived from canonical graph data and `paramCount()`
 
 ## Merge rule
 
