@@ -41,6 +41,16 @@ export interface GraphTransaction {
   readonly recordedAt?: number;
 }
 
+export interface PreparedGraphTransaction {
+  readonly graphId: string;
+  readonly expectedRevision: number;
+  readonly mutations: readonly CanonicalGraphMutation[];
+  readonly idempotencyKey: string;
+  readonly operationId?: string;
+  readonly recordedAt?: number;
+  readonly requestHash: string;
+}
+
 export interface GraphEvent {
   readonly schema: typeof COS_GRAPH_EVENT_VERSION;
   readonly eventId: string;
@@ -81,6 +91,25 @@ export interface GraphReplayResult {
   readonly stateHash: string;
   readonly lastEventHash: string | null;
   readonly eventCount: number;
+}
+
+export interface GraphReplayAnchorContext {
+  readonly graph: CanonicalGraphDocument;
+  readonly lastEventHash: string | null;
+  readonly eventCount: number;
+  readonly lastRecordedAt: number | null;
+}
+
+export interface MaterializedGraphCommit {
+  readonly graph: CanonicalGraphDocument;
+  readonly event: GraphEvent;
+  readonly receipt: GraphCommitReceipt;
+}
+
+export interface GraphCommitHistoryContext {
+  readonly previousEventHash: string | null;
+  readonly previousRecordedAt: number | null;
+  readonly clock?: () => number;
 }
 
 export type GraphStateErrorCode =
@@ -149,20 +178,31 @@ function normalizeMutation(mutation: GraphMutation, limits: GraphModelLimits): C
     case 'metadata.merge':
       return Object.freeze({ type: 'metadata.merge', metadata: normalizeGraphProperties(mutation.metadata, limits) });
     default:
-      throw new GraphStateError('INVALID_MUTATION', `Unsupported graph mutation type: ${String((mutation as { readonly type?: unknown }).type)}`);
+      throw new GraphStateError(
+        'INVALID_MUTATION',
+        `Unsupported graph mutation type: ${String((mutation as { readonly type?: unknown }).type)}`,
+      );
   }
 }
 
-function canonicalizeMutations(mutations: readonly GraphMutation[], limits: GraphModelLimits): readonly CanonicalGraphMutation[] {
-  if (mutations.length === 0) throw new GraphStateError('EMPTY_TRANSACTION', 'Graph transaction must contain at least one mutation');
+export function canonicalizeGraphMutations(
+  mutations: readonly GraphMutation[],
+  limits: GraphModelLimits = DEFAULT_GRAPH_MODEL_LIMITS,
+): readonly CanonicalGraphMutation[] {
+  if (!Array.isArray(mutations)) {
+    throw new GraphStateError('INVALID_TRANSACTION', 'Graph transaction mutations must be an array');
+  }
+  if (mutations.length === 0) {
+    throw new GraphStateError('EMPTY_TRANSACTION', 'Graph transaction must contain at least one mutation');
+  }
   return Object.freeze(mutations.map((mutation) => normalizeMutation(mutation, limits)));
 }
 
-function applyCanonicalMutations(
+export function applyCanonicalGraphMutations(
   document: CanonicalGraphDocument,
   mutations: readonly CanonicalGraphMutation[],
   revision: number,
-  limits: GraphModelLimits,
+  limits: GraphModelLimits = DEFAULT_GRAPH_MODEL_LIMITS,
 ): CanonicalGraphDocument {
   const nodes = new Map(document.nodes.map((node) => [node.id, node]));
   const edges = new Map(document.edges.map((edge) => [edge.id, edge]));
@@ -175,16 +215,19 @@ function applyCanonicalMutations(
         break;
       case 'node.remove': {
         if (!nodes.has(mutation.nodeId)) {
-          throw new GraphStateError('NODE_NOT_FOUND', `Cannot remove missing node ${mutation.nodeId}`, { nodeId: mutation.nodeId });
+          throw new GraphStateError('NODE_NOT_FOUND', `Cannot remove missing node ${mutation.nodeId}`, {
+            nodeId: mutation.nodeId,
+          });
         }
         const incident = Array.from(edges.values()).filter(
           (edge) => edge.source === mutation.nodeId || edge.target === mutation.nodeId,
         );
         if (incident.length > 0 && !mutation.cascade) {
-          throw new GraphStateError('NODE_HAS_EDGES', `Cannot remove node ${mutation.nodeId} while incident edges exist`, {
-            nodeId: mutation.nodeId,
-            incidentEdgeIds: incident.map((edge) => edge.id),
-          });
+          throw new GraphStateError(
+            'NODE_HAS_EDGES',
+            `Cannot remove node ${mutation.nodeId} while incident edges exist`,
+            { nodeId: mutation.nodeId, incidentEdgeIds: incident.map((edge) => edge.id) },
+          );
         }
         if (mutation.cascade) {
           for (const edge of incident) edges.delete(edge.id);
@@ -197,7 +240,9 @@ function applyCanonicalMutations(
         break;
       case 'edge.remove':
         if (!edges.has(mutation.edgeId)) {
-          throw new GraphStateError('EDGE_NOT_FOUND', `Cannot remove missing edge ${mutation.edgeId}`, { edgeId: mutation.edgeId });
+          throw new GraphStateError('EDGE_NOT_FOUND', `Cannot remove missing edge ${mutation.edgeId}`, {
+            edgeId: mutation.edgeId,
+          });
         }
         edges.delete(mutation.edgeId);
         break;
@@ -216,7 +261,7 @@ function applyCanonicalMutations(
   }, limits);
 }
 
-function eventPayload(event: Omit<GraphEvent, 'eventHash'>): Readonly<Record<string, unknown>> {
+export function graphEventPayload(event: Omit<GraphEvent, 'eventHash'>): Readonly<Record<string, unknown>> {
   return {
     schema: event.schema,
     eventId: event.eventId,
@@ -242,14 +287,174 @@ function cloneReceipt(receipt: GraphCommitReceipt, idempotentReplay: boolean): G
   return Object.freeze({ ...receipt, idempotentReplay });
 }
 
-export function replayGraphEvents(
+export function prepareGraphTransaction(
+  transaction: GraphTransaction,
+  limits: GraphModelLimits = DEFAULT_GRAPH_MODEL_LIMITS,
+): PreparedGraphTransaction {
+  if (typeof transaction !== 'object' || transaction === null) {
+    throw new GraphStateError('INVALID_TRANSACTION', 'Graph transaction must be an object');
+  }
+  if (typeof transaction.graphId !== 'string' || transaction.graphId.length === 0) {
+    throw new GraphStateError('INVALID_TRANSACTION', 'Graph transaction graphId must be a non-empty string');
+  }
+  if (!Number.isSafeInteger(transaction.expectedRevision) || transaction.expectedRevision < 0) {
+    throw new GraphStateError(
+      'INVALID_TRANSACTION',
+      'Graph transaction expectedRevision must be a non-negative safe integer',
+      { expectedRevision: transaction.expectedRevision },
+    );
+  }
+  if (typeof transaction.idempotencyKey !== 'string' || transaction.idempotencyKey.length === 0) {
+    throw new GraphStateError('INVALID_TRANSACTION', 'Graph transaction idempotencyKey must be a non-empty string');
+  }
+  if (
+    transaction.operationId !== undefined
+    && (typeof transaction.operationId !== 'string' || transaction.operationId.length === 0)
+  ) {
+    throw new GraphStateError('INVALID_TRANSACTION', 'Graph transaction operationId must be a non-empty string when provided');
+  }
+  if (transaction.recordedAt !== undefined && !Number.isFinite(transaction.recordedAt)) {
+    throw new GraphStateError('EVENT_TIME_REGRESSION', 'Graph event time must be finite', {
+      graphId: transaction.graphId,
+      recordedAt: transaction.recordedAt,
+    });
+  }
+
+  const mutations = canonicalizeGraphMutations(transaction.mutations, limits);
+  const requestHash = canonicalGraphHash({ graphId: transaction.graphId, mutations }, limits);
+  return Object.freeze({
+    graphId: transaction.graphId,
+    expectedRevision: transaction.expectedRevision,
+    mutations,
+    idempotencyKey: transaction.idempotencyKey,
+    ...(transaction.operationId !== undefined ? { operationId: transaction.operationId } : {}),
+    ...(transaction.recordedAt !== undefined ? { recordedAt: transaction.recordedAt } : {}),
+    requestHash,
+  });
+}
+
+export function materializeGraphCommit(
+  current: CanonicalGraphDocument,
+  transaction: PreparedGraphTransaction,
+  context: GraphCommitHistoryContext,
+  limits: GraphModelLimits = DEFAULT_GRAPH_MODEL_LIMITS,
+): MaterializedGraphCommit {
+  if (current.graphId !== transaction.graphId) {
+    throw new GraphStateError('INVALID_TRANSACTION', 'Prepared transaction graphId does not match current graph', {
+      currentGraphId: current.graphId,
+      transactionGraphId: transaction.graphId,
+    });
+  }
+  if (transaction.expectedRevision !== current.revision) {
+    throw new GraphStateError('REVISION_CONFLICT', 'Graph expected revision does not match current revision', {
+      graphId: transaction.graphId,
+      expectedRevision: transaction.expectedRevision,
+      currentRevision: current.revision,
+    });
+  }
+
+  const recordedAt = transaction.recordedAt ?? (context.clock ?? Date.now)();
+  if (
+    !Number.isFinite(recordedAt)
+    || (context.previousRecordedAt !== null && recordedAt < context.previousRecordedAt)
+  ) {
+    throw new GraphStateError('EVENT_TIME_REGRESSION', 'Graph event time must be finite and monotonic', {
+      graphId: transaction.graphId,
+      previousRecordedAt: context.previousRecordedAt,
+      recordedAt,
+    });
+  }
+
+  const revision = current.revision + 1;
+  const next = applyCanonicalGraphMutations(current, transaction.mutations, revision, limits);
+  const beforeStateHash = graphDocumentHash(current);
+  const afterStateHash = graphDocumentHash(next);
+  const operationId = transaction.operationId ?? `graph-op-${transaction.requestHash.slice(0, 16)}`;
+  const eventId = `ge_${canonicalGraphHash({
+    graphId: transaction.graphId,
+    revision,
+    operationId,
+    idempotencyKey: transaction.idempotencyKey,
+    requestHash: transaction.requestHash,
+  }, limits).slice(0, 32)}`;
+
+  const eventWithoutHash: Omit<GraphEvent, 'eventHash'> = {
+    schema: COS_GRAPH_EVENT_VERSION,
+    eventId,
+    graphId: transaction.graphId,
+    operationId,
+    idempotencyKey: transaction.idempotencyKey,
+    baseRevision: current.revision,
+    revision,
+    recordedAt,
+    requestHash: transaction.requestHash,
+    previousEventHash: context.previousEventHash,
+    beforeStateHash,
+    afterStateHash,
+    mutations: transaction.mutations,
+  };
+  const event = freezeEvent({
+    ...eventWithoutHash,
+    eventHash: canonicalGraphHash(graphEventPayload(eventWithoutHash), limits),
+  });
+  const receipt: GraphCommitReceipt = Object.freeze({
+    graphId: transaction.graphId,
+    revision,
+    eventId: event.eventId,
+    eventHash: event.eventHash,
+    stateHash: afterStateHash,
+    requestHash: transaction.requestHash,
+    idempotentReplay: false,
+  });
+  return Object.freeze({ graph: next, event, receipt });
+}
+
+function validateReplayAnchor(
+  graphId: string,
+  anchor: GraphReplayAnchorContext,
+): void {
+  if (anchor.graph.graphId !== graphId) {
+    throw new GraphStateError('EVENT_CHAIN_INVALID', 'Replay anchor belongs to another graph', {
+      graphId,
+      anchorGraphId: anchor.graph.graphId,
+    });
+  }
+  if (!Number.isSafeInteger(anchor.eventCount) || anchor.eventCount < 0 || anchor.eventCount !== anchor.graph.revision) {
+    throw new GraphStateError('EVENT_REVISION_INVALID', 'Replay anchor eventCount must equal graph revision', {
+      graphId,
+      eventCount: anchor.eventCount,
+      graphRevision: anchor.graph.revision,
+    });
+  }
+  if (anchor.eventCount === 0) {
+    if (anchor.lastEventHash !== null || anchor.lastRecordedAt !== null) {
+      throw new GraphStateError('EVENT_CHAIN_INVALID', 'Empty replay anchor cannot contain event history markers', {
+        graphId,
+      });
+    }
+    return;
+  }
+  if (typeof anchor.lastEventHash !== 'string' || anchor.lastEventHash.length === 0) {
+    throw new GraphStateError('EVENT_CHAIN_INVALID', 'Non-empty replay anchor requires lastEventHash', { graphId });
+  }
+  if (anchor.lastRecordedAt === null || !Number.isFinite(anchor.lastRecordedAt)) {
+    throw new GraphStateError('EVENT_TIME_REGRESSION', 'Non-empty replay anchor requires finite lastRecordedAt', {
+      graphId,
+      lastRecordedAt: anchor.lastRecordedAt,
+    });
+  }
+}
+
+export function replayGraphEventsFromAnchor(
   graphId: string,
   events: readonly GraphEvent[],
+  anchor: GraphReplayAnchorContext,
   limits: GraphModelLimits = DEFAULT_GRAPH_MODEL_LIMITS,
 ): GraphReplayResult {
-  let graph = createGraphDocument({ graphId }, limits);
-  let previousEventHash: string | null = null;
-  let previousRecordedAt = Number.NEGATIVE_INFINITY;
+  validateReplayAnchor(graphId, anchor);
+  let graph = anchor.graph;
+  let previousEventHash = anchor.lastEventHash;
+  let previousRecordedAt = anchor.lastRecordedAt ?? Number.NEGATIVE_INFINITY;
 
   for (const event of events) {
     if (event.schema !== COS_GRAPH_EVENT_VERSION || event.graphId !== graphId) {
@@ -313,14 +518,14 @@ export function replayGraphEvents(
       afterStateHash: event.afterStateHash,
       mutations: event.mutations,
     };
-    const eventHash = canonicalGraphHash(eventPayload(eventWithoutHash), limits);
+    const eventHash = canonicalGraphHash(graphEventPayload(eventWithoutHash), limits);
     if (eventHash !== event.eventHash) {
       throw new GraphStateError('EVENT_HASH_INVALID', 'Event hash does not match its canonical envelope', {
         eventId: event.eventId,
       });
     }
 
-    graph = applyCanonicalMutations(graph, event.mutations, event.revision, limits);
+    graph = applyCanonicalGraphMutations(graph, event.mutations, event.revision, limits);
     const afterStateHash = graphDocumentHash(graph);
     if (afterStateHash !== event.afterStateHash) {
       throw new GraphStateError('EVENT_STATE_HASH_INVALID', 'Event after-state hash does not match replay state', {
@@ -338,8 +543,26 @@ export function replayGraphEvents(
     graph,
     stateHash: graphDocumentHash(graph),
     lastEventHash: previousEventHash,
-    eventCount: events.length,
+    eventCount: anchor.eventCount + events.length,
   });
+}
+
+export function replayGraphEvents(
+  graphId: string,
+  events: readonly GraphEvent[],
+  limits: GraphModelLimits = DEFAULT_GRAPH_MODEL_LIMITS,
+): GraphReplayResult {
+  return replayGraphEventsFromAnchor(
+    graphId,
+    events,
+    {
+      graph: createGraphDocument({ graphId }, limits),
+      lastEventHash: null,
+      eventCount: 0,
+      lastRecordedAt: null,
+    },
+    limits,
+  );
 }
 
 export class InMemoryGraphStore {
@@ -381,110 +604,53 @@ export class InMemoryGraphStore {
   }
 
   commit(transaction: GraphTransaction): GraphCommitReceipt {
-    if (typeof transaction.graphId !== 'string' || transaction.graphId.length === 0) {
-      throw new GraphStateError('INVALID_TRANSACTION', 'Graph transaction graphId must be a non-empty string');
-    }
-    if (!Number.isSafeInteger(transaction.expectedRevision) || transaction.expectedRevision < 0) {
-      throw new GraphStateError('INVALID_TRANSACTION', 'Graph transaction expectedRevision must be a non-negative safe integer', {
-        expectedRevision: transaction.expectedRevision,
-      });
-    }
-    if (typeof transaction.idempotencyKey !== 'string' || transaction.idempotencyKey.length === 0) {
-      throw new GraphStateError('INVALID_TRANSACTION', 'Graph transaction idempotencyKey must be a non-empty string');
-    }
-    if (transaction.operationId !== undefined && (typeof transaction.operationId !== 'string' || transaction.operationId.length === 0)) {
-      throw new GraphStateError('INVALID_TRANSACTION', 'Graph transaction operationId must be a non-empty string when provided');
-    }
-
-    const canonicalMutations = canonicalizeMutations(transaction.mutations, this.limits);
-    const requestHash = canonicalGraphHash({ graphId: transaction.graphId, mutations: canonicalMutations }, this.limits);
-    let record = this.records.get(transaction.graphId);
+    const prepared = prepareGraphTransaction(transaction, this.limits);
+    let record = this.records.get(prepared.graphId);
 
     if (record) {
-      const prior = record.idempotency.get(transaction.idempotencyKey);
+      const prior = record.idempotency.get(prepared.idempotencyKey);
       if (prior) {
-        if (prior.requestHash !== requestHash) {
-          throw new GraphStateError('IDEMPOTENCY_CONFLICT', 'Idempotency key was reused with a different graph mutation payload', {
-            graphId: transaction.graphId,
-            idempotencyKey: transaction.idempotencyKey,
-            priorRequestHash: prior.requestHash,
-            requestHash,
-          });
+        if (prior.requestHash !== prepared.requestHash) {
+          throw new GraphStateError(
+            'IDEMPOTENCY_CONFLICT',
+            'Idempotency key was reused with a different graph mutation payload',
+            {
+              graphId: prepared.graphId,
+              idempotencyKey: prepared.idempotencyKey,
+              priorRequestHash: prior.requestHash,
+              requestHash: prepared.requestHash,
+            },
+          );
         }
         return cloneReceipt(prior.receipt, true);
       }
     }
 
-    const current = record?.graph ?? createGraphDocument({ graphId: transaction.graphId }, this.limits);
-    if (transaction.expectedRevision !== current.revision) {
-      throw new GraphStateError('REVISION_CONFLICT', 'Graph expected revision does not match current revision', {
-        graphId: transaction.graphId,
-        expectedRevision: transaction.expectedRevision,
-        currentRevision: current.revision,
-      });
-    }
-
+    const current = record?.graph ?? createGraphDocument({ graphId: prepared.graphId }, this.limits);
     const previousEvent = record?.events.at(-1);
-    const recordedAt = transaction.recordedAt ?? this.clock();
-    if (!Number.isFinite(recordedAt) || (previousEvent && recordedAt < previousEvent.recordedAt)) {
-      throw new GraphStateError('EVENT_TIME_REGRESSION', 'Graph event time must be finite and monotonic', {
-        graphId: transaction.graphId,
-        previousRecordedAt: previousEvent?.recordedAt,
-        recordedAt,
-      });
-    }
-
-    const revision = current.revision + 1;
-    const next = applyCanonicalMutations(current, canonicalMutations, revision, this.limits);
-    const beforeStateHash = graphDocumentHash(current);
-    const afterStateHash = graphDocumentHash(next);
-    const operationId = transaction.operationId ?? `graph-op-${requestHash.slice(0, 16)}`;
-    const eventId = `ge_${canonicalGraphHash({
-      graphId: transaction.graphId,
-      revision,
-      operationId,
-      idempotencyKey: transaction.idempotencyKey,
-      requestHash,
-    }, this.limits).slice(0, 32)}`;
-
-    const eventWithoutHash: Omit<GraphEvent, 'eventHash'> = {
-      schema: COS_GRAPH_EVENT_VERSION,
-      eventId,
-      graphId: transaction.graphId,
-      operationId,
-      idempotencyKey: transaction.idempotencyKey,
-      baseRevision: current.revision,
-      revision,
-      recordedAt,
-      requestHash,
-      previousEventHash: previousEvent?.eventHash ?? null,
-      beforeStateHash,
-      afterStateHash,
-      mutations: canonicalMutations,
-    };
-    const event = freezeEvent({
-      ...eventWithoutHash,
-      eventHash: canonicalGraphHash(eventPayload(eventWithoutHash), this.limits),
-    });
-    const receipt: GraphCommitReceipt = Object.freeze({
-      graphId: transaction.graphId,
-      revision,
-      eventId: event.eventId,
-      eventHash: event.eventHash,
-      stateHash: afterStateHash,
-      requestHash,
-      idempotentReplay: false,
-    });
+    const materialized = materializeGraphCommit(
+      current,
+      prepared,
+      {
+        previousEventHash: previousEvent?.eventHash ?? null,
+        previousRecordedAt: previousEvent?.recordedAt ?? null,
+        clock: this.clock,
+      },
+      this.limits,
+    );
 
     if (!record) {
       record = { graph: current, events: [], idempotency: new Map() };
-      this.records.set(transaction.graphId, record);
+      this.records.set(prepared.graphId, record);
     }
 
-    record.graph = next;
-    record.events.push(event);
-    record.idempotency.set(transaction.idempotencyKey, Object.freeze({ requestHash, receipt }));
-    return receipt;
+    record.graph = materialized.graph;
+    record.events.push(materialized.event);
+    record.idempotency.set(
+      prepared.idempotencyKey,
+      Object.freeze({ requestHash: prepared.requestHash, receipt: materialized.receipt }),
+    );
+    return materialized.receipt;
   }
 
   verify(graphId: string): GraphReplayResult {
@@ -493,11 +659,11 @@ export class InMemoryGraphStore {
     const replay = replayGraphEvents(graphId, record.events, this.limits);
     const liveHash = graphDocumentHash(record.graph);
     if (replay.stateHash !== liveHash) {
-      throw new GraphStateError('EVENT_STATE_HASH_INVALID', 'Replay result does not match the live graph projection', {
-        graphId,
-        liveHash,
-        replayHash: replay.stateHash,
-      });
+      throw new GraphStateError(
+        'EVENT_STATE_HASH_INVALID',
+        'Replay result does not match the live graph projection',
+        { graphId, liveHash, replayHash: replay.stateHash },
+      );
     }
     return replay;
   }
