@@ -2,7 +2,7 @@ import {
   ToolDefinition, ToolResult, ITool, CellContext,
   EntityId,
 } from '@cos/core';
-import { generateId } from '@cos/core';
+import { generateId, CellError } from '@cos/core';
 import * as fsp from 'fs/promises';
 import * as https from 'https';
 import * as http from 'http';
@@ -325,4 +325,31 @@ export class CodeSandbox {
       };
     }
   }
+}
+
+
+// ================================================================
+// TOOL REGISTRY
+// ================================================================
+
+export class ToolRegistry {
+  private tools: Map<string, ITool> = new Map();
+
+  constructor() {
+    this.register(new FileSystemTool());
+    this.register(new HTTPTool());
+    this.register(new SearchTool());
+  }
+
+  register(tool: ITool): void { this.tools.set(tool.definition.name, tool); }
+  get(name: string): ITool | undefined { return this.tools.get(name); }
+  getAll(): ITool[] { return Array.from(this.tools.values()); }
+
+  async execute(name: string, input: unknown, context: CellContext): Promise<ToolResult> {
+    const tool = this.tools.get(name);
+    if (!tool) throw new CellError('TOOL_NOT_FOUND', `Tool '${name}' not registered`);
+    return tool.execute(input, context);
+  }
+
+  getDefinitions(): ToolDefinition[] { return this.getAll().map(t => t.definition); }
 }
