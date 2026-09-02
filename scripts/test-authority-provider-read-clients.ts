@@ -49,9 +49,11 @@ async function main(): Promise<void> {
   });
   check(rawGitHub.candidates.length === 0, 'GitHub resource without trusted extractor does not claim applied');
   check(rawGitHub.authoritativeAbsence === false, 'GitHub successful read is not absence evidence');
-  check(pinned.requests[0].target.method === 'GET', 'provider reconciliation network method is forced to GET');
-  check(pinned.requests[0].target.hostname === 'api.github.com', 'GitHub read consumes fixed allowed host');
-  check(pinned.requests[0].target.resolvedAddresses[0]?.address === '140.82.112.5', 'GitHub read consumes pinned DNS address');
+  const firstGithubNetwork = pinned.requests[0];
+  if (!firstGithubNetwork) throw new Error('expected first GitHub pinned request');
+  check(firstGithubNetwork.target.method === 'GET', 'provider reconciliation network method is forced to GET');
+  check(firstGithubNetwork.target.hostname === 'api.github.com', 'GitHub read consumes fixed allowed host');
+  check(firstGithubNetwork.target.resolvedAddresses[0]?.address === '140.82.112.5', 'GitHub read consumes pinned DNS address');
   check(
     JSON.stringify(rawGitHub.evidence).includes('github-secret-token') === false,
     'GitHub authorization token is not persisted in evidence',
