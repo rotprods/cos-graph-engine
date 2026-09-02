@@ -26,11 +26,11 @@ export function dfs(
     store<i32>(outputPtr + outIdx * 4, node);
     outIdx++;
 
+    // Match the JS fallback exactly: enqueue adjacency entries in CSR order.
+    // Because this is a LIFO stack, the last neighbour is visited first.
     const start = load<i32>(offsetsPtr + node * 4);
     const end = load<i32>(offsetsPtr + (node + 1) * 4);
-    let i = end;
-    while (i > start) {
-      i--;
+    for (let i = start; i < end; i++) {
       if (i < 0 || i >= edgesLen) continue;
       const neighbor = load<i32>(edgesPtr + i * 4);
       if (neighbor >= 0 && neighbor < numNodes && !visited[neighbor]) {
