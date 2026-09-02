@@ -8,12 +8,15 @@
   "workstreamId": "ws_phase05_provider_truth_recovery",
   "objectiveId": "T0502F_I",
   "createdAt": "2026-09-02T11:14:37Z",
-  "status": "ACTIVE",
+  "completedAt": "2026-09-02T11:30:00Z",
+  "status": "HANDOFF_READY",
   "branch": "hardening/t0502f-provider-truth-recovery-milestone",
   "baseSha": "5e512f5016fb922bca304d772052d4abeb5579ca",
+  "checkpointId": "CP-T0502_PROVIDER_TRUTH_RECOVERY_PROTOCOL_VERIFIED",
   "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
   "resourceScopes": [
     "scripts/model-authority-provider-truth-recovery.mjs",
+    "scripts/test-model-authority-provider-truth-recovery.mjs",
     "scripts/test-authority-provider-truth-recovery.ts",
     "control-plane/v2/runtime-qualification/t0502f/**"
   ],
@@ -25,28 +28,22 @@
     "partial compensation",
     "bounded state-space safety"
   ],
-  "observedFacts": [
-    "T0501 SHA-256 provider evidence boundary is targeted-pass on PR #64",
-    "T0502 inspectors/classifier are targeted-pass on PR #65",
-    "T0502D durable absence store is targeted-pass with real Postgres pending on PR #66",
-    "T0502E real pinned read clients are targeted-client-core-pass with full inspector composition pending on PR #83"
+  "completedResults": [
+    "exact-published protocol model syntax PASS",
+    "19 targeted provider-truth recovery scenarios PASS",
+    "bounded exploration visited 2747 states and 6697 transitions at depth 11 with 0 safety violations",
+    "11 adversarial protocol mutants killed",
+    "composition map binds 9 protocol invariants to existing runtime owners",
+    "runtime integration contract exact bytes persisted and structurally clean"
   ],
-  "unknowns": [
-    "full monorepo closure of T0502E remains unexecuted",
-    "real provider timeout-after-acceptance remains unexecuted",
-    "real Postgres/Supabase transaction isolation remains unexecuted",
-    "multi-process OS-level contention remains unexecuted"
+  "unverifiedWork": [
+    "execute runtime integration contract in a clean full monorepo checkout",
+    "authorized live GitHub/Drive read-client qualification",
+    "real isolated Postgres/Supabase transaction and restart qualification",
+    "OS multi-process timeout-after-acceptance/process-kill/fencing campaign",
+    "full repository security/replay/restore qualification"
   ],
-  "desiredOutcome": "Prove the provider-truth recovery protocol cannot blindly retry unknown outcomes or duplicate an applied provider effect in the bounded model, and write an integration contract against the existing runtime primitives.",
-  "successCriteria": [
-    "bounded state exploration finds zero safety violations",
-    "applied-after-lost-response converges to committed without a second provider mutation",
-    "unknown never authorizes retry",
-    "not_applied requires repeated authoritative absence and a newer fence plus rotated provider key",
-    "stale workers cannot commit or retry",
-    "partial outcomes require compensation",
-    "runtime integration contract imports existing owners rather than introducing a second authority runtime"
-  ],
-  "failureCondition": "Any reachable state permits duplicate provider effects, retry without proof of non-application, stale-fence mutation, or committed state without provider-applied evidence.",
-  "nextAction": "Materialize and execute the bounded protocol gauntlet, then add the existing-runtime integration contract."
+  "evidencePath": "control-plane/v2/runtime-qualification/t0502f/evidence.json",
+  "nextAction": "T0502F-EXEC: in a clean full monorepo checkout run strict typecheck for the T0502F closure and execute scripts/test-authority-provider-truth-recovery.ts; if green, advance to authorized read-only provider and isolated Postgres qualification before OS multi-process fault injection.",
+  "rollback": "Discard PR #89; PR #83 and earlier targeted-pass provider lineages remain unchanged."
 }
