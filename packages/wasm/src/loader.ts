@@ -72,7 +72,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
   const fnDFSHasPath = exports.dfsHasPath as (a: number, b: number, c: number, d: number, e: number, f: number) => number;
   const fnSetOutput = exports.setOutputBuffer as (a: number) => void;
   const fnPageRank = exports.pageRank as (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
-  const fnShortest = exports.shortestPath as (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+  const fnShortest = exports.shortestPath as (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
   const fnBetweenness = exports.betweenness as (a: number, b: number, c: number, d: number, e: number) => void;
   const fnComponents = exports.connectedComponents as (a: number, b: number, c: number, d: number, e: number) => number;
   const fnTopoSort = exports.topologicalSort as (a: number, b: number, c: number, d: number, e: number) => number;
