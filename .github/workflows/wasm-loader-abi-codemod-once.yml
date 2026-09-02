@@ -1,0 +1,65 @@
+name: WASM loader ABI codemod (one-shot)
+
+on:
+  push:
+    branches: [fix/strict-typecheck-regressions]
+    paths:
+      - .github/workflows/wasm-loader-abi-codemod-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  codemod:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/strict-typecheck-regressions
+      - name: Apply exact ABI replacements
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/wasm/src/loader.ts')
+          text = p.read_text()
+          replacements = [
+            ("const fnBFS = exports.bfs as (a: number, b: number, c: number, d: number, e: number, f: number) => number;",
+             "const fnBFS = exports.bfs as (a: number, b: number, c: number, d: number, e: number) => number;"),
+            ("const fnDijkstra = exports.dijkstra as (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;",
+             "const fnDijkstra = exports.dijkstra as (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;"),
+            ("fnBFS(indptrPtr, indptr.length, indicesPtr, indices.length, source, n)",
+             "fnBFS(indptrPtr, indptr.length, indicesPtr, indices.length, source)"),
+            ("fnDFS(indptrPtr, indptr.length, indicesPtr, indices.length, source, n)",
+             "fnDFS(indptrPtr, indptr.length, indicesPtr, indices.length, source, outputPtr)"),
+            ("fnShortest(indptrPtr, indptr.length, indicesPtr, indices.length, source, target, resultPtr, n)",
+             "fnShortest(indptrPtr, indptr.length, indicesPtr, indices.length, source, target, resultPtr)"),
+            ("fnComponents(indptrPtr, indptr.length, indicesPtr, indices.length, n, compPtr)",
+             "fnComponents(indptrPtr, indptr.length, indicesPtr, indices.length, compPtr)"),
+            ("fnTopoSort(indptrPtr, indptr.length, indicesPtr, indices.length, n, outputPtr)",
+             "fnTopoSort(indptrPtr, indptr.length, indicesPtr, indices.length, outputPtr)"),
+            ("fnHasCycle(indptrPtr, indptr.length, indicesPtr, indices.length, n)",
+             "fnHasCycle(indptrPtr, indptr.length, indicesPtr, indices.length)"),
+            ("fnDijkstra(indptrPtr, indptr.length, indicesPtr, indices.length, weightsPtr, source, n, distPtr, parentPtr)",
+             "fnDijkstra(indptrPtr, indptr.length, indicesPtr, indices.length, weightsPtr, weights.length, source, distPtr, parentPtr)"),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one occurrence, found {count}: {old}')
+              text = text.replace(old, new, 1)
+          p.write_text(text)
+          PY
+      - name: Build and run existing WASM suite
+        run: |
+          npm ci --no-audit --no-fund
+          npm run asbuild
+          npx tsx scripts/test-wasm.ts
+      - name: Self-delete and commit
+        run: |
+          git config user.name "COS Remediation Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/wasm-loader-abi-codemod-once.yml
+          git add packages/wasm/src/loader.ts
+          git diff --cached --check
+          git commit -m "fix(wasm): align loader calls with explicit ABI"
+          git push origin HEAD:fix/strict-typecheck-regressions
