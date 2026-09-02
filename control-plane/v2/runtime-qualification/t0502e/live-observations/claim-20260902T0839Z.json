@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "claimId": "claim_482c46f2-f561-4562-92a2-8fe6194b89e9",
+  "sessionId": "ses_8faaf3e7-9d29-4f79-8bdf-2bd6b120bf98",
+  "projectId": "COS_GRAPH_ENGINE",
+  "objectiveId": "T0502E_LIVE_PROVIDER_SHAPE_OBSERVATION",
+  "createdAt": "2026-09-02T08:39:00Z",
+  "expiresAt": "2026-09-02T09:09:00Z",
+  "revision": 1,
+  "fencingToken": 1,
+  "status": "ACTIVE",
+  "scopeBaseSha": "4ec379549784289880297c7ca1e7ae728819d9a0",
+  "exclusiveResourceScopes": [
+    "control-plane/v2/runtime-qualification/t0502e/live-observations/**"
+  ],
+  "sharedOperationalScopes": [
+    "github://rotprods/cos-graph-engine/issues/39#comment",
+    "github://rotprods/cos-graph-engine/pulls/83#comment",
+    "todoist://project/6hMP59rWj7f5xH7M"
+  ],
+  "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "proofBoundary": "CONNECTOR_SHAPE_OBSERVATION_ONLY"
+}
