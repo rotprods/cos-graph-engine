@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "contractId": "cos_repo_assurance_v4_1_live_truth_local",
+  "version": "4.1.0-alpha.8",
+  "sourceParentSha": "7943a4ef67dfc0929f56e2652126d4b7a6d89eae",
+  "authorityCeiling": "SHADOW_ONLY",
+  "observationMode": "READ_ONLY_LOCAL_GIT",
+  "trustClass": "INTEGRITY_ONLY",
+  "fieldStates": [
+    "OBSERVED",
+    "UNKNOWN"
+  ],
+  "requiredFields": [
+    "repositoryRoot",
+    "headSha",
+    "currentBranch",
+    "targetBranch",
+    "defaultBranch",
+    "workingTree"
+  ],
+  "unknownReasons": [
+    "HEAD_SHA_UNAVAILABLE",
+    "DETACHED_HEAD",
+    "TARGET_REF_UNAVAILABLE_LOCALLY",
+    "ORIGIN_HEAD_UNAVAILABLE",
+    "WORKTREE_STATUS_UNAVAILABLE",
+    "WORKTREE_STATUS_WITHHELD_UNSAFE_REPO_CONFIG",
+    "WORKTREE_STATUS_WITHHELD_CONFIG_SCAN_FAILED"
+  ],
+  "allowedGitOperations": [
+    "rev-parse --show-toplevel",
+    "rev-parse --verify HEAD",
+    "symbolic-ref --quiet --short HEAD",
+    "rev-parse --verify refs/heads/<target>",
+    "symbolic-ref --quiet --short refs/remotes/origin/HEAD",
+    "config --local --name-only --get-regexp <executable-config-pattern>",
+    "status --porcelain=v1 -z --untracked-files=normal --ignore-submodules=all"
+  ],
+  "security": {
+    "shell": false,
+    "network": false,
+    "inheritFullEnvironment": false,
+    "optionalLocks": false,
+    "fsmonitor": false,
+    "untrackedCache": false,
+    "pager": false,
+    "hooksExpected": false,
+    "gitBinary": "/usr/bin/git"
+  },
+  "hardInvariants": [
+    "OBSERVATION_FAILURE_NEVER_BECOMES_ABSENCE",
+    "UNKNOWN_IS_EXPLICIT",
+    "HEAD_IF_OBSERVED_IS_EXACT_SHA",
+    "TARGET_REF_MISSING_LOCALLY_IS_UNKNOWN_NOT_ABSENT",
+    "DETACHED_HEAD_IS_UNKNOWN_BRANCH_NOT_ERROR",
+    "NO_SHELL",
+    "NO_NETWORK_GIT_COMMAND",
+    "NO_FULL_ENVIRONMENT_INHERITANCE",
+    "REPOSITORY_FS_MONITOR_CANNOT_EXECUTE",
+    "GIT_OPTIONAL_LOCKS_DISABLED",
+    "SNAPSHOT_AUTHORITY_CEILING_SHADOW_ONLY",
+    "SNAPSHOT_TRUST_CLASS_INTEGRITY_ONLY",
+    "EXACT_GIT_ARGUMENT_SHAPES_ONLY",
+    "EXECUTABLE_REPO_FILTER_CONFIG_WITHHOLDS_STATUS",
+    "GIT_BINARY_ABSOLUTE_PINNED",
+    "CALLER_PATH_CANNOT_SELECT_GIT_BINARY",
+    "CONFIG_EXECUTION_PREFLIGHT_FAILS_CLOSED",
+    "UNBORN_HEAD_REMAINS_EXPLICIT_UNKNOWN",
+    "REPOSITORY_CONTEXT_FAILURE_NEVER_CLAIMS_ABSENCE"
+  ],
+  "proofBoundary": [
+    "local Git observation only",
+    "does not prove remote GitHub branch/ref state",
+    "does not prove branch protection, PRs, issues or Actions",
+    "does not prove repository source completeness beyond the local checkout",
+    "does not mutate repository/provider authority",
+    "does not authorize promotion"
+  ]
+}
