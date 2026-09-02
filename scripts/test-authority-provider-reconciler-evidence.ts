@@ -49,8 +49,9 @@ async function main(): Promise<void> {
     inspection: new AppliedInspector(),
   }).inspect(OPERATION as never);
   check(applied.status === 'applied', 'applied provider outcome is preserved');
-  const appliedVerified = verifyAuthorityProviderEvidence(applied.evidence);
-  check(appliedVerified.sealingMode === 'canonical-v2', 'new applied evidence is canonical-v2');
+  const appliedVerified = await verifyAuthorityProviderEvidence(applied.evidence);
+  check(appliedVerified.sealingMode === 'canonical-v2-sha256', 'new applied evidence is SHA-256 v2');
+  check(appliedVerified.hashAlgorithm === 'sha256', 'applied evidence declares cryptographic integrity');
   assertFullBinding(appliedVerified.evidence);
   assertions += 1;
   check(
@@ -71,12 +72,13 @@ async function main(): Promise<void> {
   if (notApplied.status !== 'not_applied') throw new Error('unexpected result');
   check(notApplied.nextFencingToken === 8, 'retry fence is monotonic');
   check(notApplied.nextProviderIdempotencyKey === 'provider-attempt-2', 'retry provider key rotates');
-  const retryVerified = verifyAuthorityProviderEvidence(notApplied.evidence);
-  check(retryVerified.sealingMode === 'canonical-v2', 'new retry evidence uses the v2 canonical envelope');
+  const retryVerified = await verifyAuthorityProviderEvidence(notApplied.evidence);
+  check(retryVerified.sealingMode === 'canonical-v2-sha256', 'new retry evidence uses SHA-256 v2');
+  check(retryVerified.hashAlgorithm === 'sha256', 'retry evidence remains cryptographic');
   assertFullBinding(retryVerified.evidence);
   assertions += 1;
   check(
-    sealAuthorityProviderEvidence(retryVerified.evidence).evidenceHash
+    (await sealAuthorityProviderEvidence(retryVerified.evidence)).evidenceHash
       === retryVerified.evidence.evidenceHash,
     'retry evidence resealing is stable',
   );
@@ -87,8 +89,8 @@ async function main(): Promise<void> {
     inspection: new PartialInspector(),
   }).inspect(OPERATION as never);
   check(partial.status === 'partial', 'partial application remains compensation-required evidence');
-  const partialVerified = verifyAuthorityProviderEvidence(partial.evidence);
-  check(partialVerified.sealingMode === 'canonical-v2', 'partial evidence is canonical-v2');
+  const partialVerified = await verifyAuthorityProviderEvidence(partial.evidence);
+  check(partialVerified.sealingMode === 'canonical-v2-sha256', 'partial evidence is SHA-256 v2');
   assertFullBinding(partialVerified.evidence);
   assertions += 1;
 
@@ -103,7 +105,10 @@ async function main(): Promise<void> {
 
   const tampered = structuredClone(applied.evidence);
   tampered.operationContentHash = 'other-content';
-  assert.throws(() => verifyAuthorityProviderEvidence(tampered), /EVIDENCE_HASH_MISMATCH/);
+  await assert.rejects(
+    () => verifyAuthorityProviderEvidence(tampered),
+    /EVIDENCE_HASH_MISMATCH/,
+  );
   assertions += 1;
 
   console.log(`Authority provider reconciler evidence contract: ${assertions} assertions passed`);

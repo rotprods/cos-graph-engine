@@ -6,7 +6,7 @@ import {
   verifyAuthorityProviderEvidence,
 } from '../packages/execution/src/authority-provider-evidence-integrity';
 
-function main(): void {
+async function main(): Promise<void> {
   let assertions = 0;
   const check = (condition: unknown, message: string): void => {
     assert.ok(condition, message);
@@ -38,16 +38,22 @@ function main(): void {
     },
   };
 
-  const sealed = sealAuthorityProviderEvidence(base);
+  const sealed = await sealAuthorityProviderEvidence(base);
   check(sealed.evidenceSchemaVersion === 2, 'new evidence is explicitly schema v2');
-  const verified = verifyAuthorityProviderEvidence(sealed);
-  check(verified.sealingMode === 'canonical-v2', 'new evidence verifies as canonical-v2');
+  check(sealed.evidenceHashAlgorithm === 'sha256', 'new evidence declares SHA-256');
+  check(
+    typeof sealed.evidenceHash === 'string' && /^[0-9a-f]{64}$/.test(sealed.evidenceHash),
+    'new evidence carries a 64-hex SHA-256 digest',
+  );
+  const verified = await verifyAuthorityProviderEvidence(sealed);
+  check(verified.sealingMode === 'canonical-v2-sha256', 'new evidence verifies as canonical-v2-sha256');
+  check(verified.hashAlgorithm === 'sha256', 'verification reports the cryptographic algorithm');
   check(
     verified.evidence.evidenceHash === sealed.evidenceHash,
     'verification preserves canonical evidence hash',
   );
 
-  const reordered = sealAuthorityProviderEvidence({
+  const reordered = await sealAuthorityProviderEvidence({
     providerEvidence: base.providerEvidence,
     target: base.target,
     operationContentHash: base.operationContentHash,
@@ -61,29 +67,59 @@ function main(): void {
     inspectorVersion: base.inspectorVersion,
     inspectorId: base.inspectorId,
   });
-  check(reordered.evidenceHash === sealed.evidenceHash, 'key order cannot change canonical hash');
+  check(reordered.evidenceHash === sealed.evidenceHash, 'key order cannot change SHA-256 evidence hash');
 
-  const resealed = sealAuthorityProviderEvidence(sealed);
+  const resealed = await sealAuthorityProviderEvidence(sealed);
   check(resealed.evidenceHash === sealed.evidenceHash, 'resealing v2 evidence is idempotent');
 
   const tampered = structuredClone(sealed);
   (tampered.providerEvidence as Record<string, unknown>).applied = false;
-  assert.throws(
+  await assert.rejects(
     () => verifyAuthorityProviderEvidence(tampered),
     /EVIDENCE_HASH_MISMATCH/,
   );
   assertions += 1;
 
-  assert.throws(
+  await assert.rejects(
     () => verifyAuthorityProviderEvidence({ ...base }),
     /EVIDENCE_HASH_REQUIRED/,
   );
   assertions += 1;
 
-  const forged = { ...sealed, evidenceHash: '0'.repeat(32) };
-  assert.throws(
+  const forged = { ...sealed, evidenceHash: '0'.repeat(64) };
+  await assert.rejects(
     () => verifyAuthorityProviderEvidence(forged),
     /EVIDENCE_HASH_MISMATCH/,
+  );
+  assertions += 1;
+
+  const fnvV2Payload = {
+    ...base,
+    evidenceSchemaVersion: 2,
+    evidenceHashAlgorithm: 'sha256',
+  };
+  const fnvPretendingToBeV2 = {
+    ...fnvV2Payload,
+    evidenceHash: canonicalHash128(fnvV2Payload),
+  };
+  await assert.rejects(
+    () => verifyAuthorityProviderEvidence(fnvPretendingToBeV2),
+    /EVIDENCE_SHA256_INVALID/,
+  );
+  assertions += 1;
+
+  const wrongAlgorithmPayload = {
+    ...base,
+    evidenceSchemaVersion: 2,
+    evidenceHashAlgorithm: 'fnv128',
+  };
+  const wrongAlgorithm = {
+    ...wrongAlgorithmPayload,
+    evidenceHash: '0'.repeat(64),
+  };
+  await assert.rejects(
+    () => verifyAuthorityProviderEvidence(wrongAlgorithm),
+    /EVIDENCE_HASH_ALGORITHM_UNSUPPORTED/,
   );
   assertions += 1;
 
@@ -118,8 +154,9 @@ function main(): void {
     assertions += 1;
   }
 
-  // Historical canonical-v1 evidence was validly hashed but did not contain the
-  // stronger v2 project/resource/content bindings. It remains verifiable as v1.
+  // Historical canonical-v1 evidence was validly FNV-hashed but did not contain
+  // the stronger v2 project/resource/content bindings. It remains readable as
+  // explicit legacy provenance and never becomes v2.
   const legacyBase = {
     inspectorId: 'inspector://github/status-v1',
     inspectorVersion: '1.0.0',
@@ -134,8 +171,9 @@ function main(): void {
     ...legacyBase,
     evidenceHash: canonicalHash128(legacyBase),
   };
-  const verifiedV1 = verifyAuthorityProviderEvidence(canonicalV1);
-  check(verifiedV1.sealingMode === 'canonical-v1', 'historical canonical evidence stays v1');
+  const verifiedV1 = await verifyAuthorityProviderEvidence(canonicalV1);
+  check(verifiedV1.sealingMode === 'canonical-v1-fnv128', 'historical canonical evidence stays FNV v1');
+  check(verifiedV1.hashAlgorithm === 'fnv128-legacy', 'historical v1 reports legacy hash algorithm');
   assertAuthorityProviderEvidenceBinding(verifiedV1.evidence, {
     operationId: base.operationId,
     providerIdempotencyKey: base.providerIdempotencyKey,
@@ -143,9 +181,6 @@ function main(): void {
   });
   assertions += 1;
 
-  // Reproduce exactly the pre-T0501 retry sealing shape. The outer hash included
-  // the previous base evidenceHash before overwriting it. Verification accepts
-  // that historical shape but does not relabel it as v2.
   const legacyRetryPayload = {
     ...canonicalV1,
     retryPlannerEvidence: {
@@ -159,10 +194,14 @@ function main(): void {
     ...legacyRetryPayload,
     evidenceHash: canonicalHash128(legacyRetryPayload),
   };
-  const verifiedLegacy = verifyAuthorityProviderEvidence(legacyRetryEvidence);
+  const verifiedLegacy = await verifyAuthorityProviderEvidence(legacyRetryEvidence);
   check(
-    verifiedLegacy.sealingMode === 'legacy-retry-v1',
+    verifiedLegacy.sealingMode === 'legacy-retry-v1-fnv128',
     'legacy retry envelope is independently recognized rather than blindly trusted',
+  );
+  check(
+    verifiedLegacy.hashAlgorithm === 'fnv128-legacy',
+    'legacy retry reports legacy hash algorithm',
   );
   check(
     verifiedLegacy.evidence.evidenceSchemaVersion === undefined,
@@ -172,18 +211,19 @@ function main(): void {
   const unsupportedPayload = {
     ...base,
     evidenceSchemaVersion: 3,
+    evidenceHashAlgorithm: 'sha256',
   };
   const unsupported = {
     ...unsupportedPayload,
-    evidenceHash: canonicalHash128(unsupportedPayload),
+    evidenceHash: '0'.repeat(64),
   };
-  assert.throws(
+  await assert.rejects(
     () => verifyAuthorityProviderEvidence(unsupported),
     /EVIDENCE_SCHEMA_UNSUPPORTED/,
   );
   assertions += 1;
 
-  assert.throws(
+  await assert.rejects(
     () => sealAuthorityProviderEvidence({ ...base, providerEvidence: new Date() }),
     /canonical JSON-like data/,
   );
@@ -192,4 +232,7 @@ function main(): void {
   console.log(`Authority provider evidence integrity contract: ${assertions} assertions passed`);
 }
 
-main();
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

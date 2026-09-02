@@ -1,0 +1,84 @@
+name: T0501 SHA-256 Provider Evidence Qualification
+
+on:
+  push:
+    branches: [hardening/t0501-provider-evidence-integrity-v4-crypto-clean]
+  pull_request:
+    branches: [hardening/t0501-provider-evidence-integrity-v2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cos-t0501-crypto-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  security-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout immutable candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node 22.16.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Install exact dependency tree
+        run: npm ci
+      - name: Record exact environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'HEAD=%s\nTREE=%s\nNODE=%s\n' "$(git rev-parse HEAD)" "$(git rev-parse HEAD^{tree})" "$(node --version)" | tee t0501-environment.txt
+      - name: Execute provider evidence cryptographic contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsx scripts/test-authority-provider-evidence-integrity.ts 2>&1 | tee t0501-helper.log
+      - name: Execute reconciler evidence contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx tsx scripts/test-authority-provider-reconciler-evidence.ts 2>&1 | tee t0501-reconciler.log
+      - name: Static cryptographic boundary gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE=packages/execution/src/authority-provider-evidence-integrity.ts
+          grep -n 'sha256' "$FILE"
+          ! grep -n 'canonicalHash128' "$FILE"
+          grep -n 'evidenceHashAlgorithm' "$FILE"
+      - name: Hash targeted evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(t0501-environment.txt)
+          [[ -f t0501-helper.log ]] && files+=(t0501-helper.log)
+          [[ -f t0501-reconciler.log ]] && files+=(t0501-reconciler.log)
+          sha256sum "${files[@]}" > t0501-SHA256SUMS
+
+  authority-typegraph:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout immutable candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node 22.16.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - name: Install exact dependency tree
+        run: npm ci
+      - name: Run Authority typegraph
+        run: npm run typecheck:authority

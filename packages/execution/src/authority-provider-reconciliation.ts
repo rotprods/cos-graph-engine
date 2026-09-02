@@ -145,7 +145,7 @@ export class AuthorityProviderReconciler implements ProviderSideEffectReconciler
       operationContentHash: operation.contentHash,
     };
     const outcome = await this.options.inspection.inspect(canonicalClone(request, 'provider inspection request'));
-    const baseEvidence = sealAuthorityProviderEvidence({
+    const baseEvidence = await sealAuthorityProviderEvidence({
       inspectorId: this.options.inspection.inspectorId,
       inspectorVersion: this.options.inspection.inspectorVersion,
       inspectedAt: this.inspectedAt,
@@ -230,7 +230,7 @@ export class AuthorityProviderReconciler implements ProviderSideEffectReconciler
     if (nextProviderIdempotencyKey === providerIdempotencyKey) {
       throw new Error('PROVIDER_RETRY_IDEMPOTENCY_KEY_MUST_ROTATE');
     }
-    const retryEvidence = sealAuthorityProviderEvidence({
+    const retryEvidence = await sealAuthorityProviderEvidence({
       ...baseEvidence,
       retryPlannerEvidence: plan.evidence,
       nextFencingToken,
