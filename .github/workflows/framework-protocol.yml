@@ -4,10 +4,13 @@ on:
   pull_request:
     paths:
       - 'packages/graph/src/framework/**'
+      - 'packages/graph/src/csr.ts'
+      - 'packages/core/src/**'
       - 'scripts/test-framework-protocol.ts'
       - 'scripts/test-framework-protocol-hardening.ts'
       - 'scripts/test-framework-state-store.ts'
       - 'scripts/test-framework-state-runtime.ts'
+      - 'scripts/test-framework-csr-adapter.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
   push:
@@ -15,12 +18,16 @@ on:
       - 'feat/graph-framework-protocol-v1'
       - 'feat/graph-state-kernel-v1'
       - 'feat/graph-state-runtime-v1'
+      - 'feat/graph-csr-adapter-v1'
     paths:
       - 'packages/graph/src/framework/**'
+      - 'packages/graph/src/csr.ts'
+      - 'packages/core/src/**'
       - 'scripts/test-framework-protocol.ts'
       - 'scripts/test-framework-protocol-hardening.ts'
       - 'scripts/test-framework-state-store.ts'
       - 'scripts/test-framework-state-runtime.ts'
+      - 'scripts/test-framework-csr-adapter.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
 
@@ -51,3 +58,4 @@ jobs:
           npx --no-install tsx scripts/test-framework-protocol-hardening.ts
           npx --no-install tsx scripts/test-framework-state-store.ts
           npx --no-install tsx scripts/test-framework-state-runtime.ts
+          npx --no-install tsx scripts/test-framework-csr-adapter.ts
