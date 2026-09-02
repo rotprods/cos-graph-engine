@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "ses_0c612378-627c-4a83-8cfb-add377b3df33",
+  "claimId": "claim_d3ce9138-4070-4f09-9981-5e5787ad6717",
+  "correlationId": "corr_b35271e8-d5bb-4264-b8da-6e128bf2f1c8",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_phase05_provider_truth_recovery",
+  "objectiveId": "T0502F_I",
+  "createdAt": "2026-09-02T11:14:37Z",
+  "status": "ACTIVE",
+  "branch": "hardening/t0502f-provider-truth-recovery-milestone",
+  "baseSha": "5e512f5016fb922bca304d772052d4abeb5579ca",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "resourceScopes": [
+    "scripts/model-authority-provider-truth-recovery.mjs",
+    "scripts/test-authority-provider-truth-recovery.ts",
+    "control-plane/v2/runtime-qualification/t0502f/**"
+  ],
+  "semanticScopes": [
+    "provider timeout-after-acceptance recovery",
+    "unknown outcome fail-closed semantics",
+    "lease takeover and fencing",
+    "repeated authoritative absence",
+    "partial compensation",
+    "bounded state-space safety"
+  ],
+  "observedFacts": [
+    "T0501 SHA-256 provider evidence boundary is targeted-pass on PR #64",
+    "T0502 inspectors/classifier are targeted-pass on PR #65",
+    "T0502D durable absence store is targeted-pass with real Postgres pending on PR #66",
+    "T0502E real pinned read clients are targeted-client-core-pass with full inspector composition pending on PR #83"
+  ],
+  "unknowns": [
+    "full monorepo closure of T0502E remains unexecuted",
+    "real provider timeout-after-acceptance remains unexecuted",
+    "real Postgres/Supabase transaction isolation remains unexecuted",
+    "multi-process OS-level contention remains unexecuted"
+  ],
+  "desiredOutcome": "Prove the provider-truth recovery protocol cannot blindly retry unknown outcomes or duplicate an applied provider effect in the bounded model, and write an integration contract against the existing runtime primitives.",
+  "successCriteria": [
+    "bounded state exploration finds zero safety violations",
+    "applied-after-lost-response converges to committed without a second provider mutation",
+    "unknown never authorizes retry",
+    "not_applied requires repeated authoritative absence and a newer fence plus rotated provider key",
+    "stale workers cannot commit or retry",
+    "partial outcomes require compensation",
+    "runtime integration contract imports existing owners rather than introducing a second authority runtime"
+  ],
+  "failureCondition": "Any reachable state permits duplicate provider effects, retry without proof of non-application, stale-fence mutation, or committed state without provider-applied evidence.",
+  "nextAction": "Materialize and execute the bounded protocol gauntlet, then add the existing-runtime integration contract."
+}
