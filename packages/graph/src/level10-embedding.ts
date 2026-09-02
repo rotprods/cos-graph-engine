@@ -45,25 +45,17 @@ export interface LegacyEmbeddingEdge {
 }
 
 function normalizeNode(input: EmbeddingNode | LegacyEmbeddingNode): EmbeddingNode {
-  if ('vector' in input && Array.isArray(input.vector)) {
-    const vector = [...input.vector];
-    const label = input.label ?? ('source' in input ? input.source : input.id);
-    return {
-      ...input,
-      label,
-      vector,
-      source: input.source ?? label,
-      embedding: input.embedding ? [...input.embedding] : [...vector],
-    };
+  const rawVector = input.vector ?? input.embedding;
+  if (!rawVector || rawVector.length === 0) {
+    throw new Error(`Embedding node ${input.id} has an empty vector`);
   }
-
-  const vector = [...input.embedding];
-  const label = input.label ?? input.source;
+  const vector = [...rawVector];
+  const label = input.label ?? input.source ?? input.id;
   return {
     id: input.id,
     label,
     vector,
-    source: input.source,
+    source: input.source ?? label,
     embedding: [...vector],
     metadata: input.metadata,
     clusterId: input.clusterId,
@@ -87,7 +79,6 @@ export class EmbeddingGraph {
   addNode(n: EmbeddingNode | LegacyEmbeddingNode): string {
     if (this.nodes.some(x => x.id === n.id)) throw new Error(`Duplicate embedding node ID: ${n.id}`);
     const normalized = normalizeNode(n);
-    if (!normalized.vector.length) throw new Error(`Embedding node ${n.id} has an empty vector`);
     this.nodes.push(normalized);
     this.buildAdjacency();
     return normalized.id;
@@ -200,11 +191,9 @@ export class EmbeddingGraph {
     const effectiveK = Math.max(1, Math.min(k, n));
     const dim = this.nodes[0].vector.length;
 
-    // Deterministic initial centroid when a seed is provided.
     const startIndex = Math.abs(seed ?? 0) % n;
     let centroids: number[][] = [this.nodes[startIndex].vector.slice()];
 
-    // Farthest-first initialization avoids a hidden Math.random dependency and is replayable.
     while (centroids.length < effectiveK) {
       let bestIndex = 0;
       let bestDistance = -1;
@@ -218,7 +207,7 @@ export class EmbeddingGraph {
       centroids.push(this.nodes[bestIndex].vector.slice());
     }
 
-    let assignments = new Array(n).fill(-1);
+    let assignments = new Array<number>(n).fill(-1);
     for (let iter = 0; iter < 50; iter++) {
       let changed = false;
       for (let i = 0; i < n; i++) {
@@ -232,8 +221,8 @@ export class EmbeddingGraph {
       }
       if (!changed) break;
 
-      const nextCentroids = Array.from({ length: effectiveK }, () => new Array(dim).fill(0));
-      const counts = new Array(effectiveK).fill(0);
+      const nextCentroids = Array.from({ length: effectiveK }, () => new Array<number>(dim).fill(0));
+      const counts = new Array<number>(effectiveK).fill(0);
       for (let i = 0; i < n; i++) {
         const clusterId = assignments[i];
         for (let d = 0; d < dim; d++) nextCentroids[clusterId][d] += this.nodes[i].vector[d] ?? 0;
