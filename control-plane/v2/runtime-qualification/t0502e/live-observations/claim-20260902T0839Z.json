@@ -6,10 +6,13 @@
   "objectiveId": "T0502E_LIVE_PROVIDER_SHAPE_OBSERVATION",
   "createdAt": "2026-09-02T08:39:00Z",
   "expiresAt": "2026-09-02T09:09:00Z",
-  "revision": 1,
+  "releasedAt": "2026-09-02T08:43:00Z",
+  "revision": 2,
   "fencingToken": 1,
-  "status": "ACTIVE",
+  "status": "RELEASED",
   "scopeBaseSha": "4ec379549784289880297c7ca1e7ae728819d9a0",
+  "evidenceCommitParent": "0cafbf3099dc9b74e89470c6087ed13229af5d00",
+  "evidencePath": "control-plane/v2/runtime-qualification/t0502e/live-observations/provider-shapes-20260902T0839Z.json",
   "exclusiveResourceScopes": [
     "control-plane/v2/runtime-qualification/t0502e/live-observations/**"
   ],
@@ -18,7 +21,18 @@
     "github://rotprods/cos-graph-engine/pulls/83#comment",
     "todoist://project/6hMP59rWj7f5xH7M"
   ],
+  "completed": [
+    "GitHub provider shape observed read-only",
+    "Drive connector failure persisted as DEGRADED_EXTERNAL",
+    "PR #83 checkpoint comment added",
+    "issue #39 continuity comment added",
+    "COS-only Todoist checkpoint synchronized"
+  ],
+  "degraded": [
+    "Drive Acta/AGENTIC STATE synchronization unavailable because Google Drive connector disabled itself at invocation"
+  ],
   "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
   "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
-  "proofBoundary": "CONNECTOR_SHAPE_OBSERVATION_ONLY"
+  "proofBoundary": "CONNECTOR_SHAPE_OBSERVATION_ONLY",
+  "releaseReason": "Evidence-only scope completed; no runtime/provider mutation was authorized or performed."
 }
