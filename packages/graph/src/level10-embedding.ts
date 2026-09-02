@@ -5,16 +5,74 @@
 import { generateId } from '@cos/core';
 
 export interface EmbeddingNode {
-  id: string; label: string; vector: number[];
-  metadata?: Record<string, unknown>; clusterId?: number;
+  id: string;
+  label: string;
+  vector: number[];
+  metadata?: Record<string, unknown>;
+  clusterId?: number;
+  /** Backward-compatible aliases retained for historical callers. */
+  source?: string;
+  embedding?: number[];
+}
+
+export interface LegacyEmbeddingNode {
+  id: string;
+  source: string;
+  embedding: number[];
+  metadata?: Record<string, unknown>;
+  clusterId?: number;
+  label?: string;
+  vector?: number[];
 }
 
 export interface EmbeddingEdge {
-  id: string; source: string; target: string; similarity: number; distance: number;
+  id: string;
+  source: string;
+  target: string;
+  similarity: number;
+  distance: number;
+  /** Historical API alias. */
+  type?: string;
+}
+
+export interface LegacyEmbeddingEdge {
+  id: string;
+  source: string;
+  target: string;
+  similarity: number;
+  type?: string;
+  distance?: number;
+}
+
+function normalizeNode(input: EmbeddingNode | LegacyEmbeddingNode): EmbeddingNode {
+  if ('vector' in input && Array.isArray(input.vector)) {
+    const vector = [...input.vector];
+    const label = input.label ?? ('source' in input ? input.source : input.id);
+    return {
+      ...input,
+      label,
+      vector,
+      source: input.source ?? label,
+      embedding: input.embedding ? [...input.embedding] : [...vector],
+    };
+  }
+
+  const vector = [...input.embedding];
+  const label = input.label ?? input.source;
+  return {
+    id: input.id,
+    label,
+    vector,
+    source: input.source,
+    embedding: [...vector],
+    metadata: input.metadata,
+    clusterId: input.clusterId,
+  };
 }
 
 export class EmbeddingGraph {
-  nodes: EmbeddingNode[] = []; edges: EmbeddingEdge[] = [];
+  nodes: EmbeddingNode[] = [];
+  edges: EmbeddingEdge[] = [];
   private adj: Map<string, string[]> = new Map();
 
   private buildAdjacency(): void {
@@ -26,9 +84,13 @@ export class EmbeddingGraph {
     }
   }
 
-  addNode(n: EmbeddingNode): string {
+  addNode(n: EmbeddingNode | LegacyEmbeddingNode): string {
     if (this.nodes.some(x => x.id === n.id)) throw new Error(`Duplicate embedding node ID: ${n.id}`);
-    this.nodes.push(n); this.buildAdjacency(); return n.id;
+    const normalized = normalizeNode(n);
+    if (!normalized.vector.length) throw new Error(`Embedding node ${n.id} has an empty vector`);
+    this.nodes.push(normalized);
+    this.buildAdjacency();
+    return normalized.id;
   }
 
   removeNode(nodeId: string): void {
@@ -39,39 +101,74 @@ export class EmbeddingGraph {
     this.buildAdjacency();
   }
 
-  addEdge(e: EmbeddingEdge): void {
+  addEdge(e: EmbeddingEdge | LegacyEmbeddingEdge): void {
     if (!this.nodes.some(n => n.id === e.source)) throw new Error(`Edge source ${e.source} not found`);
     if (!this.nodes.some(n => n.id === e.target)) throw new Error(`Edge target ${e.target} not found`);
-    this.edges.push(e); this.buildAdjacency();
+    if (this.edges.some(existing => existing.id === e.id)) throw new Error(`Duplicate embedding edge ID: ${e.id}`);
+
+    const source = this.getNode(e.source)!;
+    const target = this.getNode(e.target)!;
+    const distance = e.distance ?? EmbeddingGraph.distance(source.vector, target.vector);
+    this.edges.push({ ...e, distance });
+    this.buildAdjacency();
   }
 
   removeEdge(edgeId: string): void {
     const idx = this.edges.findIndex(e => e.id === edgeId);
     if (idx === -1) throw new Error(`Edge ${edgeId} not found`);
-    this.edges.splice(idx, 1); this.buildAdjacency();
+    this.edges.splice(idx, 1);
+    this.buildAdjacency();
   }
 
   getNode(nodeId: string): EmbeddingNode | undefined { return this.nodes.find(n => n.id === nodeId); }
 
   static distance(a: number[], b: number[]): number {
-    return Math.sqrt(a.reduce((s, v, i) => s + (v - (b[i] || 0)) ** 2, 0));
+    const dim = Math.max(a.length, b.length);
+    let sum = 0;
+    for (let i = 0; i < dim; i++) sum += ((a[i] ?? 0) - (b[i] ?? 0)) ** 2;
+    return Math.sqrt(sum);
   }
 
   static cosine(a: number[], b: number[]): number {
-    const dot = a.reduce((s, v, i) => s + v * (b[i] || 0), 0);
-    const na = Math.sqrt(a.reduce((s, v) => s + v * v, 0));
-    const nb = Math.sqrt(b.reduce((s, v) => s + v * v, 0));
+    const dim = Math.max(a.length, b.length);
+    let dot = 0;
+    let aa = 0;
+    let bb = 0;
+    for (let i = 0; i < dim; i++) {
+      const av = a[i] ?? 0;
+      const bv = b[i] ?? 0;
+      dot += av * bv;
+      aa += av * av;
+      bb += bv * bv;
+    }
+    const na = Math.sqrt(aa);
+    const nb = Math.sqrt(bb);
     return na * nb > 0 ? dot / (na * nb) : 0;
   }
 
   buildKNN(k: number = 3): void {
     this.edges = [];
+    if (this.nodes.length <= 1 || k <= 0) {
+      this.buildAdjacency();
+      return;
+    }
+
     for (let i = 0; i < this.nodes.length; i++) {
-      const dists = this.nodes.map((n, j) => ({ idx: j, dist: EmbeddingGraph.distance(this.nodes[i].vector, n.vector) }));
-      dists.sort((a, b) => a.dist - b.dist);
-      for (let j = 1; j <= Math.min(k, dists.length - 1); j++) {
+      const dists = this.nodes
+        .map((node, j) => ({ idx: j, dist: EmbeddingGraph.distance(this.nodes[i].vector, node.vector) }))
+        .filter(item => item.idx !== i)
+        .sort((a, b) => a.dist - b.dist || this.nodes[a.idx].id.localeCompare(this.nodes[b.idx].id));
+
+      for (let j = 0; j < Math.min(k, dists.length); j++) {
         const target = this.nodes[dists[j].idx];
-        this.edges.push({ id: generateId(), source: this.nodes[i].id, target: target.id, similarity: 1 / (1 + dists[j].dist), distance: dists[j].dist });
+        this.edges.push({
+          id: generateId(),
+          source: this.nodes[i].id,
+          target: target.id,
+          type: 'similar',
+          similarity: 1 / (1 + dists[j].dist),
+          distance: dists[j].dist,
+        });
       }
     }
     this.buildAdjacency();
@@ -83,7 +180,14 @@ export class EmbeddingGraph {
       for (let j = i + 1; j < this.nodes.length; j++) {
         const dist = EmbeddingGraph.distance(this.nodes[i].vector, this.nodes[j].vector);
         if (dist < epsilon) {
-          this.edges.push({ id: generateId(), source: this.nodes[i].id, target: this.nodes[j].id, similarity: 1 / (1 + dist), distance: dist });
+          this.edges.push({
+            id: generateId(),
+            source: this.nodes[i].id,
+            target: this.nodes[j].id,
+            type: 'similar',
+            similarity: 1 / (1 + dist),
+            distance: dist,
+          });
         }
       }
     }
@@ -93,23 +197,33 @@ export class EmbeddingGraph {
   cluster(k: number = 3, seed?: number): Map<number, EmbeddingNode[]> {
     if (this.nodes.length === 0) return new Map();
     const n = this.nodes.length;
+    const effectiveK = Math.max(1, Math.min(k, n));
     const dim = this.nodes[0].vector.length;
-    let centroids: number[][];
 
-    // K-means++ initialization
-    centroids = [this.nodes[Math.floor((seed || Date.now()) % n)].vector.slice()];
-    for (let c = 1; c < k; c++) {
-      const dists = this.nodes.map(n => Math.min(...centroids.map(cent => EmbeddingGraph.distance(n.vector, cent))));
-      const totalDist = dists.reduce((a, b) => a + b, 0);
-      let r = Math.random() * totalDist;
-      for (let i = 0; i < n; i++) { r -= dists[i]; if (r <= 0) { centroids.push(this.nodes[i].vector.slice()); break; } }
+    // Deterministic initial centroid when a seed is provided.
+    const startIndex = Math.abs(seed ?? 0) % n;
+    let centroids: number[][] = [this.nodes[startIndex].vector.slice()];
+
+    // Farthest-first initialization avoids a hidden Math.random dependency and is replayable.
+    while (centroids.length < effectiveK) {
+      let bestIndex = 0;
+      let bestDistance = -1;
+      for (let i = 0; i < n; i++) {
+        const distance = Math.min(...centroids.map(c => EmbeddingGraph.distance(this.nodes[i].vector, c)));
+        if (distance > bestDistance) {
+          bestDistance = distance;
+          bestIndex = i;
+        }
+      }
+      centroids.push(this.nodes[bestIndex].vector.slice());
     }
 
-    let assignments = new Array(n).fill(0);
+    let assignments = new Array(n).fill(-1);
     for (let iter = 0; iter < 50; iter++) {
       let changed = false;
       for (let i = 0; i < n; i++) {
-        let minDist = Infinity; let bestK = 0;
+        let minDist = Infinity;
+        let bestK = 0;
         for (let c = 0; c < centroids.length; c++) {
           const d = EmbeddingGraph.distance(this.nodes[i].vector, centroids[c]);
           if (d < minDist) { minDist = d; bestK = c; }
@@ -117,20 +231,25 @@ export class EmbeddingGraph {
         if (assignments[i] !== bestK) { assignments[i] = bestK; changed = true; }
       }
       if (!changed) break;
-      centroids = centroids.map(() => new Array(dim).fill(0));
-      const counts = new Array(k).fill(0);
+
+      const nextCentroids = Array.from({ length: effectiveK }, () => new Array(dim).fill(0));
+      const counts = new Array(effectiveK).fill(0);
       for (let i = 0; i < n; i++) {
-        for (let d = 0; d < dim; d++) centroids[assignments[i]][d] += this.nodes[i].vector[d];
-        counts[assignments[i]]++;
+        const clusterId = assignments[i];
+        for (let d = 0; d < dim; d++) nextCentroids[clusterId][d] += this.nodes[i].vector[d] ?? 0;
+        counts[clusterId]++;
       }
-      for (let c = 0; c < k; c++) {
-        if (counts[c] > 0) for (let d = 0; d < dim; d++) centroids[c][d] /= counts[c];
+      for (let c = 0; c < effectiveK; c++) {
+        if (counts[c] > 0) {
+          for (let d = 0; d < dim; d++) nextCentroids[c][d] /= counts[c];
+          centroids[c] = nextCentroids[c];
+        }
       }
     }
 
     const result = new Map<number, EmbeddingNode[]>();
     for (let i = 0; i < n; i++) {
-      const clusterId = assignments[i];
+      const clusterId = assignments[i] < 0 ? 0 : assignments[i];
       this.nodes[i].clusterId = clusterId;
       if (!result.has(clusterId)) result.set(clusterId, []);
       result.get(clusterId)!.push(this.nodes[i]);
@@ -138,8 +257,9 @@ export class EmbeddingGraph {
     return result;
   }
 
-  buildAIModelGraph() {
+  buildAIModelGraph(): void {
     this.nodes = [];
+    this.edges = [];
     this.addNode({ id: 'gpt4', label: 'GPT-4', vector: [0.9, 0.85, 0.95, 0.8, 0.9] });
     this.addNode({ id: 'gpt35', label: 'GPT-3.5', vector: [0.7, 0.65, 0.75, 0.6, 0.7] });
     this.addNode({ id: 'claude3', label: 'Claude 3', vector: [0.85, 0.9, 0.8, 0.85, 0.88] });
@@ -155,15 +275,19 @@ export class EmbeddingGraph {
       const cid = n.clusterId !== undefined ? ` [C${n.clusterId}]` : '';
       m += `    ${n.id}["${n.label}${cid}"]\n`;
     }
-    for (const e of this.edges) {
-      m += `    ${e.source} -.->|"${e.similarity.toFixed(2)}"| ${e.target}\n`;
-    }
+    for (const e of this.edges) m += `    ${e.source} -.->|"${e.similarity.toFixed(2)}"| ${e.target}\n`;
     return m;
   }
 
   validate(): string[] {
     const errors: string[] = [];
+    const edgeIds = new Set<string>();
+    for (const node of this.nodes) {
+      if (!Array.isArray(node.vector) || node.vector.length === 0) errors.push(`Embedding node ${node.id} has invalid vector`);
+    }
     for (const e of this.edges) {
+      if (edgeIds.has(e.id)) errors.push(`Duplicate embedding edge ID: ${e.id}`);
+      edgeIds.add(e.id);
       if (!this.nodes.some(n => n.id === e.source)) errors.push(`Dangling edge source: ${e.source}`);
       if (!this.nodes.some(n => n.id === e.target)) errors.push(`Dangling edge target: ${e.target}`);
     }
@@ -171,17 +295,26 @@ export class EmbeddingGraph {
   }
 
   metrics(): { nodeCount: number; edgeCount: number; avgDegree: number; density: number } {
-    const n = this.nodes.length; const e = this.edges.length;
+    const n = this.nodes.length;
+    const e = this.edges.length;
     this.buildAdjacency();
     const deg = this.nodes.map(no => this.adj.get(no.id)?.length || 0);
-    const avgDeg = n > 0 ? deg.reduce((a, b) => a + b, 0) / n : 0;
+    const avgDegree = n > 0 ? deg.reduce((a, b) => a + b, 0) / n : 0;
     const density = n > 1 ? (2 * e) / (n * (n - 1)) : 0;
-    return { nodeCount: n, edgeCount: e, avgDegree: avgDeg, density };
+    return { nodeCount: n, edgeCount: e, avgDegree, density };
   }
 
-  toJSON() { return { nodes: this.nodes, edges: this.edges }; }
+  toJSON(): { nodes: EmbeddingNode[]; edges: EmbeddingEdge[] } {
+    return {
+      nodes: this.nodes.map(node => ({ ...node, vector: [...node.vector], embedding: node.embedding ? [...node.embedding] : undefined })),
+      edges: this.edges.map(edge => ({ ...edge })),
+    };
+  }
 
-  static fromJSON(data: { nodes: EmbeddingNode[]; edges: EmbeddingEdge[] }): EmbeddingGraph {
-    const g = new EmbeddingGraph(); g.nodes = data.nodes; g.edges = data.edges; g.buildAdjacency(); return g;
+  static fromJSON(data: { nodes: Array<EmbeddingNode | LegacyEmbeddingNode>; edges: Array<EmbeddingEdge | LegacyEmbeddingEdge> }): EmbeddingGraph {
+    const g = new EmbeddingGraph();
+    for (const node of data.nodes) g.addNode(node);
+    for (const edge of data.edges) g.addEdge(edge);
+    return g;
   }
 }
