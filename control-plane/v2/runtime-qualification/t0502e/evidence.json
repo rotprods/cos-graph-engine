@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T0502E",
+  "status": "TARGETED_CLIENT_CORE_PASS_WITH_INSPECTOR_INTEGRATION_PENDING",
+  "branch": "hardening/t0502e-provider-read-clients",
+  "baseSha": "7a73885cb744c4ae3891f418ee963d2d41b749dd",
+  "implementationSha": "f3ab72672762edfcefdcaae20c6947d2867e1011",
+  "executedAt": "2026-09-02T08:32:00Z",
+  "sessionId": "ses_8c88972c-b29d-4e88-b6bf-d1582f3a376d",
+  "claimId": "claim_1d19b70e-d5e6-4d10-9f4a-ddeafcd29033",
+  "correlationId": "corr_709b0f6d-642c-4057-8af0-b2d210490564",
+  "environment": {
+    "node": "v22.16.0",
+    "typescript": "5.8.3",
+    "network": "disabled local runtime",
+    "execution": "exact new source blobs reconstructed locally; existing imported contracts represented by inspected minimal stubs for targeted typecheck"
+  },
+  "exactLocalGitBlobMatches": {
+    "packages/execution/src/providers/authority-provider-read-http-transport.ts": "ac3583363e3295bbc47acc4bdd0667b453ce151b",
+    "packages/execution/src/providers/authority-github-api-read-client.ts": "806165070d1792a927148f3e0eab364b8bcfe83f",
+    "packages/execution/src/providers/authority-drive-api-read-client.ts": "af1c536670b0f4f6be5dd9df2fea755db62ff474"
+  },
+  "publishedContractBlob": {
+    "scripts/test-authority-provider-read-clients.ts": "bc2b0c0609e9ad9fdeec9f9e550ee89b7ab098e3",
+    "executionStatus": "WRITTEN_NOT_RUN_AS_FULL_INSPECTOR_INTEGRATION"
+  },
+  "results": [
+    {
+      "id": "t0502e-new-source-strict-typecheck",
+      "status": "PASS",
+      "command": "tsc 5.8.3 strict + noUncheckedIndexedAccess + exactOptionalPropertyTypes over exact new source blobs with inspected interface stubs",
+      "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "t0502e-client-transport-semantic-harness",
+      "status": "PASS",
+      "command": "node offline semantic harness over the exact compiled three-source implementation",
+      "assertions": 13,
+      "logSha256": "4eaf192e99e5517ac3d04a8ec2f83cbae9b3347d3fa0b3546ec698d59c10e3bd"
+    }
+  ],
+  "gauntletFindings": [
+    {
+      "id": "BUG-T0502E-GITHUB-STRICT-OPTIONAL",
+      "severity": "P1",
+      "observed": "First strict typecheck found two unchecked path-segment dereferences and one exactOptionalPropertyTypes candidate construction error.",
+      "repair": "Narrow owner/repository segments explicitly and bind optional candidate fields once before object construction.",
+      "regressionStatus": "SOURCE_TYPECHECK_PASS"
+    },
+    {
+      "id": "BUG-T0502E-TEST-UNCHECKED-INDEX",
+      "severity": "P1",
+      "observed": "Test preflight reproduced three unsafe requests[0] accesses under noUncheckedIndexedAccess.",
+      "repair": "Require the first pinned request to exist before dereferencing it.",
+      "regressionStatus": "CONTRACT_SOURCE_REPAIRED_FULL_EXECUTION_PENDING"
+    }
+  ],
+  "invariantsCovered": [
+    "provider network method is forced to GET",
+    "provider read consumes a guard-authorized pinned target rather than ordinary fetch after preflight",
+    "response targetDecisionHash and connected address must match the pinned decision",
+    "GitHub fixed origin is api.github.com",
+    "GitHub without a trusted extractor cannot produce an applied candidate",
+    "GitHub authorization token is not persisted in evidence",
+    "GitHub 404 remains non-authoritative",
+    "trusted GitHub extractor can bind operation/provider-attempt/content identity",
+    "Drive metadata endpoint is fixed under www.googleapis.com",
+    "Drive appProperties markers are parsed without persisting the access token",
+    "Drive existing resource without markers remains a mismatched candidate",
+    "Drive 404 remains non-authoritative",
+    "read client surface exposes no mutation method"
+  ],
+  "proofBoundary": {
+    "fullPublishedInspectorContract": "NOT_RUN",
+    "fullRepositoryTypecheck": "NOT_RUN_ON_THIS_BRANCH",
+    "realGitHubApiCallThroughThisRuntime": "NOT_RUN",
+    "realDriveApiCallThroughThisRuntime": "NOT_RUN",
+    "actualDnsTlsSocketPath": "DEPENDENCY_ON_T0503_NOT_REEXECUTED_HERE",
+    "realPostgresOrSupabase": "INHERITED_T0502D_PENDING",
+    "timeoutAfterAcceptanceLiveProvider": "NOT_RUN",
+    "multiProcessRestart": "NOT_RUN",
+    "automaticGitHubActions": "OFF_ON_THIS_BRANCH",
+    "cdDeployRelease": "OFF",
+    "productionMutation": "NONE"
+  },
+  "authorityEffect": "TARGETED_CLIENT_ASSURANCE_ONLY_NO_GLOBAL_SCORE_PROMOTION",
+  "runtimeAuthority": "SHADOW_ONLY",
+  "globalScoreMovement": "NONE",
+  "nextSafeAction": "Run the published T0502E inspector-composition contract inside the clean selected monorepo typegraph when the active PR #79 typecheck lane releases its overlapping graph/toolchain scope; separately qualify live GitHub/Drive reads without allowing any provider mutation or treating 404 as authoritative absence."
+}
