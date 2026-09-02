@@ -5,5 +5,7 @@ export * from './registry';
 export * from './runtime';
 export * from './model';
 export * from './state-store';
+export * from './durability';
 export * from './modules/state-module';
 export * from './adapters/csr-module';
+export * from './adapters/sqlite-durability';

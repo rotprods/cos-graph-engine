@@ -9,7 +9,8 @@
     "scripts/test-framework-protocol-hardening.ts",
     "scripts/test-framework-state-store.ts",
     "scripts/test-framework-state-runtime.ts",
-    "scripts/test-framework-csr-adapter.ts"
+    "scripts/test-framework-csr-adapter.ts",
+    "scripts/test-framework-durable-state.ts"
   ],
   "exclude": [
     "node_modules"
