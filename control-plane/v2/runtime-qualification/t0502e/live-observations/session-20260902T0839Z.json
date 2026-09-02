@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "ses_8faaf3e7-9d29-4f79-8bdf-2bd6b120bf98",
+  "claimId": "claim_482c46f2-f561-4562-92a2-8fe6194b89e9",
+  "correlationId": "corr_a6c4a9e9-b653-41c5-a3d1-dd4e36d49942",
+  "projectId": "COS_GRAPH_ENGINE",
+  "objectiveId": "T0502E_LIVE_PROVIDER_SHAPE_OBSERVATION",
+  "createdAt": "2026-09-02T08:39:00Z",
+  "status": "ACTIVE",
+  "branch": "hardening/t0502e-provider-read-clients",
+  "baseSha": "4ec379549784289880297c7ca1e7ae728819d9a0",
+  "fencingToken": 1,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "resourceScopes": [
+    "control-plane/v2/runtime-qualification/t0502e/live-observations/**",
+    "github://rotprods/cos-graph-engine/issues/39#comment",
+    "github://rotprods/cos-graph-engine/pulls/83#comment",
+    "todoist://project/6hMP59rWj7f5xH7M"
+  ],
+  "constraints": [
+    "read-only provider observations",
+    "no provider mutation",
+    "no credential persistence",
+    "connector observations do not qualify T0502E runtime",
+    "Drive connector failure is recorded as DEGRADED_EXTERNAL, not hidden",
+    "no global score promotion"
+  ],
+  "nextAction": "Persist connector observations, synchronize issue/Todoist checkpoint, release claim."
+}
