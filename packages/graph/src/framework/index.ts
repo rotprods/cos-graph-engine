@@ -6,3 +6,4 @@ export * from './runtime';
 export * from './model';
 export * from './state-store';
 export * from './modules/state-module';
+export * from './adapters/csr-module';
