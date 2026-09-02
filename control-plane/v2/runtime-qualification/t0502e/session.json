@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "ses_8c88972c-b29d-4e88-b6bf-d1582f3a376d",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_t0502e_provider_read_clients",
+  "objectiveId": "T0502E",
+  "correlationId": "corr_709b0f6d-642c-4057-8af0-b2d210490564",
+  "createdAt": "2026-09-02T08:14:00Z",
+  "status": "ACTIVE",
+  "branch": "hardening/t0502e-provider-read-clients",
+  "baseSha": "7a73885cb744c4ae3891f418ee963d2d41b749dd",
+  "claimId": "claim_1d19b70e-d5e6-4d10-9f4a-ddeafcd29033",
+  "fencingToken": 1,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "semanticScopes": [
+    "real read-only GitHub provider client",
+    "real read-only Google Drive provider client",
+    "DNS-pinned GET transport adapter",
+    "fail-closed provider ambiguity"
+  ],
+  "constraints": [
+    "no provider mutation method",
+    "no blind retry",
+    "no 404-as-authoritative-absence default",
+    "no token or raw credential persistence in evidence",
+    "no unpinned arbitrary-host fetch path",
+    "no package-root promotion",
+    "no Actions/CD/deploy/Supabase mutation"
+  ],
+  "nextAction": "Implement additive pinned read transport + GitHub/Drive clients, then execute targeted contracts from exact published bytes."
+}
