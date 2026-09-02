@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "evidence_v4_1_live_truth_local_4bf13e9d",
+  "status": "TARGETED_PASS",
+  "recordedAt": "2026-09-02T10:46:31+02:00",
+  "implementationSha": "4bf13e9d73a94aeeeb5b089c192615308a92fedb",
+  "sourceParentSha": "7943a4ef67dfc0929f56e2652126d4b7a6d89eae",
+  "contractVersion": "4.1.0-alpha.8",
+  "authorityCeiling": "TARGETED_PASS_SHADOW_ONLY",
+  "trustClass": "INTEGRITY_ONLY",
+  "mutationMode": "READ_ONLY",
+  "artifactIdentity": [
+    {"path":"control-plane/v4.1/observe/live-truth-contract.v1.json","gitBlobSha":"87cfb96c2c46c9b8d4fcaacac43210275c30c0a5","sha256":"21126178caaf110b7dd9ae4731d795d142ca41ac3168e7bfd8d6c449fa3ab8db","exactPublishedBytesExecuted":true},
+    {"path":"control-plane/v4.1/observe/local-git-observer.mjs","gitBlobSha":"a0d1fe092783bfb074a0a53809ee1a3c15473c83","sha256":"5e32c137640a8d37a1078df3acbe65bbe38adad4a40b09d7f37f46e7547ac142","exactPublishedBytesExecuted":true},
+    {"path":"control-plane/v4.1/observe/live-truth-verify.mjs","gitBlobSha":"458219155bc14b35fa0807514712fbc00a0966a9","sha256":"8605ab6f273e7ae022edf215676a2ad77ca736cedf5da02e09ddb17197864bfb","exactPublishedBytesExecuted":true},
+    {"path":"control-plane/v4.1/observe/live-truth-selftest.mjs","gitBlobSha":"914b435c8c6a0d16fe5497727fd6601274764b09","sha256":"f2fd95d2998e6ff8cee6c6010fe3c5fda9403ead5bcd76507db79fbcb5d056a1","exactPublishedBytesExecuted":true},
+    {"path":"scripts/validate-v4.1-live-truth-local.mjs","gitBlobSha":"f7ab38864615a92a70352c7dbe3f230d4d3fb754","sha256":"f71bf4bed49dd8041639f3249c29e8cd4ab518bdb0ca995ed90e0ae2157017c7","exactPublishedBytesExecuted":true}
+  ],
+  "executions": [
+    {"command":"node --check local-git-observer.mjs && node --check live-truth-verify.mjs && node --check live-truth-selftest.mjs && node --check validate-v4.1-live-truth-local.mjs","result":"PASS","exitCode":0},
+    {"command":"node scripts/validate-v4.1-live-truth-local.mjs --self-test","result":"PASS","exitCode":0,"assertions":24,"failures":0,"reportSha256":"29c75b6867b77b91df3f7dab77e98196e97dc41ce595de6c73fb16e32175ac3a"}
+  ],
+  "escapedFailureFamiliesClosed": [
+    {"id":"V41-OBS-SYMBOLIC-REF-WRITE","finding":"allowlisting only the git symbolic-ref subcommand also allowed its mutation form","repair":"exact full argument-shape allowlist rejects write-form symbolic-ref and any unregistered variant"},
+    {"id":"V41-OBS-REPO-FILTER-RCE","finding":"git status physically executed a repository-controlled clean filter during adversarial testing","repair":"preflight scans local executable filter/diff configuration; any executable config withholds worktree status, and status is never run"},
+    {"id":"V41-OBS-FSMONITOR-EXEC","finding":"repository core.fsmonitor can execute a configured program during status","repair":"core.fsmonitor=false is forced and an executable-marker regression proves the configured program does not run"},
+    {"id":"V41-OBS-PATH-POISONING","finding":"resolving git via caller PATH could select a malicious binary","repair":"observer pins /usr/bin/git and uses fixed minimal PATH; a fake git in caller PATH remains unexecuted"},
+    {"id":"V41-OBS-PREFLIGHT-FAILOPEN","finding":"a failed executable-config scan could previously fall through to status","repair":"only a definitive no-match result allows status; timeout/corruption/other failure yields explicit UNKNOWN without status"},
+    {"id":"V41-OBS-UNBORN-HEAD","finding":"a valid repository without a first commit was treated as a fatal HEAD failure","repair":"HEAD becomes explicit UNKNOWN/HEAD_SHA_UNAVAILABLE while repository and branch truth remain observable"},
+    {"id":"V41-OBS-LOCAL-ABSENCE","finding":"missing local target/default refs could be mistaken for remote absence","repair":"local non-observation is always UNKNOWN and the proof boundary explicitly forbids remote/provider absence inference"}
+  ],
+  "proofBoundary": [
+    "proves only the local Git LiveTruthSnapshot contract and observer behavior on the tested Linux/macOS-style /usr/bin/git boundary",
+    "does not observe or prove GitHub remote refs, branch protection, rulesets, PRs, issues, Actions or deployment state",
+    "a configured executable Git filter intentionally degrades workingTree status to UNKNOWN instead of executing repository-controlled code",
+    "a repository whose Git context cannot be safely established fails closed; it is not classified as absent or non-Git authority",
+    "INTEGRITY_ONLY and SHADOW_ONLY remain non-promotion authority",
+    "does not prove source-tree semantic completeness, runtime correctness or production readiness"
+  ],
+  "nextSafeAction": "add an injected, read-only GitHub provider observation contract that reconciles remote exact refs and unavailable provider fields into OBSERVED/UNKNOWN without network mutation, then combine local and provider observations without silently choosing one as authority"
+}
