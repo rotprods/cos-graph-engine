@@ -1,0 +1,43 @@
+name: Restore ToolRegistry tail (one-shot)
+
+on:
+  push:
+    branches: [fix/strict-typecheck-regressions]
+    paths:
+      - .github/workflows/restore-tool-registry-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/strict-typecheck-regressions
+      - name: Restore parent tail exactly
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/execution/src/tool-runtime.ts')
+          text = p.read_text()
+          old = "import { generateId } from '@cos/core';"
+          new = "import { generateId, CellError } from '@cos/core';"
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one generateId import, found {text.count(old)}')
+          if 'export class ToolRegistry' in text:
+              raise SystemExit('ToolRegistry already exists; refusing duplicate restoration')
+          text = text.replace(old, new, 1)
+          text += '''\n\n// ================================================================\n// TOOL REGISTRY\n// ================================================================\n\nexport class ToolRegistry {\n  private tools: Map<string, ITool> = new Map();\n\n  constructor() {\n    this.register(new FileSystemTool());\n    this.register(new HTTPTool());\n    this.register(new SearchTool());\n  }\n\n  register(tool: ITool): void { this.tools.set(tool.definition.name, tool); }\n  get(name: string): ITool | undefined { return this.tools.get(name); }\n  getAll(): ITool[] { return Array.from(this.tools.values()); }\n\n  async execute(name: string, input: unknown, context: CellContext): Promise<ToolResult> {\n    const tool = this.tools.get(name);\n    if (!tool) throw new CellError('TOOL_NOT_FOUND', `Tool '${name}' not registered`);\n    return tool.execute(input, context);\n  }\n\n  getDefinitions(): ToolDefinition[] { return this.getAll().map(t => t.definition); }\n}\n'''
+          p.write_text(text)
+          PY
+      - name: Self-delete and commit
+        run: |
+          git config user.name "COS Remediation Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/restore-tool-registry-once.yml
+          git add packages/execution/src/tool-runtime.ts
+          git diff --cached --check
+          git commit -m "fix(execution): restore ToolRegistry after sandbox hardening"
+          git push origin HEAD:fix/strict-typecheck-regressions
