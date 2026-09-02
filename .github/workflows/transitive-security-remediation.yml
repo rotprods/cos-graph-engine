@@ -1,0 +1,46 @@
+name: Transitive security remediation
+
+on:
+  push:
+    branches: [fix/strict-typecheck-regressions]
+    paths:
+      - '.github/workflows/transitive-security-remediation.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  remediate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/strict-typecheck-regressions
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Refresh only vulnerable transitive lock entries
+        run: npm update brace-expansion js-yaml --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify dependency paths and audit
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm ls brace-expansion js-yaml --all
+          npm audit --audit-level=high
+      - name: Verify build and strict types
+        run: |
+          npm run asbuild
+          npx --no-install tsc --noEmit
+      - name: Commit lockfile and self-delete
+        run: |
+          rm .github/workflows/transitive-security-remediation.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json .github/workflows/transitive-security-remediation.yml
+          git diff --cached --quiet && exit 1
+          git commit -m 'fix(deps): refresh patched transitive security versions'
+          git push origin HEAD:fix/strict-typecheck-regressions
