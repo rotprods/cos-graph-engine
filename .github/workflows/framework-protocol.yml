@@ -12,6 +12,7 @@ on:
       - 'scripts/test-framework-state-runtime.ts'
       - 'scripts/test-framework-csr-adapter.ts'
       - 'scripts/test-framework-durable-state.ts'
+      - 'scripts/test-framework-checkpoint-runtime.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
   push:
@@ -21,6 +22,7 @@ on:
       - 'feat/graph-state-runtime-v1'
       - 'feat/graph-csr-adapter-v1'
       - 'feat/graph-durable-state-v1'
+      - 'feat/graph-checkpoint-runtime-v1'
     paths:
       - 'packages/graph/src/framework/**'
       - 'packages/graph/src/csr.ts'
@@ -31,6 +33,7 @@ on:
       - 'scripts/test-framework-state-runtime.ts'
       - 'scripts/test-framework-csr-adapter.ts'
       - 'scripts/test-framework-durable-state.ts'
+      - 'scripts/test-framework-checkpoint-runtime.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
 
@@ -63,3 +66,4 @@ jobs:
           npx --no-install tsx scripts/test-framework-state-runtime.ts
           npx --no-install tsx scripts/test-framework-csr-adapter.ts
           NODE_OPTIONS=--experimental-sqlite npx --no-install tsx scripts/test-framework-durable-state.ts
+          NODE_OPTIONS=--experimental-sqlite npx --no-install tsx scripts/test-framework-checkpoint-runtime.ts

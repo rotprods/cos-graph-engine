@@ -6,6 +6,8 @@ export * from './runtime';
 export * from './model';
 export * from './state-store';
 export * from './durability';
+export * from './checkpoint-runtime';
 export * from './modules/state-module';
 export * from './adapters/csr-module';
 export * from './adapters/sqlite-durability';
+export * from './adapters/sqlite-checkpoints';

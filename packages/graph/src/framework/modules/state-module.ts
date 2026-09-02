@@ -13,7 +13,7 @@ import {
   GraphMutation,
   GraphReplayResult,
   GraphSnapshot,
-  InMemoryGraphStore,
+  GraphTransaction,
 } from '../state-store';
 
 export interface GraphStateCommitInput {
@@ -24,6 +24,19 @@ export interface GraphStateCommitInput {
 
 export interface GraphStateReadInput {
   readonly graphId: string;
+}
+
+export interface GraphStateStorePort {
+  commit(transaction: GraphTransaction): GraphCommitReceipt | Promise<GraphCommitReceipt>;
+  snapshot(graphId: string): GraphSnapshot | Promise<GraphSnapshot>;
+  verify(graphId: string): GraphReplayResult | Promise<GraphReplayResult>;
+}
+
+export interface GraphStateModuleOptions {
+  readonly moduleId?: string;
+  readonly name?: string;
+  readonly version?: string;
+  readonly description?: string;
 }
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
@@ -193,12 +206,16 @@ export interface GraphStateModule {
   readonly verify: GraphCapability<GraphStateReadInput, GraphReplayResult>;
 }
 
-export function createGraphStateModule(store: InMemoryGraphStore): GraphStateModule {
+export function createGraphStateModule(
+  store: GraphStateStorePort,
+  options: GraphStateModuleOptions = {},
+): GraphStateModule {
+  const version = options.version ?? '1.0.0-alpha.1';
   const commit = defineGraphCapability({
     descriptor: {
       id: 'cos.graph.state.commit',
       kind: 'store',
-      version: '1.0.0-alpha.1',
+      version,
       maturity: 'experimental',
       description: 'Commit a canonical graph transaction with optimistic concurrency and payload-bound idempotency',
       modes: ['mutate'],
@@ -225,7 +242,7 @@ export function createGraphStateModule(store: InMemoryGraphStore): GraphStateMod
     descriptor: {
       id: 'cos.graph.state.snapshot',
       kind: 'store',
-      version: '1.0.0-alpha.1',
+      version,
       maturity: 'experimental',
       description: 'Read an immutable canonical graph snapshot with an integrity hash',
       modes: ['stream'],
@@ -244,7 +261,7 @@ export function createGraphStateModule(store: InMemoryGraphStore): GraphStateMod
     descriptor: {
       id: 'cos.graph.state.verify',
       kind: 'store',
-      version: '1.0.0-alpha.1',
+      version,
       maturity: 'experimental',
       description: 'Replay the graph event chain and prove projection equivalence',
       modes: ['stats'],
@@ -261,12 +278,12 @@ export function createGraphStateModule(store: InMemoryGraphStore): GraphStateMod
 
   const module = defineGraphModule({
     manifest: {
-      id: 'cos.graph.state.memory',
-      name: 'COS Canonical In-Memory Graph State',
-      version: '1.0.0-alpha.1',
+      id: options.moduleId ?? 'cos.graph.state.memory',
+      name: options.name ?? 'COS Canonical In-Memory Graph State',
+      version,
       protocol: COS_GRAPH_PROTOCOL_VERSION,
       maturity: 'experimental',
-      description: 'Canonical versioned graph state, event chain, deterministic replay, CAS and idempotency reference implementation',
+      description: options.description ?? 'Canonical versioned graph state, event chain, deterministic replay, CAS and idempotency reference implementation',
       capabilities: [commit.descriptor, snapshot.descriptor, verify.descriptor],
     },
     capabilities: [commit, snapshot, verify],
