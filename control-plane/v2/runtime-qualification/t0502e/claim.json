@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "claimId": "claim_1d19b70e-d5e6-4d10-9f4a-ddeafcd29033",
+  "sessionId": "ses_8c88972c-b29d-4e88-b6bf-d1582f3a376d",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_t0502e_provider_read_clients",
+  "objectiveId": "T0502E",
+  "createdAt": "2026-09-02T08:14:00Z",
+  "heartbeatAt": "2026-09-02T08:34:00Z",
+  "expiresAt": "2026-09-02T16:14:00Z",
+  "releasedAt": "2026-09-02T08:34:00Z",
+  "revision": 2,
+  "fencingToken": 1,
+  "status": "RELEASED",
+  "baseSha": "7a73885cb744c4ae3891f418ee963d2d41b749dd",
+  "implementationSha": "f3ab72672762edfcefdcaae20c6947d2867e1011",
+  "evidencePath": "control-plane/v2/runtime-qualification/t0502e/evidence.json",
+  "releaseReason": "T0502E pinned read-client core reached targeted local PASS; full inspector integration and live provider reads remain separate gates.",
+  "exclusiveResourceScopes": [
+    "packages/execution/src/providers/authority-provider-read-http-transport.ts",
+    "packages/execution/src/providers/authority-github-api-read-client.ts",
+    "packages/execution/src/providers/authority-drive-api-read-client.ts",
+    "scripts/test-authority-provider-read-clients.ts",
+    "control-plane/v2/runtime-qualification/t0502e/**"
+  ],
+  "sharedResourceScopes": [
+    "packages/execution/src/providers/authority-github-reconciliation-inspector.ts",
+    "packages/execution/src/providers/authority-drive-reconciliation-inspector.ts",
+    "packages/execution/src/providers/authority-provider-inspection-shared.ts",
+    "packages/execution/src/authority-isolation.ts",
+    "packages/execution/src/authority-provider-tools.ts",
+    "packages/execution/src/authority-node-pinned-http-transport.ts"
+  ],
+  "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "writeContract": {
+    "perMutationParentCas": true,
+    "required": ["claimId", "revision", "fencingToken", "liveParentSha"],
+    "staleWriterResult": "REJECT_STALE_PARENT"
+  }
+}

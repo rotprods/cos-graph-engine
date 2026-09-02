@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T0502E_LIVE_PROVIDER_SHAPE_OBSERVATION",
+  "observedAt": "2026-09-02T08:39:00Z",
+  "sourceRuntimeBranch": "hardening/t0502e-provider-read-clients",
+  "runtimeImplementationSha": "f3ab72672762edfcefdcaae20c6947d2867e1011",
+  "authorityEffect": "NONE",
+  "observations": [
+    {
+      "provider": "github",
+      "method": "GET",
+      "connector": "GitHub connector",
+      "target": "https://api.github.com/repos/rotprods/cos-graph-engine/issues/39",
+      "status": "OBSERVED_READ_SUCCESS",
+      "shape": {
+        "number": 39,
+        "title": "STOP-THE-LINE: reconcile W12.4 siblings and remediate full-stack adversarial findings",
+        "state": "open",
+        "updatedAt": "2026-08-31T10:46:21Z",
+        "bodyPresent": true,
+        "comments": 16,
+        "permissionsOrCredentialsPersisted": false
+      },
+      "classification": "LIVE_PROVIDER_SHAPE_OBSERVATION_NOT_RUNTIME_EXECUTION",
+      "proves": [
+        "GitHub connector can read the expected issue REST resource shape",
+        "issue #39 remains open and its body is stale relative to later T0501/T0502 work"
+      ],
+      "doesNotProve": [
+        "AuthorityGitHubApiReadClient socket/TLS execution",
+        "timeout-after-acceptance reconciliation",
+        "provider marker authenticity",
+        "runtime authority"
+      ]
+    },
+    {
+      "provider": "google_drive",
+      "method": "files.get metadata",
+      "connector": "Google Drive connector",
+      "target": "drive://google/document/171Oh_ry6ygBGcbwPRGjwXHa-JEBnd8SRVzw241SdU4g",
+      "status": "DEGRADED_EXTERNAL_CONNECTOR_UNAVAILABLE",
+      "failure": "Google_Drive connector was disabled by the runtime when the read-only metadata action was invoked; no additional Drive actions were attempted.",
+      "appPropertiesObservation": "NOT_OBSERVED",
+      "providerMutation": "NONE",
+      "classification": "BLOCKED_EXTERNAL_NOT_PRODUCT_FAILURE"
+    }
+  ],
+  "proofBoundary": [
+    "connector observations only",
+    "not execution of T0502E runtime clients",
+    "no provider mutations",
+    "no secrets or OAuth tokens persisted",
+    "no global Build/Assurance/Authority score movement"
+  ],
+  "nextSafeAction": "Use these observations as provider-shape evidence only; execute the published inspector-composition contract in a clean monorepo closure and repeat Drive metadata observation when its connector is available."
+}

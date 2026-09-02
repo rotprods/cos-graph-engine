@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "ses_8c88972c-b29d-4e88-b6bf-d1582f3a376d",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_t0502e_provider_read_clients",
+  "objectiveId": "T0502E",
+  "correlationId": "corr_709b0f6d-642c-4057-8af0-b2d210490564",
+  "createdAt": "2026-09-02T08:14:00Z",
+  "completedAt": "2026-09-02T08:34:00Z",
+  "status": "HANDOFF_READY",
+  "branch": "hardening/t0502e-provider-read-clients",
+  "baseSha": "7a73885cb744c4ae3891f418ee963d2d41b749dd",
+  "implementationSha": "f3ab72672762edfcefdcaae20c6947d2867e1011",
+  "claimId": "claim_1d19b70e-d5e6-4d10-9f4a-ddeafcd29033",
+  "fencingToken": 1,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "semanticScopes": [
+    "real read-only GitHub provider client",
+    "real read-only Google Drive provider client",
+    "DNS-pinned GET transport adapter",
+    "fail-closed provider ambiguity"
+  ],
+  "result": "TARGETED_CLIENT_CORE_PASS_WITH_INSPECTOR_INTEGRATION_PENDING",
+  "evidencePath": "control-plane/v2/runtime-qualification/t0502e/evidence.json",
+  "gauntletRepairs": [
+    "GitHub path segments narrowed for noUncheckedIndexedAccess",
+    "GitHub candidate optional fields normalized for exactOptionalPropertyTypes",
+    "contract first-request dereference made fail-closed instead of unchecked"
+  ],
+  "nextAction": "Execute the published inspector-composition contract in the clean selected monorepo graph after the active strict-typecheck lane releases overlapping toolchain scope; then perform read-only live provider qualification without enabling mutation or treating 404 as authoritative absence."
+}
