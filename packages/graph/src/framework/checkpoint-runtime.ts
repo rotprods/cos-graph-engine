@@ -16,7 +16,8 @@ import {
 import { GraphRuntime } from './runtime';
 
 export const COS_GRAPH_EXECUTION_PLAN_VERSION = 'cos.graph/execution-plan/v1alpha1' as const;
-export const COS_GRAPH_CHECKPOINT_VERSION = 'cos.graph/checkpoint/v1alpha1' as const;
+export const COS_GRAPH_CHECKPOINT_VERSION = 'cos.graph/checkpoint/v1alpha2' as const;
+export const COS_GRAPH_CHECKPOINT_LEGACY_VERSION = 'cos.graph/checkpoint/v1alpha1' as const;
 
 export type GraphWorkflowPathSegment = string | number;
 
@@ -25,6 +26,12 @@ export type GraphWorkflowInputBinding =
   | { readonly kind: 'run-input'; readonly path?: readonly GraphWorkflowPathSegment[] }
   | { readonly kind: 'step-output'; readonly stepId: string; readonly path?: readonly GraphWorkflowPathSegment[] };
 
+export interface GraphWorkflowApprovalGate {
+  readonly reason: string;
+  readonly payload?: GraphValue;
+  readonly metadata?: GraphProperties;
+}
+
 export interface GraphExecutionPlanStep {
   readonly id: string;
   readonly capabilityId: string;
@@ -32,6 +39,7 @@ export interface GraphExecutionPlanStep {
   readonly input: GraphWorkflowInputBinding;
   readonly graph?: GraphReference;
   readonly metadata?: GraphProperties;
+  readonly approval?: GraphWorkflowApprovalGate;
 }
 
 export interface GraphExecutionPlan {
@@ -62,7 +70,60 @@ export interface GraphWorkflowFailure {
   readonly failedAt: number;
 }
 
-export type GraphWorkflowStatus = 'running' | 'succeeded' | 'failed';
+export interface GraphWorkflowInterrupt {
+  readonly id: string;
+  readonly stepId: string;
+  readonly reason: string;
+  readonly payload: GraphValue;
+  readonly metadata: GraphProperties;
+  readonly requestedAt: number;
+}
+
+export type GraphWorkflowDecisionOutcome = 'approved' | 'rejected';
+
+export interface GraphWorkflowDecisionRecord {
+  readonly decisionId: string;
+  readonly interruptId: string;
+  readonly stepId: string;
+  readonly outcome: GraphWorkflowDecisionOutcome;
+  readonly actorId: string;
+  readonly comment?: string;
+  readonly payload: GraphValue;
+  readonly requestHash: string;
+  readonly decidedAt: number;
+}
+
+export interface GraphWorkflowDecisionInput {
+  readonly expectedRevision: number;
+  readonly interruptId: string;
+  readonly decisionId: string;
+  readonly outcome: GraphWorkflowDecisionOutcome;
+  readonly actorId: string;
+  readonly comment?: string;
+  readonly payload?: GraphValue;
+}
+
+export interface GraphWorkflowDecisionPolicyRequest {
+  readonly runId: string;
+  readonly checkpointRevision: number;
+  readonly interrupt: GraphWorkflowInterrupt | null;
+  readonly existingDecision: GraphWorkflowDecisionRecord | null;
+  readonly decision: Readonly<{
+    interruptId: string;
+    decisionId: string;
+    outcome: GraphWorkflowDecisionOutcome;
+    actorId: string;
+    comment?: string;
+    payload: GraphValue;
+    requestHash: string;
+  }>;
+}
+
+export interface GraphWorkflowDecisionPolicy {
+  authorize(request: GraphWorkflowDecisionPolicyRequest): boolean | Promise<boolean>;
+}
+
+export type GraphWorkflowStatus = 'running' | 'interrupted' | 'succeeded' | 'failed' | 'cancelled';
 
 export interface GraphWorkflowCheckpoint {
   readonly schema: typeof COS_GRAPH_CHECKPOINT_VERSION;
@@ -77,6 +138,8 @@ export interface GraphWorkflowCheckpoint {
   readonly steps: readonly GraphWorkflowStepRecord[];
   readonly lease: GraphWorkflowLease | null;
   readonly failure: GraphWorkflowFailure | null;
+  readonly interrupt: GraphWorkflowInterrupt | null;
+  readonly decisions: readonly GraphWorkflowDecisionRecord[];
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly checkpointHash: string;
@@ -128,7 +191,14 @@ export type GraphWorkflowErrorCode =
   | 'WORKFLOW_ALREADY_FAILED'
   | 'WORKFLOW_STEP_FAILED'
   | 'WORKFLOW_BINDING_INVALID'
-  | 'WORKFLOW_CLOCK_REGRESSION';
+  | 'WORKFLOW_CLOCK_REGRESSION'
+  | 'WORKFLOW_NOT_INTERRUPTED'
+  | 'WORKFLOW_INTERRUPT_MISMATCH'
+  | 'WORKFLOW_DECISION_POLICY_REQUIRED'
+  | 'WORKFLOW_DECISION_POLICY_FAILED'
+  | 'WORKFLOW_DECISION_DENIED'
+  | 'WORKFLOW_DECISION_REVISION_CONFLICT'
+  | 'WORKFLOW_DECISION_CONFLICT';
 
 export class GraphWorkflowError extends Error {
   readonly code: GraphWorkflowErrorCode;
@@ -152,6 +222,7 @@ export interface GraphCheckpointRuntimeOptions {
   readonly leaseDurationMs?: number;
   readonly maxCheckpointAttempts?: number;
   readonly clock?: () => number;
+  readonly decisionPolicy?: GraphWorkflowDecisionPolicy;
 }
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
@@ -166,6 +237,11 @@ function asString(value: unknown, label: string): string {
     throw new TypeError(`${label} must be a non-empty string`);
   }
   return value;
+}
+
+function asOptionalString(value: unknown, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  return asString(value, label);
 }
 
 function asFiniteNumber(value: unknown, label: string): number {
@@ -197,6 +273,15 @@ function asSideEffects(value: unknown, label: string): GraphSideEffects {
   throw new TypeError(`${label} must be a supported side-effects value`);
 }
 
+function asDecisionOutcome(value: unknown, label: string): GraphWorkflowDecisionOutcome {
+  if (value === 'approved' || value === 'rejected') return value;
+  throw new TypeError(`${label} must be approved or rejected`);
+}
+
+function emptyProperties(): GraphProperties {
+  return Object.freeze(Object.create(null) as Record<string, GraphValue>);
+}
+
 function deepFreezeGraphValue(value: GraphValue): GraphValue {
   if (Array.isArray(value)) {
     return Object.freeze(value.map((entry) => deepFreezeGraphValue(entry)));
@@ -222,6 +307,10 @@ export function normalizeCheckpointValue(value: unknown): GraphValue {
   return deepFreezeGraphValue(JSON.parse(serialized) as GraphValue);
 }
 
+function normalizeProperties(value: GraphProperties | undefined): GraphProperties {
+  return value === undefined ? emptyProperties() : normalizeCheckpointValue(value) as GraphProperties;
+}
+
 function normalizePath(
   value: readonly GraphWorkflowPathSegment[] | undefined,
   label: string,
@@ -244,6 +333,15 @@ function normalizeReference(value: GraphReference | undefined): GraphReference |
     id: asString(value.id, 'step.graph.id'),
     ...(value.revision !== undefined ? { revision: asString(value.revision, 'step.graph.revision') } : {}),
     ...(value.snapshot !== undefined ? { snapshot: asString(value.snapshot, 'step.graph.snapshot') } : {}),
+  });
+}
+
+function normalizeApprovalGate(value: GraphWorkflowApprovalGate | undefined): GraphWorkflowApprovalGate | undefined {
+  if (value === undefined) return undefined;
+  return Object.freeze({
+    reason: asString(value.reason, 'step.approval.reason'),
+    ...(value.payload !== undefined ? { payload: normalizeCheckpointValue(value.payload) } : {}),
+    ...(value.metadata !== undefined ? { metadata: normalizeProperties(value.metadata) } : {}),
   });
 }
 
@@ -301,7 +399,8 @@ export function normalizeGraphExecutionPlan(plan: GraphExecutionPlan): GraphExec
       mode: asExecutionMode(step.mode, `plan.steps[${index}].mode`),
       input: normalizeBinding(step.input, previousStepIds),
       ...(step.graph ? { graph: normalizeReference(step.graph) } : {}),
-      ...(step.metadata ? { metadata: normalizeCheckpointValue(step.metadata) as GraphProperties } : {}),
+      ...(step.metadata ? { metadata: normalizeProperties(step.metadata) } : {}),
+      ...(step.approval ? { approval: normalizeApprovalGate(step.approval) } : {}),
     });
     previousStepIds.add(stepId);
     return normalized;
@@ -369,11 +468,124 @@ function parseReceipt(value: unknown): GraphExecutionReceipt {
   });
 }
 
+function decisionSemanticPayload(input: Readonly<{
+  interruptId: string;
+  decisionId: string;
+  outcome: GraphWorkflowDecisionOutcome;
+  actorId: string;
+  comment?: string;
+  payload: GraphValue;
+}>): Readonly<Record<string, unknown>> {
+  return {
+    interruptId: input.interruptId,
+    decisionId: input.decisionId,
+    outcome: input.outcome,
+    actorId: input.actorId,
+    ...(input.comment !== undefined ? { comment: input.comment } : {}),
+    payload: input.payload,
+  };
+}
+
+function normalizeDecisionInput(input: GraphWorkflowDecisionInput): Readonly<{
+  expectedRevision: number;
+  interruptId: string;
+  decisionId: string;
+  outcome: GraphWorkflowDecisionOutcome;
+  actorId: string;
+  comment?: string;
+  payload: GraphValue;
+  requestHash: string;
+}> {
+  const normalized = {
+    expectedRevision: asSafeInteger(input.expectedRevision, 'decision.expectedRevision', 1),
+    interruptId: asString(input.interruptId, 'decision.interruptId'),
+    decisionId: asString(input.decisionId, 'decision.decisionId'),
+    outcome: asDecisionOutcome(input.outcome, 'decision.outcome'),
+    actorId: asString(input.actorId, 'decision.actorId'),
+    ...(input.comment !== undefined ? { comment: asString(input.comment, 'decision.comment') } : {}),
+    payload: input.payload === undefined ? null : normalizeCheckpointValue(input.payload),
+  };
+  return Object.freeze({
+    ...normalized,
+    requestHash: canonicalGraphHash(decisionSemanticPayload(normalized)),
+  });
+}
+
+function parseInterrupt(value: unknown): GraphWorkflowInterrupt {
+  const record = asRecord(value, 'workflow checkpoint.interrupt');
+  return Object.freeze({
+    id: asString(record.id, 'workflow checkpoint.interrupt.id'),
+    stepId: asString(record.stepId, 'workflow checkpoint.interrupt.stepId'),
+    reason: asString(record.reason, 'workflow checkpoint.interrupt.reason'),
+    payload: normalizeCheckpointValue(record.payload),
+    metadata: normalizeCheckpointValue(record.metadata) as GraphProperties,
+    requestedAt: asFiniteNumber(record.requestedAt, 'workflow checkpoint.interrupt.requestedAt'),
+  });
+}
+
+function parseDecisionRecord(value: unknown, index: number): GraphWorkflowDecisionRecord {
+  const label = `workflow checkpoint.decisions[${index}]`;
+  const record = asRecord(value, label);
+  const semantic = {
+    interruptId: asString(record.interruptId, `${label}.interruptId`),
+    decisionId: asString(record.decisionId, `${label}.decisionId`),
+    outcome: asDecisionOutcome(record.outcome, `${label}.outcome`),
+    actorId: asString(record.actorId, `${label}.actorId`),
+    ...(record.comment !== undefined ? { comment: asString(record.comment, `${label}.comment`) } : {}),
+    payload: normalizeCheckpointValue(record.payload),
+  };
+  const requestHash = asString(record.requestHash, `${label}.requestHash`);
+  if (canonicalGraphHash(decisionSemanticPayload(semantic)) !== requestHash) {
+    throw new TypeError(`${label}.requestHash does not bind the persisted decision`);
+  }
+  return Object.freeze({
+    ...semantic,
+    stepId: asString(record.stepId, `${label}.stepId`),
+    requestHash,
+    decidedAt: asFiniteNumber(record.decidedAt, `${label}.decidedAt`),
+  });
+}
+
 function checkpointPayload(
   checkpoint: Omit<GraphWorkflowCheckpoint, 'checkpointHash'>,
 ): Readonly<Record<string, unknown>> {
   return {
     schema: checkpoint.schema,
+    runId: checkpoint.runId,
+    planId: checkpoint.planId,
+    planHash: checkpoint.planHash,
+    inputHash: checkpoint.inputHash,
+    revision: checkpoint.revision,
+    status: checkpoint.status,
+    nextStepIndex: checkpoint.nextStepIndex,
+    runInput: checkpoint.runInput,
+    steps: checkpoint.steps,
+    lease: checkpoint.lease,
+    failure: checkpoint.failure,
+    interrupt: checkpoint.interrupt,
+    decisions: checkpoint.decisions,
+    createdAt: checkpoint.createdAt,
+    updatedAt: checkpoint.updatedAt,
+  };
+}
+
+function legacyCheckpointPayload(checkpoint: Readonly<{
+  runId: string;
+  planId: string;
+  planHash: string;
+  inputHash: string;
+  revision: number;
+  status: 'running' | 'succeeded' | 'failed';
+  nextStepIndex: number;
+  runInput: GraphValue;
+  steps: readonly GraphWorkflowStepRecord[];
+  lease: GraphWorkflowLease | null;
+  failure: GraphWorkflowFailure | null;
+  createdAt: number;
+  updatedAt: number;
+}>): Readonly<Record<string, unknown>> {
+  return {
+    schema: COS_GRAPH_CHECKPOINT_LEGACY_VERSION,
     runId: checkpoint.runId,
     planId: checkpoint.planId,
     planHash: checkpoint.planHash,
@@ -396,6 +608,7 @@ function finalizeCheckpoint(
   return Object.freeze({
     ...checkpoint,
     steps: Object.freeze([...checkpoint.steps]),
+    decisions: Object.freeze([...checkpoint.decisions]),
     checkpointHash: canonicalGraphHash(checkpointPayload(checkpoint)),
   });
 }
@@ -406,9 +619,12 @@ export function parseGraphWorkflowCheckpoint(
 ): GraphWorkflowCheckpoint {
   try {
     const record = asRecord(value, 'workflow checkpoint');
-    if (record.schema !== COS_GRAPH_CHECKPOINT_VERSION) {
-      throw new TypeError(`Unsupported checkpoint schema ${String(record.schema)}`);
+    const schema = record.schema;
+    const isLegacy = schema === COS_GRAPH_CHECKPOINT_LEGACY_VERSION;
+    if (!isLegacy && schema !== COS_GRAPH_CHECKPOINT_VERSION) {
+      throw new TypeError(`Unsupported checkpoint schema ${String(schema)}`);
     }
+
     const runId = asString(record.runId, 'workflow checkpoint.runId');
     if (expectedRunId !== undefined && runId !== expectedRunId) {
       throw new TypeError(`Checkpoint run ${runId} does not match ${expectedRunId}`);
@@ -467,12 +683,48 @@ export function parseGraphWorkflowCheckpoint(
       });
     }
 
-    const statusValue = record.status;
-    if (statusValue !== 'running' && statusValue !== 'succeeded' && statusValue !== 'failed') {
+    const rawStatus = record.status;
+    const legacyStatus = rawStatus === 'running' || rawStatus === 'succeeded' || rawStatus === 'failed';
+    const currentStatus = legacyStatus || rawStatus === 'interrupted' || rawStatus === 'cancelled';
+    if ((isLegacy && !legacyStatus) || (!isLegacy && !currentStatus)) {
       throw new TypeError('workflow checkpoint.status is invalid');
     }
-    const status: GraphWorkflowStatus = statusValue;
-    if (status !== 'running' && lease !== null) {
+    const status = rawStatus as GraphWorkflowStatus;
+
+    const interrupt = isLegacy
+      ? null
+      : record.interrupt === null
+        ? null
+        : parseInterrupt(record.interrupt);
+    if (!isLegacy && !Array.isArray(record.decisions)) {
+      throw new TypeError('workflow checkpoint.decisions must be an array');
+    }
+    const decisions = isLegacy
+      ? Object.freeze([] as GraphWorkflowDecisionRecord[])
+      : Object.freeze((record.decisions as unknown[]).map(parseDecisionRecord));
+
+    const decisionIds = new Set<string>();
+    const decidedInterruptIds = new Set<string>();
+    let previousDecisionTime = Number.NEGATIVE_INFINITY;
+    for (const decision of decisions) {
+      if (decisionIds.has(decision.decisionId)) throw new TypeError(`duplicate workflow decision id ${decision.decisionId}`);
+      if (decidedInterruptIds.has(decision.interruptId)) throw new TypeError(`interrupt ${decision.interruptId} has multiple decisions`);
+      if (decision.decidedAt < previousDecisionTime) throw new TypeError('workflow decisions must be timestamp ordered');
+      decisionIds.add(decision.decisionId);
+      decidedInterruptIds.add(decision.interruptId);
+      previousDecisionTime = decision.decidedAt;
+    }
+
+    if (status === 'interrupted') {
+      if (interrupt === null) throw new TypeError('interrupted workflow checkpoint requires an interrupt');
+      if (lease !== null) throw new TypeError('interrupted workflow checkpoint cannot hold a lease');
+      if (failure !== null) throw new TypeError('interrupted workflow checkpoint cannot contain failure metadata');
+      if (decidedInterruptIds.has(interrupt.id)) throw new TypeError('active interrupt cannot already have a decision');
+    } else if (interrupt !== null) {
+      throw new TypeError('non-interrupted workflow checkpoint cannot contain an active interrupt');
+    }
+
+    if ((status === 'succeeded' || status === 'failed' || status === 'cancelled') && lease !== null) {
       throw new TypeError('terminal workflow checkpoint cannot hold a lease');
     }
     if (status === 'failed' && failure === null) {
@@ -480,6 +732,12 @@ export function parseGraphWorkflowCheckpoint(
     }
     if (status !== 'failed' && failure !== null) {
       throw new TypeError('non-failed workflow checkpoint cannot contain failure metadata');
+    }
+    if (status === 'cancelled') {
+      const lastDecision = decisions.at(-1);
+      if (!lastDecision || lastDecision.outcome !== 'rejected') {
+        throw new TypeError('cancelled workflow checkpoint must end with a rejected approval decision');
+      }
     }
 
     const createdAt = asFiniteNumber(record.createdAt, 'workflow checkpoint.createdAt');
@@ -491,9 +749,16 @@ export function parseGraphWorkflowCheckpoint(
     if (failure !== null && failure.failedAt !== updatedAt) {
       throw new TypeError('workflow checkpoint failure time must equal checkpoint updatedAt');
     }
+    if (interrupt !== null && interrupt.requestedAt !== updatedAt) {
+      throw new TypeError('workflow interrupt requestedAt must equal checkpoint updatedAt');
+    }
+    for (const decision of decisions) {
+      if (decision.decidedAt < createdAt || decision.decidedAt > updatedAt) {
+        throw new TypeError(`workflow decision ${decision.decisionId} timestamp is outside checkpoint lifetime`);
+      }
+    }
 
-    const withoutHash: Omit<GraphWorkflowCheckpoint, 'checkpointHash'> = {
-      schema: COS_GRAPH_CHECKPOINT_VERSION,
+    const common = {
       runId,
       planId: asString(record.planId, 'workflow checkpoint.planId'),
       planHash: asString(record.planHash, 'workflow checkpoint.planHash'),
@@ -508,11 +773,33 @@ export function parseGraphWorkflowCheckpoint(
       createdAt,
       updatedAt,
     };
-    const checkpointHash = asString(record.checkpointHash, 'workflow checkpoint.checkpointHash');
-    if (canonicalGraphHash(checkpointPayload(withoutHash)) !== checkpointHash) {
+
+    const persistedHash = asString(record.checkpointHash, 'workflow checkpoint.checkpointHash');
+    if (isLegacy) {
+      if (canonicalGraphHash(legacyCheckpointPayload({
+        ...common,
+        status: common.status as 'running' | 'succeeded' | 'failed',
+      })) !== persistedHash) {
+        throw new TypeError('legacy workflow checkpoint hash does not match canonical payload');
+      }
+      return finalizeCheckpoint({
+        schema: COS_GRAPH_CHECKPOINT_VERSION,
+        ...common,
+        interrupt: null,
+        decisions: Object.freeze([]),
+      });
+    }
+
+    const withoutHash: Omit<GraphWorkflowCheckpoint, 'checkpointHash'> = {
+      schema: COS_GRAPH_CHECKPOINT_VERSION,
+      ...common,
+      interrupt,
+      decisions,
+    };
+    if (canonicalGraphHash(checkpointPayload(withoutHash)) !== persistedHash) {
       throw new TypeError('workflow checkpoint hash does not match canonical checkpoint payload');
     }
-    return Object.freeze({ ...withoutHash, checkpointHash });
+    return Object.freeze({ ...withoutHash, checkpointHash: persistedHash });
   } catch (error: unknown) {
     if (error instanceof GraphCheckpointError) throw error;
     throw new GraphCheckpointError(
@@ -639,6 +926,7 @@ export class GraphCheckpointRuntime {
   private readonly leaseDurationMs: number;
   private readonly maxCheckpointAttempts: number;
   private readonly clock: () => number;
+  private readonly decisionPolicy?: GraphWorkflowDecisionPolicy;
 
   constructor(
     private readonly runtime: GraphRuntime,
@@ -649,6 +937,7 @@ export class GraphCheckpointRuntime {
     this.leaseDurationMs = options.leaseDurationMs ?? 30_000;
     this.maxCheckpointAttempts = options.maxCheckpointAttempts ?? 8;
     this.clock = options.clock ?? Date.now;
+    this.decisionPolicy = options.decisionPolicy;
     if (!Number.isSafeInteger(this.leaseDurationMs) || this.leaseDurationMs < 1) {
       throw new TypeError('leaseDurationMs must be a positive safe integer');
     }
@@ -659,6 +948,86 @@ export class GraphCheckpointRuntime {
 
   async get(runId: string): Promise<GraphWorkflowCheckpoint | null> {
     return this.checkpoints.load(runId);
+  }
+
+  async decide(
+    runIdValue: string,
+    decisionInput: GraphWorkflowDecisionInput,
+  ): Promise<GraphWorkflowCheckpoint> {
+    const runId = asString(runIdValue, 'runId');
+    const decision = normalizeDecisionInput(decisionInput);
+    let checkpoint = await this.checkpoints.load(runId);
+    if (!checkpoint) {
+      throw new GraphWorkflowError('WORKFLOW_NOT_INTERRUPTED', `Workflow ${runId} does not exist`, { runId });
+    }
+
+    let existing = checkpoint.decisions.find((record) => record.decisionId === decision.decisionId) ?? null;
+    await this.authorizeDecision(runId, checkpoint, decision, existing);
+    if (existing) {
+      if (existing.requestHash !== decision.requestHash) {
+        throw new GraphWorkflowError(
+          'WORKFLOW_DECISION_CONFLICT',
+          `Decision id ${decision.decisionId} was already used for another decision payload`,
+          { runId, decisionId: decision.decisionId },
+        );
+      }
+      return checkpoint;
+    }
+
+    if (checkpoint.status !== 'interrupted' || checkpoint.interrupt === null) {
+      throw new GraphWorkflowError('WORKFLOW_NOT_INTERRUPTED', `Workflow ${runId} is not awaiting a decision`, {
+        runId,
+        status: checkpoint.status,
+      });
+    }
+    if (checkpoint.interrupt.id !== decision.interruptId) {
+      throw new GraphWorkflowError(
+        'WORKFLOW_INTERRUPT_MISMATCH',
+        `Decision targets interrupt ${decision.interruptId}, current interrupt is ${checkpoint.interrupt.id}`,
+        { runId, interruptId: checkpoint.interrupt.id, receivedInterruptId: decision.interruptId },
+      );
+    }
+    if (checkpoint.revision !== decision.expectedRevision) {
+      throw new GraphWorkflowError(
+        'WORKFLOW_DECISION_REVISION_CONFLICT',
+        `Workflow ${runId} decision expected revision ${decision.expectedRevision}, current revision is ${checkpoint.revision}`,
+        { runId, expectedRevision: decision.expectedRevision, currentRevision: checkpoint.revision },
+      );
+    }
+
+    const now = this.readClock(checkpoint.updatedAt);
+    const record: GraphWorkflowDecisionRecord = Object.freeze({
+      decisionId: decision.decisionId,
+      interruptId: decision.interruptId,
+      stepId: checkpoint.interrupt.stepId,
+      outcome: decision.outcome,
+      actorId: decision.actorId,
+      ...(decision.comment !== undefined ? { comment: decision.comment } : {}),
+      payload: decision.payload,
+      requestHash: decision.requestHash,
+      decidedAt: now,
+    });
+    const next = finalizeCheckpoint({
+      ...checkpoint,
+      revision: checkpoint.revision + 1,
+      status: decision.outcome === 'approved' ? 'running' : 'cancelled',
+      lease: null,
+      failure: null,
+      interrupt: null,
+      decisions: Object.freeze([...checkpoint.decisions, record]),
+      updatedAt: now,
+    });
+    const result = await this.checkpoints.compareAndSwap(checkpoint.revision, next);
+    if (result.status === 'committed') return next;
+
+    checkpoint = await this.requireCheckpoint(runId);
+    existing = checkpoint.decisions.find((candidate) => candidate.decisionId === decision.decisionId) ?? null;
+    if (existing && existing.requestHash === decision.requestHash) return checkpoint;
+    throw new GraphWorkflowError(
+      'WORKFLOW_DECISION_REVISION_CONFLICT',
+      `Workflow ${runId} changed while persisting approval decision`,
+      { runId, expectedRevision: decision.expectedRevision, currentRevision: checkpoint.revision },
+    );
   }
 
   async run(
@@ -674,11 +1043,14 @@ export class GraphCheckpointRuntime {
 
     let checkpoint = await this.ensureCheckpoint(plan, planHash, runId, runInput, inputHash);
     this.assertCheckpointIdentity(checkpoint, plan, planHash, inputHash);
-    if (checkpoint.status === 'succeeded') return checkpoint;
+    const terminalOrPaused = this.returnableState(checkpoint);
+    if (terminalOrPaused) return terminalOrPaused;
     if (checkpoint.status === 'failed') this.throwAlreadyFailed(checkpoint);
 
     checkpoint = await this.acquireLease(checkpoint);
-    if (checkpoint.status === 'succeeded') return checkpoint;
+    this.assertCheckpointIdentity(checkpoint, plan, planHash, inputHash);
+    const afterLeaseState = this.returnableState(checkpoint);
+    if (afterLeaseState) return afterLeaseState;
     if (checkpoint.status === 'failed') this.throwAlreadyFailed(checkpoint);
 
     while (checkpoint.nextStepIndex < plan.steps.length) {
@@ -695,11 +1067,17 @@ export class GraphCheckpointRuntime {
       const observedNow = this.readClock(checkpoint.updatedAt);
       if (activeLease.expiresAt <= observedNow) {
         checkpoint = await this.acquireLease(checkpoint);
-        if (checkpoint.status !== 'running') {
-          if (checkpoint.status === 'succeeded') return checkpoint;
-          this.throwAlreadyFailed(checkpoint);
-        }
+        this.assertCheckpointIdentity(checkpoint, plan, planHash, inputHash);
+        const afterRenewState = this.returnableState(checkpoint);
+        if (afterRenewState) return afterRenewState;
+        if (checkpoint.status === 'failed') this.throwAlreadyFailed(checkpoint);
         activeLease = this.requireOwnedLease(checkpoint);
+      }
+
+      if (step.approval && !this.hasApprovedDecision(checkpoint, step.id)) {
+        checkpoint = await this.interruptForApproval(checkpoint, step, planHash);
+        this.assertCheckpointIdentity(checkpoint, plan, planHash, inputHash);
+        return checkpoint;
       }
 
       const idempotencyKey = `gw_${canonicalGraphHash({
@@ -765,6 +1143,7 @@ export class GraphCheckpointRuntime {
           ? null
           : Object.freeze({ ...activeLease, expiresAt: now + this.leaseDurationMs }),
         failure: null,
+        interrupt: null,
         updatedAt: now,
       });
       const saved = await this.checkpoints.compareAndSwap(checkpoint.revision, next);
@@ -773,21 +1152,15 @@ export class GraphCheckpointRuntime {
         continue;
       }
 
-      const latest = await this.checkpoints.load(runId);
-      if (!latest) {
-        throw new GraphWorkflowError(
-          'WORKFLOW_CHECKPOINT_CONFLICT',
-          `Workflow ${runId} checkpoint disappeared after CAS conflict`,
-          { runId },
-        );
-      }
+      const latest = await this.requireCheckpoint(runId);
       this.assertCheckpointIdentity(latest, plan, planHash, inputHash);
       const converged = latest.steps.find(
         (completed) => completed.stepId === step.id && completed.idempotencyKey === idempotencyKey,
       );
       if (latest.nextStepIndex > checkpoint.nextStepIndex && converged) {
         checkpoint = latest;
-        if (checkpoint.status === 'succeeded') return checkpoint;
+        const latestState = this.returnableState(checkpoint);
+        if (latestState) return latestState;
         if (checkpoint.status === 'failed') this.throwAlreadyFailed(checkpoint);
         continue;
       }
@@ -853,6 +1226,8 @@ export class GraphCheckpointRuntime {
       steps: Object.freeze([]),
       lease: null,
       failure: null,
+      interrupt: null,
+      decisions: Object.freeze([]),
       createdAt: now,
       updatedAt: now,
     });
@@ -909,6 +1284,26 @@ export class GraphCheckpointRuntime {
           'WORKFLOW_PLAN_MISMATCH',
           `Workflow ${checkpoint.runId} completed-step history does not match plan`,
           { runId: checkpoint.runId, index },
+        );
+      }
+    }
+    if (checkpoint.interrupt) {
+      const pendingStep = plan.steps[checkpoint.nextStepIndex];
+      if (!pendingStep || pendingStep.id !== checkpoint.interrupt.stepId || !pendingStep.approval) {
+        throw new GraphWorkflowError(
+          'WORKFLOW_PLAN_MISMATCH',
+          `Workflow ${checkpoint.runId} interrupt does not match the pending plan step`,
+          { runId: checkpoint.runId, interruptStepId: checkpoint.interrupt.stepId },
+        );
+      }
+    }
+    for (const decision of checkpoint.decisions) {
+      const decisionStep = plan.steps.find((step) => step.id === decision.stepId);
+      if (!decisionStep?.approval) {
+        throw new GraphWorkflowError(
+          'WORKFLOW_PLAN_MISMATCH',
+          `Workflow ${checkpoint.runId} decision ${decision.decisionId} does not map to an approval-gated plan step`,
+          { runId: checkpoint.runId, decisionId: decision.decisionId, stepId: decision.stepId },
         );
       }
     }
@@ -980,6 +1375,99 @@ export class GraphCheckpointRuntime {
     );
   }
 
+  private async interruptForApproval(
+    checkpoint: GraphWorkflowCheckpoint,
+    step: GraphExecutionPlanStep,
+    planHash: string,
+  ): Promise<GraphWorkflowCheckpoint> {
+    const gate = step.approval;
+    if (!gate) return checkpoint;
+    this.requireOwnedLease(checkpoint);
+    const now = this.readClock(checkpoint.updatedAt);
+    const interruptId = `int_${canonicalGraphHash({
+      runId: checkpoint.runId,
+      planHash,
+      stepId: step.id,
+    }).slice(0, 40)}`;
+    const interrupted = finalizeCheckpoint({
+      ...checkpoint,
+      revision: checkpoint.revision + 1,
+      status: 'interrupted',
+      lease: null,
+      failure: null,
+      interrupt: Object.freeze({
+        id: interruptId,
+        stepId: step.id,
+        reason: gate.reason,
+        payload: gate.payload ?? null,
+        metadata: gate.metadata ?? emptyProperties(),
+        requestedAt: now,
+      }),
+      updatedAt: now,
+    });
+    const result = await this.checkpoints.compareAndSwap(checkpoint.revision, interrupted);
+    if (result.status === 'committed') return interrupted;
+
+    const latest = await this.requireCheckpoint(checkpoint.runId);
+    if (latest.interrupt?.id === interruptId || this.hasApprovedDecision(latest, step.id)) return latest;
+    throw new GraphWorkflowError(
+      'WORKFLOW_LEASE_LOST',
+      `Workflow ${checkpoint.runId} changed while requesting approval for ${step.id}`,
+      { runId: checkpoint.runId, stepId: step.id },
+    );
+  }
+
+  private hasApprovedDecision(checkpoint: GraphWorkflowCheckpoint, stepId: string): boolean {
+    return checkpoint.decisions.some((decision) => decision.stepId === stepId && decision.outcome === 'approved');
+  }
+
+  private async authorizeDecision(
+    runId: string,
+    checkpoint: GraphWorkflowCheckpoint,
+    decision: ReturnType<typeof normalizeDecisionInput>,
+    existingDecision: GraphWorkflowDecisionRecord | null,
+  ): Promise<void> {
+    if (!this.decisionPolicy) {
+      throw new GraphWorkflowError(
+        'WORKFLOW_DECISION_POLICY_REQUIRED',
+        'Human workflow decisions require an explicit authorization policy',
+        { runId, decisionId: decision.decisionId },
+      );
+    }
+    let authorized: boolean;
+    try {
+      authorized = await this.decisionPolicy.authorize(Object.freeze({
+        runId,
+        checkpointRevision: checkpoint.revision,
+        interrupt: checkpoint.interrupt,
+        existingDecision,
+        decision: Object.freeze({
+          interruptId: decision.interruptId,
+          decisionId: decision.decisionId,
+          outcome: decision.outcome,
+          actorId: decision.actorId,
+          ...(decision.comment !== undefined ? { comment: decision.comment } : {}),
+          payload: decision.payload,
+          requestHash: decision.requestHash,
+        }),
+      }));
+    } catch (error: unknown) {
+      throw new GraphWorkflowError(
+        'WORKFLOW_DECISION_POLICY_FAILED',
+        'Workflow decision authorization policy failed',
+        { runId, decisionId: decision.decisionId },
+        { cause: error },
+      );
+    }
+    if (!authorized) {
+      throw new GraphWorkflowError(
+        'WORKFLOW_DECISION_DENIED',
+        'Workflow decision was denied by authorization policy',
+        { runId, decisionId: decision.decisionId, actorId: decision.actorId },
+      );
+    }
+  }
+
   private requireOwnedLease(checkpoint: GraphWorkflowCheckpoint): GraphWorkflowLease {
     const lease = checkpoint.lease;
     if (!lease || lease.ownerId !== this.workerId) {
@@ -990,6 +1478,13 @@ export class GraphCheckpointRuntime {
       );
     }
     return lease;
+  }
+
+  private returnableState(checkpoint: GraphWorkflowCheckpoint): GraphWorkflowCheckpoint | null {
+    if (checkpoint.status === 'succeeded' || checkpoint.status === 'interrupted' || checkpoint.status === 'cancelled') {
+      return checkpoint;
+    }
+    return null;
   }
 
   private throwAlreadyFailed(checkpoint: GraphWorkflowCheckpoint): never {
@@ -1027,6 +1522,7 @@ export class GraphCheckpointRuntime {
       status: 'failed',
       lease: null,
       failure: errorSummary(error, now, stepId),
+      interrupt: null,
       updatedAt: now,
     });
     const result = await this.checkpoints.compareAndSwap(checkpoint.revision, failed);
@@ -1038,5 +1534,13 @@ export class GraphCheckpointRuntime {
         { cause: error },
       );
     }
+  }
+
+  private async requireCheckpoint(runId: string): Promise<GraphWorkflowCheckpoint> {
+    const checkpoint = await this.checkpoints.load(runId);
+    if (!checkpoint) {
+      throw new GraphWorkflowError('WORKFLOW_CHECKPOINT_CONFLICT', `Workflow ${runId} checkpoint is missing`, { runId });
+    }
+    return checkpoint;
   }
 }

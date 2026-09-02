@@ -11,7 +11,8 @@
     "scripts/test-framework-state-runtime.ts",
     "scripts/test-framework-csr-adapter.ts",
     "scripts/test-framework-durable-state.ts",
-    "scripts/test-framework-checkpoint-runtime.ts"
+    "scripts/test-framework-checkpoint-runtime.ts",
+    "scripts/test-framework-hitl-runtime.ts"
   ],
   "exclude": [
     "node_modules"
