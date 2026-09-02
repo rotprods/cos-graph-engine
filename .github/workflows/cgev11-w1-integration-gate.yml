@@ -1,0 +1,81 @@
+name: CGE V11 W1 integration gate
+
+on:
+  push:
+    branches: [fix/strict-typecheck-regressions]
+    paths:
+      - '.github/workflows/cgev11-w1-integration-gate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cgev11-w1-integration-gate
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22.12.0'
+
+jobs:
+  quality-and-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm audit --audit-level=high
+      - run: npm run asbuild
+      - run: npx --no-install tsc --noEmit
+      - run: npm run test:all
+
+  specialized-suites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run asbuild
+      - run: npm run test:csr
+      - run: npm run test:pruning
+      - run: npm run test:benchmark
+      - run: npm run test:wasm
+      - run: npx tsx scripts/test-wasm-extended.ts
+      - run: npm run test:observability
+      - run: npm run test:visualization
+
+  performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run asbuild
+      - run: npm run benchmark
+
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run coverage
