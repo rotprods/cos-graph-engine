@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "checkpointId": "CP-T0502_PROVIDER_TRUTH_RECOVERY_PROTOCOL_VERIFIED",
+  "projectId": "COS_GRAPH_ENGINE",
+  "objectiveId": "T0502F_I",
+  "status": "PASS_WITH_EXPLICIT_RUNTIME_EXECUTION_GATE",
+  "promotedAt": "2026-09-02T11:30:00Z",
+  "baseSha": "5e512f5016fb922bca304d772052d4abeb5579ca",
+  "evidencePath": "control-plane/v2/runtime-qualification/t0502f/evidence.json",
+  "entryCriteria": [
+    "T0501 provider evidence SHA-256 boundary targeted-pass",
+    "T0502 provider classifier/inspectors targeted-pass",
+    "T0502D durable absence store targeted-pass with real Postgres pending",
+    "T0502E real pinned read client core targeted-pass with full inspector composition pending"
+  ],
+  "verifiedAtThisCheckpoint": [
+    "exact-published bounded provider truth recovery model PASS",
+    "19 targeted recovery assertions PASS",
+    "2747 reachable states explored at depth 11",
+    "6697 transitions explored",
+    "0 model safety violations",
+    "11 adversarial mutation families rejected",
+    "all 9 protocol invariants mapped to canonical existing runtime owners",
+    "runtime integration contract exact source persisted without introducing a second authority runtime"
+  ],
+  "notVerified": [
+    "runtime integration contract execution in full monorepo closure",
+    "real provider timeout-after-acceptance mutation",
+    "real Postgres/Supabase transaction isolation and restart",
+    "OS multi-process worker kill/takeover/contention",
+    "full repository security/replay/restore"
+  ],
+  "promotionEffect": {
+    "protocolModel": "VERIFIED_TARGETED",
+    "runtimeIntegration": "WRITTEN_UNEXECUTED",
+    "runtimeAuthority": "SHADOW_ONLY",
+    "globalBuildScore": "UNCHANGED",
+    "globalAssuranceScore": "UNCHANGED",
+    "globalAuthorityScore": "UNCHANGED"
+  },
+  "nextGate": {
+    "id": "CP-T0502-RUNTIME-INTEGRATION-EXECUTED",
+    "required": [
+      "clean full monorepo checkout",
+      "strict T0502F TypeScript closure PASS",
+      "scripts/test-authority-provider-truth-recovery.ts PASS",
+      "no test weakening or package-root authority bypass"
+    ]
+  },
+  "rollback": "Close PR #89 without merge and retain PR #83 as prior provider-read checkpoint."
+}
