@@ -2,6 +2,8 @@ import {
   COS_GRAPH_PERSISTENCE_IMAGE_VERSION,
   GraphDurabilityDriver,
   GraphPersistenceCommit,
+  GraphPersistenceCompaction,
+  GraphPersistenceCompactionResult,
   GraphPersistenceCompareAndSwapResult,
 } from '../durability';
 
@@ -95,6 +97,11 @@ function asText(value: unknown, label: string): string {
   return value;
 }
 
+function asNullableText(value: unknown, label: string): string | null {
+  if (value === null) return null;
+  return asText(value, label);
+}
+
 function parseJson(value: unknown, label: string): unknown {
   const text = asText(value, label);
   try {
@@ -104,8 +111,15 @@ function parseJson(value: unknown, label: string): unknown {
   }
 }
 
+function changesAsNumber(result: SQLiteRunResult, label: string): number {
+  const changes = typeof result.changes === 'bigint' ? Number(result.changes) : result.changes;
+  if (!Number.isSafeInteger(changes) || changes < 0) {
+    throw new SQLiteDurabilityError('SQLITE_ROW_INVALID', `${label}.changes must be a non-negative safe integer`);
+  }
+  return changes;
+}
+
 function assertCommitShape(commit: GraphPersistenceCommit): void {
-  const nextVersion = commit.expectedStorageVersion + 1;
   if (!Number.isSafeInteger(commit.expectedStorageVersion) || commit.expectedStorageVersion < 0) {
     throw new SQLiteDurabilityError('SQLITE_COMMIT_INVALID', 'expectedStorageVersion must be a non-negative safe integer');
   }
@@ -114,18 +128,26 @@ function assertCommitShape(commit: GraphPersistenceCommit): void {
     || commit.snapshot.graph.graphId !== commit.graphId
     || commit.idempotency.receipt.graphId !== commit.graphId
   ) {
-    throw new SQLiteDurabilityError('SQLITE_COMMIT_INVALID', 'Commit graph identifiers are inconsistent', { graphId: commit.graphId });
+    throw new SQLiteDurabilityError('SQLITE_COMMIT_INVALID', 'Commit graph identifiers are inconsistent', {
+      graphId: commit.graphId,
+    });
   }
   if (
-    commit.event.baseRevision !== commit.expectedStorageVersion
-    || commit.event.revision !== nextVersion
-    || commit.snapshot.graph.revision !== nextVersion
-    || commit.snapshot.eventCount !== nextVersion
+    commit.event.revision !== commit.event.baseRevision + 1
+    || commit.snapshot.graph.revision !== commit.event.revision
+    || commit.snapshot.eventCount !== commit.event.revision
+    || commit.snapshot.lastEventHash !== commit.event.eventHash
+    || commit.snapshot.stateHash !== commit.event.afterStateHash
   ) {
     throw new SQLiteDurabilityError(
       'SQLITE_COMMIT_INVALID',
-      'Commit revision/storageVersion sequence is inconsistent',
-      { graphId: commit.graphId, expectedStorageVersion: commit.expectedStorageVersion },
+      'Commit semantic revision/snapshot sequence is inconsistent',
+      {
+        graphId: commit.graphId,
+        expectedStorageVersion: commit.expectedStorageVersion,
+        eventBaseRevision: commit.event.baseRevision,
+        eventRevision: commit.event.revision,
+      },
     );
   }
   if (
@@ -133,8 +155,31 @@ function assertCommitShape(commit: GraphPersistenceCommit): void {
     || commit.idempotency.requestHash !== commit.event.requestHash
     || commit.idempotency.receipt.eventId !== commit.event.eventId
     || commit.idempotency.receipt.eventHash !== commit.event.eventHash
+    || commit.idempotency.receipt.revision !== commit.event.revision
+    || commit.idempotency.receipt.stateHash !== commit.event.afterStateHash
+    || commit.idempotency.receipt.idempotentReplay
   ) {
-    throw new SQLiteDurabilityError('SQLITE_COMMIT_INVALID', 'Commit idempotency record is not bound to its event', { graphId: commit.graphId });
+    throw new SQLiteDurabilityError('SQLITE_COMMIT_INVALID', 'Commit idempotency record is not bound to its event', {
+      graphId: commit.graphId,
+    });
+  }
+}
+
+function assertCompactionShape(compaction: GraphPersistenceCompaction): void {
+  if (!Number.isSafeInteger(compaction.expectedStorageVersion) || compaction.expectedStorageVersion < 1) {
+    throw new SQLiteDurabilityError(
+      'SQLITE_COMMIT_INVALID',
+      'Compaction expectedStorageVersion must be a positive safe integer',
+    );
+  }
+  if (
+    compaction.anchor.snapshot.graph.graphId !== compaction.graphId
+    || compaction.anchor.snapshot.eventCount !== compaction.anchor.snapshot.graph.revision
+    || compaction.anchor.snapshot.eventCount < 1
+  ) {
+    throw new SQLiteDurabilityError('SQLITE_COMMIT_INVALID', 'Compaction anchor is inconsistent with graph identity/revision', {
+      graphId: compaction.graphId,
+    });
   }
 }
 
@@ -162,7 +207,8 @@ export class SQLiteGraphDurabilityDriver implements GraphDurabilityDriver {
       CREATE TABLE IF NOT EXISTS cos_graph_heads (
         graph_id TEXT PRIMARY KEY,
         storage_version INTEGER NOT NULL CHECK (storage_version >= 1),
-        snapshot_json TEXT NOT NULL
+        snapshot_json TEXT NOT NULL,
+        anchor_json TEXT
       ) STRICT;
 
       CREATE TABLE IF NOT EXISTS cos_graph_events (
@@ -185,17 +231,20 @@ export class SQLiteGraphDurabilityDriver implements GraphDurabilityDriver {
       CREATE INDEX IF NOT EXISTS cos_graph_events_graph_event_id
         ON cos_graph_events (graph_id, event_id);
     `);
+    this.migrateHeadSchemaIfNeeded();
   }
 
   load(graphId: string): unknown | null {
     this.assertOpen();
     const headValue = this.database.prepare(
-      'SELECT storage_version, snapshot_json FROM cos_graph_heads WHERE graph_id = ?',
+      'SELECT storage_version, snapshot_json, anchor_json FROM cos_graph_heads WHERE graph_id = ?',
     ).get(graphId);
     if (headValue === undefined) return null;
     const head = asRow(headValue, 'cos_graph_heads');
     const storageVersion = asSafeInteger(head.storage_version, 'cos_graph_heads.storage_version');
     const snapshot = parseJson(head.snapshot_json, 'cos_graph_heads.snapshot_json');
+    const anchorJson = asNullableText(head.anchor_json, 'cos_graph_heads.anchor_json');
+    const anchor = anchorJson === null ? null : parseJson(anchorJson, 'cos_graph_heads.anchor_json');
 
     const events = this.database.prepare(
       'SELECT event_json FROM cos_graph_events WHERE graph_id = ? ORDER BY revision ASC',
@@ -220,6 +269,7 @@ export class SQLiteGraphDurabilityDriver implements GraphDurabilityDriver {
       graphId,
       storageVersion,
       snapshot,
+      anchor,
       events,
       idempotency,
     };
@@ -258,18 +308,17 @@ export class SQLiteGraphDurabilityDriver implements GraphDurabilityDriver {
 
       if (currentVersion === 0) {
         this.database.prepare(
-          'INSERT INTO cos_graph_heads (graph_id, storage_version, snapshot_json) VALUES (?, ?, ?)',
+          'INSERT INTO cos_graph_heads (graph_id, storage_version, snapshot_json, anchor_json) VALUES (?, ?, ?, NULL)',
         ).run(commit.graphId, nextVersion, JSON.stringify(commit.snapshot));
       } else {
         const update = this.database.prepare(
           'UPDATE cos_graph_heads SET storage_version = ?, snapshot_json = ? WHERE graph_id = ? AND storage_version = ?',
         ).run(nextVersion, JSON.stringify(commit.snapshot), commit.graphId, currentVersion);
-        const changes = typeof update.changes === 'bigint' ? Number(update.changes) : update.changes;
-        if (changes !== 1) {
+        if (changesAsNumber(update, 'graph head update') !== 1) {
           throw new SQLiteDurabilityError(
             'SQLITE_COMMIT_INVALID',
             'Graph head compare-and-swap update affected an unexpected number of rows',
-            { graphId: commit.graphId, changes },
+            { graphId: commit.graphId },
           );
         }
       }
@@ -277,13 +326,96 @@ export class SQLiteGraphDurabilityDriver implements GraphDurabilityDriver {
       this.database.exec('COMMIT;');
       return { status: 'committed', storageVersion: nextVersion };
     } catch (error: unknown) {
-      try {
-        this.database.exec('ROLLBACK;');
-      } catch {
-        // Preserve the original write failure. A failed rollback leaves this driver unsafe;
-        // the caller should discard/close it rather than treating the operation as committed.
+      this.rollbackPreserving(error);
+    }
+  }
+
+  compact(compaction: GraphPersistenceCompaction): GraphPersistenceCompactionResult {
+    this.assertOpen();
+    assertCompactionShape(compaction);
+    this.database.exec('BEGIN IMMEDIATE;');
+    try {
+      const headValue = this.database.prepare(
+        'SELECT storage_version, snapshot_json FROM cos_graph_heads WHERE graph_id = ?',
+      ).get(compaction.graphId);
+      if (headValue === undefined) {
+        throw new SQLiteDurabilityError('SQLITE_COMMIT_INVALID', 'Cannot compact a missing graph', {
+          graphId: compaction.graphId,
+        });
       }
-      throw error;
+      const head = asRow(headValue, 'cos_graph_heads');
+      const currentVersion = asSafeInteger(head.storage_version, 'cos_graph_heads.storage_version');
+      if (currentVersion !== compaction.expectedStorageVersion) {
+        this.database.exec('ROLLBACK;');
+        return { status: 'conflict' };
+      }
+
+      const headSnapshot = asRow(parseJson(head.snapshot_json, 'cos_graph_heads.snapshot_json'), 'head snapshot');
+      const headGraph = asRow(headSnapshot.graph, 'head snapshot.graph');
+      if (
+        headGraph.graphId !== compaction.graphId
+        || headGraph.revision !== compaction.anchor.snapshot.graph.revision
+        || headSnapshot.eventCount !== compaction.anchor.snapshot.eventCount
+        || headSnapshot.stateHash !== compaction.anchor.snapshot.stateHash
+        || headSnapshot.lastEventHash !== compaction.anchor.snapshot.lastEventHash
+      ) {
+        throw new SQLiteDurabilityError(
+          'SQLITE_COMMIT_INVALID',
+          'Compaction anchor does not bind the current durable graph head',
+          { graphId: compaction.graphId },
+        );
+      }
+
+      const countValue = this.database.prepare(
+        'SELECT COUNT(*) AS event_count FROM cos_graph_events WHERE graph_id = ?',
+      ).get(compaction.graphId);
+      const retainedBefore = asSafeInteger(
+        asRow(countValue, 'event count').event_count,
+        'event count.event_count',
+      );
+      const beyondValue = this.database.prepare(
+        'SELECT COUNT(*) AS event_count FROM cos_graph_events WHERE graph_id = ? AND revision > ?',
+      ).get(compaction.graphId, compaction.anchor.snapshot.graph.revision);
+      const beyondAnchor = asSafeInteger(
+        asRow(beyondValue, 'events beyond anchor').event_count,
+        'events beyond anchor.event_count',
+      );
+      if (beyondAnchor !== 0) {
+        throw new SQLiteDurabilityError(
+          'SQLITE_COMMIT_INVALID',
+          'Compaction-to-head found event rows beyond the proposed anchor',
+          { graphId: compaction.graphId, beyondAnchor },
+        );
+      }
+
+      const deleted = this.database.prepare(
+        'DELETE FROM cos_graph_events WHERE graph_id = ? AND revision <= ?',
+      ).run(compaction.graphId, compaction.anchor.snapshot.graph.revision);
+      const prunedEvents = changesAsNumber(deleted, 'event compaction delete');
+      if (prunedEvents !== retainedBefore) {
+        throw new SQLiteDurabilityError(
+          'SQLITE_COMMIT_INVALID',
+          'Compaction did not prune exactly the retained event tail',
+          { graphId: compaction.graphId, retainedBefore, prunedEvents },
+        );
+      }
+
+      const nextVersion = currentVersion + 1;
+      const update = this.database.prepare(
+        'UPDATE cos_graph_heads SET storage_version = ?, anchor_json = ? WHERE graph_id = ? AND storage_version = ?',
+      ).run(nextVersion, JSON.stringify(compaction.anchor), compaction.graphId, currentVersion);
+      if (changesAsNumber(update, 'graph anchor update') !== 1) {
+        throw new SQLiteDurabilityError(
+          'SQLITE_COMMIT_INVALID',
+          'Compaction head compare-and-swap update affected an unexpected number of rows',
+          { graphId: compaction.graphId },
+        );
+      }
+
+      this.database.exec('COMMIT;');
+      return { status: 'compacted', storageVersion: nextVersion, prunedEvents };
+    } catch (error: unknown) {
+      this.rollbackPreserving(error);
     }
   }
 
@@ -293,7 +425,26 @@ export class SQLiteGraphDurabilityDriver implements GraphDurabilityDriver {
     this.closed = true;
   }
 
+  private migrateHeadSchemaIfNeeded(): void {
+    const columns = this.database.prepare('PRAGMA table_info(cos_graph_heads)').all();
+    const hasAnchor = columns.some((value) => asRow(value, 'cos_graph_heads column').name === 'anchor_json');
+    if (!hasAnchor) {
+      this.database.exec('ALTER TABLE cos_graph_heads ADD COLUMN anchor_json TEXT;');
+    }
+  }
+
+  private rollbackPreserving(error: unknown): never {
+    try {
+      this.database.exec('ROLLBACK;');
+    } catch {
+      // Preserve the original failure. A failed rollback leaves this connection unsafe.
+    }
+    throw error;
+  }
+
   private assertOpen(): void {
-    if (this.closed) throw new SQLiteDurabilityError('SQLITE_UNAVAILABLE', 'SQLite durability driver is closed');
+    if (this.closed) {
+      throw new SQLiteDurabilityError('SQLITE_UNAVAILABLE', 'SQLite durability driver is closed');
+    }
   }
 }

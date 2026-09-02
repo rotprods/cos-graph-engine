@@ -14,6 +14,8 @@ on:
       - 'scripts/test-framework-durable-state.ts'
       - 'scripts/test-framework-checkpoint-runtime.ts'
       - 'scripts/test-framework-hitl-runtime.ts'
+      - 'scripts/test-framework-compaction.ts'
+      - 'scripts/test-framework-compaction-hardening.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
   push:
@@ -25,6 +27,7 @@ on:
       - 'feat/graph-durable-state-v1'
       - 'feat/graph-checkpoint-runtime-v1'
       - 'feat/graph-hitl-runtime-v1'
+      - 'feat/graph-compaction-v1'
     paths:
       - 'packages/graph/src/framework/**'
       - 'packages/graph/src/csr.ts'
@@ -37,6 +40,8 @@ on:
       - 'scripts/test-framework-durable-state.ts'
       - 'scripts/test-framework-checkpoint-runtime.ts'
       - 'scripts/test-framework-hitl-runtime.ts'
+      - 'scripts/test-framework-compaction.ts'
+      - 'scripts/test-framework-compaction-hardening.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
 
@@ -71,3 +76,5 @@ jobs:
           NODE_OPTIONS=--experimental-sqlite npx --no-install tsx scripts/test-framework-durable-state.ts
           NODE_OPTIONS=--experimental-sqlite npx --no-install tsx scripts/test-framework-checkpoint-runtime.ts
           NODE_OPTIONS=--experimental-sqlite npx --no-install tsx scripts/test-framework-hitl-runtime.ts
+          NODE_OPTIONS=--experimental-sqlite npx --no-install tsx scripts/test-framework-compaction.ts
+          NODE_OPTIONS=--experimental-sqlite npx --no-install tsx scripts/test-framework-compaction-hardening.ts
