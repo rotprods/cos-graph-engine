@@ -1,0 +1,45 @@
+name: Graph Framework Protocol
+
+on:
+  pull_request:
+    paths:
+      - 'packages/graph/src/framework/**'
+      - 'scripts/test-framework-protocol.ts'
+      - 'scripts/test-framework-protocol-hardening.ts'
+      - 'tsconfig.framework.json'
+      - '.github/workflows/framework-protocol.yml'
+  push:
+    branches:
+      - 'feat/graph-framework-protocol-v1'
+    paths:
+      - 'packages/graph/src/framework/**'
+      - 'scripts/test-framework-protocol.ts'
+      - 'scripts/test-framework-protocol-hardening.ts'
+      - 'tsconfig.framework.json'
+      - '.github/workflows/framework-protocol.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: graph-framework-protocol-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Targeted strict typecheck
+        run: npx --no-install tsc -p tsconfig.framework.json --noEmit
+      - name: Protocol conformance regression suite
+        run: |
+          npx --no-install tsx scripts/test-framework-protocol.ts
+          npx --no-install tsx scripts/test-framework-protocol-hardening.ts
