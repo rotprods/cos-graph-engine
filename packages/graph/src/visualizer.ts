@@ -149,7 +149,12 @@ function buildLevelSnapshot(levelId: string): VisualizerLevelSnapshot {
     case 'L7': {
       const engine = new ComputationalGraph();
       engine.buildMLP();
-      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+      const json = engine.toJSON();
+      return snapshotFromJSON(json, {
+        nodeCount: json.nodes.length,
+        edgeCount: json.edges.length,
+        parameterCount: engine.paramCount(),
+      });
     }
     case 'L8': {
       const engine = new KnowledgeGraphEngine();
