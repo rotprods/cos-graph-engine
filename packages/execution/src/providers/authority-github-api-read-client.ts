@@ -132,11 +132,13 @@ function githubReadUrl(request: AuthorityGitHubReadRequest): string {
     throw new Error(`GITHUB_READ_ORIGIN_DENIED origin=${url.origin}`);
   }
   const segments = url.pathname.split('/').filter(Boolean).map(segment => decode(segment));
-  if (segments.length < 3 || segments[0] !== 'repos') {
+  const owner = segments[1];
+  const repository = segments[2];
+  if (segments[0] !== 'repos' || owner === undefined || repository === undefined) {
     throw new Error(`GITHUB_READ_REPOSITORY_PATH_REQUIRED path=${url.pathname}`);
   }
-  if (segments[1].toLowerCase() !== request.owner.toLowerCase()
-    || segments[2].toLowerCase() !== request.repository.toLowerCase()) {
+  if (owner.toLowerCase() !== request.owner.toLowerCase()
+    || repository.toLowerCase() !== request.repository.toLowerCase()) {
     throw new Error('GITHUB_READ_REPOSITORY_MISMATCH');
   }
   url.hash = '';
@@ -173,18 +175,19 @@ function githubRevision(response: AuthorityProviderReadHttpResponse): string | n
 
 function normalizeCandidates(input: AuthorityProviderReadCandidate[]): AuthorityProviderReadCandidate[] {
   const value = canonicalClone(input, 'GitHub extracted candidates');
-  return value.map(candidate => ({
-    providerResourceId: nonEmpty(candidate.providerResourceId, 'GitHub providerResourceId'),
-    ...(optional(candidate.operationId) === undefined ? {} : { operationId: optional(candidate.operationId) }),
-    ...(optional(candidate.providerIdempotencyKey) === undefined
-      ? {}
-      : { providerIdempotencyKey: optional(candidate.providerIdempotencyKey) }),
-    ...(optional(candidate.operationContentHash) === undefined
-      ? {}
-      : { operationContentHash: optional(candidate.operationContentHash) }),
-    result: canonicalClone(candidate.result, 'GitHub candidate result'),
-    evidence: canonicalClone(candidate.evidence, 'GitHub candidate evidence'),
-  }));
+  return value.map(candidate => {
+    const operationId = optional(candidate.operationId);
+    const providerIdempotencyKey = optional(candidate.providerIdempotencyKey);
+    const operationContentHash = optional(candidate.operationContentHash);
+    return {
+      providerResourceId: nonEmpty(candidate.providerResourceId, 'GitHub providerResourceId'),
+      ...(operationId === undefined ? {} : { operationId }),
+      ...(providerIdempotencyKey === undefined ? {} : { providerIdempotencyKey }),
+      ...(operationContentHash === undefined ? {} : { operationContentHash }),
+      result: canonicalClone(candidate.result, 'GitHub candidate result'),
+      evidence: canonicalClone(candidate.evidence, 'GitHub candidate evidence'),
+    };
+  });
 }
 
 async function optionalToken(source: AuthorityGitHubAccessTokenSource | undefined): Promise<string | null> {
