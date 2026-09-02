@@ -1,17 +1,21 @@
 // DFS traversal on CSR graph — AssemblyScript
-// Depth-first search with stack-based iteration
+// Explicit linear-memory ABI for JS/WASM interop.
 
 export function dfs(
-  offsets: StaticArray<u32>,
-  edges: StaticArray<u32>,
-  source: u32,
-  numNodes: u32,
-  output: StaticArray<u32>
-): u32 {
+  offsetsPtr: usize,
+  offsetsLen: i32,
+  edgesPtr: usize,
+  edgesLen: i32,
+  source: i32,
+  outputPtr: usize
+): i32 {
+  const numNodes = offsetsLen - 1;
+  if (numNodes <= 0 || source < 0 || source >= numNodes) return 0;
+
   const visited = new StaticArray<bool>(numNodes);
-  const stack = new StaticArray<u32>(numNodes);
-  let stackIdx: u32 = 0;
-  let outIdx: u32 = 0;
+  const stack = new StaticArray<i32>(numNodes);
+  let stackIdx: i32 = 0;
+  let outIdx: i32 = 0;
 
   stack[stackIdx++] = source;
 
@@ -19,15 +23,17 @@ export function dfs(
     const node = stack[--stackIdx];
     if (visited[node]) continue;
     visited[node] = true;
-    output[outIdx++] = node;
+    store<i32>(outputPtr + outIdx * 4, node);
+    outIdx++;
 
-    const start = offsets[node];
-    const end = offsets[node + 1];
+    const start = load<i32>(offsetsPtr + node * 4);
+    const end = load<i32>(offsetsPtr + (node + 1) * 4);
     let i = end;
     while (i > start) {
       i--;
-      const neighbor = edges[i];
-      if (!visited[neighbor]) {
+      if (i < 0 || i >= edgesLen) continue;
+      const neighbor = load<i32>(edgesPtr + i * 4);
+      if (neighbor >= 0 && neighbor < numNodes && !visited[neighbor]) {
         stack[stackIdx++] = neighbor;
       }
     }
@@ -36,28 +42,33 @@ export function dfs(
 }
 
 export function dfsHasPath(
-  offsets: StaticArray<u32>,
-  edges: StaticArray<u32>,
-  source: u32,
-  target: u32,
-  numNodes: u32
+  offsetsPtr: usize,
+  offsetsLen: i32,
+  edgesPtr: usize,
+  edgesLen: i32,
+  source: i32,
+  target: i32
 ): bool {
+  const numNodes = offsetsLen - 1;
+  if (numNodes <= 0 || source < 0 || source >= numNodes || target < 0 || target >= numNodes) return false;
   if (source == target) return true;
+
   const visited = new StaticArray<bool>(numNodes);
-  const stack = new StaticArray<u32>(numNodes);
-  let stackIdx: u32 = 0;
+  const stack = new StaticArray<i32>(numNodes);
+  let stackIdx: i32 = 0;
   stack[stackIdx++] = source;
 
   while (stackIdx > 0) {
     const node = stack[--stackIdx];
     if (visited[node]) continue;
     visited[node] = true;
-    const start = offsets[node];
-    const end = offsets[node + 1];
+    const start = load<i32>(offsetsPtr + node * 4);
+    const end = load<i32>(offsetsPtr + (node + 1) * 4);
     for (let i = start; i < end; i++) {
-      const neighbor = edges[i];
+      if (i < 0 || i >= edgesLen) continue;
+      const neighbor = load<i32>(edgesPtr + i * 4);
       if (neighbor == target) return true;
-      if (!visited[neighbor]) stack[stackIdx++] = neighbor;
+      if (neighbor >= 0 && neighbor < numNodes && !visited[neighbor]) stack[stackIdx++] = neighbor;
     }
   }
   return false;
