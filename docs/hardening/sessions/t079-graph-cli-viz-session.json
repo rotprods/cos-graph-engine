@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "ses_92fae1e5-9b6d-4504-b15e-eb7e5c7269a3",
+  "claimId": "claim_5637ab76-80a7-4743-84c7-d95e31c07c73",
+  "correlationId": "corr_53a4f734-74cd-43e6-a343-486ea45c265a",
+  "projectId": "COS_GRAPH_ENGINE",
+  "objectiveId": "T079_GRAPH_STRICT_TYPECHECK",
+  "createdAt": "2026-09-02T07:57:00Z",
+  "status": "ACTIVE",
+  "branch": "fix/strict-typecheck-graph-cli-viz",
+  "baseSha": "7833953b3666502cc206b19fa16e2c19189f4fe6",
+  "fencingToken": 1,
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "exclusiveResourceScopes": [
+    "packages/graph/src/cli.ts",
+    "packages/graph/src/csr.ts",
+    "packages/graph/src/playground.ts",
+    "packages/graph/src/visualizer.ts",
+    "docs/hardening/sessions/t079-graph-cli-viz-*"
+  ],
+  "observedFailures": [
+    "cli.ts: QueueScheduler export and stale pipeline signatures",
+    "csr.ts: memoryImprovement property mismatch",
+    "playground.ts: stale VisualGraph constructor/renderer contract",
+    "visualizer.ts: stale demo/helper APIs"
+  ],
+  "constraints": [
+    "do not reintroduce deleted compatibility APIs just to satisfy TypeScript",
+    "no ts-ignore or ts-nocheck",
+    "no blanket any escape",
+    "no CI workflow mutation",
+    "no fiscal/runtime/main overlap"
+  ],
+  "successCriterion": "npx --no-install tsc --noEmit advances past this failure family with no new diagnostic caused by these four files",
+  "rollback": "drop this child branch; parent PR #79 remains unchanged"
+}
