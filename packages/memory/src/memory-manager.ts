@@ -1,6 +1,6 @@
 import {
   MemoryEntry, MemoryLayer, MemoryQuery, IMemoryStore, MemoryStoreStats,
-  EntityId, Timestamp, Version,
+  EntityId, Timestamp,
 } from '@cos/core';
 import { generateId } from '@cos/core';
 
@@ -14,18 +14,13 @@ export class InMemoryStore implements IMemoryStore {
   private tagIndex: Map<string, Set<EntityId>> = new Map();
 
   constructor() {
-    // Initialize all layers
     const layers: MemoryLayer[] = [
       'working', 'short_term', 'long_term', 'semantic',
       'procedural', 'episodic', 'temporal', 'spatial',
       'vector', 'knowledge_graph', 'cache', 'reflection',
     ];
-    for (const layer of layers) {
-      this.layerIndex.set(layer, new Set());
-    }
-
-    // Start TTL sweeper
-    setInterval(() => this.sweepExpired(), 60000); // every 60s
+    for (const layer of layers) this.layerIndex.set(layer, new Set());
+    setInterval(() => this.sweepExpired(), 60000);
   }
 
   async store(entry: MemoryEntry): Promise<EntityId> {
@@ -38,17 +33,11 @@ export class InMemoryStore implements IMemoryStore {
     };
 
     this.entries.set(id, stored);
-
-    // Index by layer
-    const layerSet = this.layerIndex.get(entry.layer);
-    if (layerSet) layerSet.add(id);
-
-    // Index by tags
+    this.layerIndex.get(entry.layer)?.add(id);
     for (const tag of entry.tags || []) {
       if (!this.tagIndex.has(tag)) this.tagIndex.set(tag, new Set());
       this.tagIndex.get(tag)!.add(id);
     }
-
     return id;
   }
 
@@ -56,7 +45,6 @@ export class InMemoryStore implements IMemoryStore {
     const entry = this.entries.get(id);
     if (!entry) return null;
 
-    // Check TTL
     if (entry.ttl !== null && entry.ttl > 0) {
       const age = Date.now() - new Date(entry.createdAt).getTime();
       if (age > entry.ttl * 1000) {
@@ -65,65 +53,60 @@ export class InMemoryStore implements IMemoryStore {
       }
     }
 
-    // Update access stats
     entry.lastAccessed = new Date().toISOString();
     entry.accessCount += 1;
-
     return entry;
   }
 
   async query(q: MemoryQuery): Promise<MemoryEntry[]> {
     let results = Array.from(this.entries.values());
 
-    // Filter by layer
-    if (q.layer) {
-      results = results.filter(e => e.layer === q.layer);
+    if (q.layer) results = results.filter(e => e.layer === q.layer);
+
+    const tags = q.tags;
+    if (tags?.length) {
+      results = results.filter(e => tags.some(tag => e.tags.includes(tag)));
     }
 
-    // Filter by tags
-    if (q.tags && q.tags.length > 0) {
-      results = results.filter(e => q.tags!.some(tag => e.tags.includes(tag)));
+    const importance = q.importance;
+    if (importance) {
+      const min = importance.min;
+      const max = importance.max;
+      if (min !== undefined) results = results.filter(e => e.importance >= min);
+      if (max !== undefined) results = results.filter(e => e.importance <= max);
     }
 
-    // Filter by importance
-    if (q.importance) {
-      if (q.importance.min !== undefined) results = results.filter(e => e.importance >= q.importance.min!);
-      if (q.importance.max !== undefined) results = results.filter(e => e.importance <= q.importance.max!);
+    const timeRange = q.timeRange;
+    if (timeRange) {
+      const from = timeRange.from;
+      const to = timeRange.to;
+      if (from) results = results.filter(e => e.createdAt >= from);
+      if (to) results = results.filter(e => e.createdAt <= to);
     }
 
-    // Filter by time range
-    if (q.timeRange) {
-      if (q.timeRange.from) results = results.filter(e => e.createdAt >= q.timeRange.from!);
-      if (q.timeRange.to) results = results.filter(e => e.createdAt <= q.timeRange.to!);
-    }
-
-    // Sort
-    if (q.sortBy) {
+    const sortBy = q.sortBy;
+    if (sortBy) {
+      const order = q.sortOrder === 'desc' ? -1 : 1;
       results.sort((a, b) => {
-        const aVal = a[q.sortBy!] as number;
-        const bVal = b[q.sortBy!] as number;
-        return q.sortOrder === 'desc' ? bVal - aVal : aVal - bVal;
+        const aVal = a[sortBy];
+        const bVal = b[sortBy];
+        if (typeof aVal === 'number' && typeof bVal === 'number') return (aVal - bVal) * order;
+        return String(aVal).localeCompare(String(bVal)) * order;
       });
     }
 
-    // Limit
-    if (q.limit && q.limit > 0) {
-      results = results.slice(0, q.limit);
-    }
+    if (q.limit && q.limit > 0) results = results.slice(0, q.limit);
 
-    // Update access stats for returned entries
     for (const entry of results) {
       entry.lastAccessed = new Date().toISOString();
       entry.accessCount += 1;
     }
-
     return results;
   }
 
   async update(id: EntityId, updates: Partial<MemoryEntry>): Promise<void> {
     const entry = this.entries.get(id);
     if (!entry) throw new Error(`Memory entry ${id} not found`);
-
     Object.assign(entry, updates);
     entry.lastAccessed = new Date().toISOString();
   }
@@ -133,30 +116,20 @@ export class InMemoryStore implements IMemoryStore {
     if (!entry) return;
 
     this.entries.delete(id);
-
-    const layerSet = this.layerIndex.get(entry.layer);
-    if (layerSet) layerSet.delete(id);
-
-    for (const tag of entry.tags) {
-      const tagSet = this.tagIndex.get(tag);
-      if (tagSet) tagSet.delete(id);
-    }
+    this.layerIndex.get(entry.layer)?.delete(id);
+    for (const tag of entry.tags) this.tagIndex.get(tag)?.delete(id);
   }
 
   async clear(layer?: MemoryLayer): Promise<void> {
     if (layer) {
       const layerSet = this.layerIndex.get(layer);
       if (layerSet) {
-        for (const id of layerSet) {
-          this.entries.delete(id);
-        }
+        for (const id of layerSet) this.entries.delete(id);
         layerSet.clear();
       }
     } else {
       this.entries.clear();
-      for (const layerSet of this.layerIndex.values()) {
-        layerSet.clear();
-      }
+      for (const layerSet of this.layerIndex.values()) layerSet.clear();
       this.tagIndex.clear();
     }
   }
@@ -192,19 +165,13 @@ export class InMemoryStore implements IMemoryStore {
   private async sweepExpired(): Promise<void> {
     const now = Date.now();
     const toDelete: EntityId[] = [];
-
     for (const entry of this.entries.values()) {
       if (entry.ttl !== null && entry.ttl > 0) {
         const age = now - new Date(entry.createdAt).getTime();
-        if (age > entry.ttl * 1000) {
-          toDelete.push(entry.id);
-        }
+        if (age > entry.ttl * 1000) toDelete.push(entry.id);
       }
     }
-
-    for (const id of toDelete) {
-      await this.delete(id);
-    }
+    for (const id of toDelete) await this.delete(id);
   }
 }
 
@@ -219,7 +186,6 @@ export class MemoryManager {
     this.storeImpl = store || new InMemoryStore();
   }
 
-  // Store an entry in the appropriate layer
   async store(
     content: unknown,
     layer: MemoryLayer,
@@ -245,70 +211,36 @@ export class MemoryManager {
       consolidated: false,
       compressed: false,
       tags: options.tags || [],
-      source: options.source || 'system' as EntityId,
+      source: options.source || ('system' as EntityId),
       metadata: (options.metadata || {}) as Record<string, string | number | boolean | null>,
     };
 
-    // Apply importance scoring
     entry.importance = this.scoreImportance(entry);
-
     return this.storeImpl.store(entry);
   }
 
-  // Retrieve by ID
-  async retrieve(id: EntityId): Promise<MemoryEntry | null> {
-    return this.storeImpl.retrieve(id);
-  }
+  async retrieve(id: EntityId): Promise<MemoryEntry | null> { return this.storeImpl.retrieve(id); }
+  async query(q: MemoryQuery): Promise<MemoryEntry[]> { return this.storeImpl.query(q); }
+  async update(id: EntityId, updates: Partial<MemoryEntry>): Promise<void> { return this.storeImpl.update(id, updates); }
+  async delete(id: EntityId): Promise<void> { return this.storeImpl.delete(id); }
 
-  // Query memory
-  async query(q: MemoryQuery): Promise<MemoryEntry[]> {
-    return this.storeImpl.query(q);
-  }
-
-  // Update entry
-  async update(id: EntityId, updates: Partial<MemoryEntry>): Promise<void> {
-    return this.storeImpl.update(id, updates);
-  }
-
-  // Delete entry
-  async delete(id: EntityId): Promise<void> {
-    return this.storeImpl.delete(id);
-  }
-
-  // Consolidate: promote important short-term to long-term
   async consolidate(threshold: number = 0.7): Promise<number> {
-    const shortTermEntries = await this.storeImpl.query({
-      layer: 'short_term',
-      sortBy: 'importance',
-      sortOrder: 'desc',
-    });
-
+    const shortTermEntries = await this.storeImpl.query({ layer: 'short_term', sortBy: 'importance', sortOrder: 'desc' });
     let consolidated = 0;
     for (const entry of shortTermEntries) {
       if (entry.importance >= threshold) {
-        // Promote to long-term
         entry.layer = 'long_term';
         entry.consolidated = true;
-        entry.ttl = null; // permanent
-        await this.storeImpl.update(entry.id, {
-          layer: 'long_term',
-          consolidated: true,
-          ttl: null,
-        });
+        entry.ttl = null;
+        await this.storeImpl.update(entry.id, { layer: 'long_term', consolidated: true, ttl: null });
         consolidated++;
       }
     }
-
     return consolidated;
   }
 
-  // Forgetting: remove low-importance, old entries
   async forget(threshold: number = 0.2, maxAge: number = 86400 * 7): Promise<number> {
-    const oldEntries = await this.storeImpl.query({
-      sortBy: 'importance',
-      sortOrder: 'asc',
-    });
-
+    const oldEntries = await this.storeImpl.query({ sortBy: 'importance', sortOrder: 'asc' });
     let forgotten = 0;
     const now = Date.now();
     for (const entry of oldEntries) {
@@ -321,33 +253,26 @@ export class MemoryManager {
         }
       }
     }
-
     return forgotten;
   }
 
-  // Cross-link entries
   async crossLink(sourceId: EntityId, targetId: EntityId, relation: string): Promise<void> {
     const source = await this.storeImpl.retrieve(sourceId);
     const target = await this.storeImpl.retrieve(targetId);
     if (!source || !target) return;
 
-    const metadata = source.metadata as Record<string, unknown>;
-    const links = (metadata['links'] as Array<{ target: string; relation: string }>) || [];
+    const linksRaw = source.metadata['links'];
+    const links = Array.isArray(linksRaw)
+      ? [...linksRaw] as Array<{ target: string; relation: string }>
+      : [];
     links.push({ target: targetId, relation });
-    metadata['links'] = links;
-
-    await this.storeImpl.update(sourceId, { metadata: metadata as any });
+    await this.storeImpl.update(sourceId, {
+      metadata: { ...source.metadata, links: JSON.stringify(links) },
+    });
   }
 
-  // Get stats
-  async stats(): Promise<MemoryStoreStats> {
-    return this.storeImpl.stats();
-  }
-
-  // Clear
-  async clear(layer?: MemoryLayer): Promise<void> {
-    return this.storeImpl.clear(layer);
-  }
+  async stats(): Promise<MemoryStoreStats> { return this.storeImpl.stats(); }
+  async clear(layer?: MemoryLayer): Promise<void> { return this.storeImpl.clear(layer); }
 
   private defaultImportance(layer: MemoryLayer): number {
     switch (layer) {
@@ -368,37 +293,29 @@ export class MemoryManager {
 
   private defaultTTL(layer: MemoryLayer): number | null {
     switch (layer) {
-      case 'working': return 300; // 5 min
-      case 'short_term': return 86400; // 24h
-      case 'long_term': return null; // permanent
-      case 'semantic': return null; // permanent
-      case 'procedural': return null; // permanent
-      case 'episodic': return 86400 * 30; // 30 days
-      case 'temporal': return 86400 * 7; // 7 days
+      case 'working': return 300;
+      case 'short_term': return 86400;
+      case 'long_term': return null;
+      case 'semantic': return null;
+      case 'procedural': return null;
+      case 'episodic': return 86400 * 30;
+      case 'temporal': return 86400 * 7;
       case 'spatial': return 86400 * 7;
       case 'vector': return 86400 * 30;
       case 'knowledge_graph': return null;
-      case 'cache': return 600; // 10 min
+      case 'cache': return 600;
       case 'reflection': return 86400 * 7;
     }
   }
 
   private scoreImportance(entry: MemoryEntry): number {
     let score = entry.importance;
-
-    // Higher weight for semantic and procedural
     if (entry.layer === 'semantic' || entry.layer === 'procedural') score += 0.2;
-
-    // Recent entries get a boost
     const age = Date.now() - new Date(entry.createdAt).getTime();
-    if (age < 3600000) score += 0.1; // < 1 hour
-    if (age < 600000) score += 0.1; // < 10 min
-
-    // Frequently accessed
+    if (age < 3600000) score += 0.1;
+    if (age < 600000) score += 0.1;
     if (entry.accessCount > 10) score += 0.1;
     if (entry.accessCount > 50) score += 0.1;
-
-    // Cap at 1.0
     return Math.min(score, 1.0);
   }
 }
