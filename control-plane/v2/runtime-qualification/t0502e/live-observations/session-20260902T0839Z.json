@@ -6,24 +6,24 @@
   "projectId": "COS_GRAPH_ENGINE",
   "objectiveId": "T0502E_LIVE_PROVIDER_SHAPE_OBSERVATION",
   "createdAt": "2026-09-02T08:39:00Z",
-  "status": "ACTIVE",
+  "completedAt": "2026-09-02T08:43:00Z",
+  "status": "HANDOFF_READY_DEGRADED_EXTERNAL",
   "branch": "hardening/t0502e-provider-read-clients",
   "baseSha": "4ec379549784289880297c7ca1e7ae728819d9a0",
   "fencingToken": 1,
   "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "result": "GITHUB_SHAPE_OBSERVED_DRIVE_CONNECTOR_BLOCKED_TODOIST_SYNCED",
+  "evidencePath": "control-plane/v2/runtime-qualification/t0502e/live-observations/provider-shapes-20260902T0839Z.json",
   "resourceScopes": [
     "control-plane/v2/runtime-qualification/t0502e/live-observations/**",
     "github://rotprods/cos-graph-engine/issues/39#comment",
     "github://rotprods/cos-graph-engine/pulls/83#comment",
     "todoist://project/6hMP59rWj7f5xH7M"
   ],
-  "constraints": [
-    "read-only provider observations",
-    "no provider mutation",
-    "no credential persistence",
-    "connector observations do not qualify T0502E runtime",
-    "Drive connector failure is recorded as DEGRADED_EXTERNAL, not hidden",
-    "no global score promotion"
-  ],
-  "nextAction": "Persist connector observations, synchronize issue/Todoist checkpoint, release claim."
+  "synchronization": {
+    "github": "SYNCED",
+    "todoist": "SYNCED_COS_PROJECT_ONLY",
+    "drive": "DEGRADED_EXTERNAL_CONNECTOR_UNAVAILABLE"
+  },
+  "nextAction": "T0502F: execute full inspector-composition contract in clean monorepo closure once overlapping strict-typecheck/toolchain lane is free; retry Drive shape/Acta sync only when connector becomes available."
 }
