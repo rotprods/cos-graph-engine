@@ -15,6 +15,25 @@ export interface COSConfig {
   plugins: string[];
 }
 
+export interface COSServerStats {
+  runtime: {
+    subscribers: number;
+    events: number;
+    cells: number;
+    scheduler: Awaited<ReturnType<CellHost['scheduler']['stats']>>;
+  };
+  memory: Awaited<ReturnType<MemoryManager['stats']>>;
+  knowledge: GraphStats;
+  reasoning: number;
+  tools: number;
+  agents: number;
+  workflows: number;
+  telemetry: {
+    events: number;
+    metrics: number;
+  };
+}
+
 export class COSServer {
   public readonly cellHost: CellHost;
   public readonly memory: MemoryManager;
@@ -156,7 +175,7 @@ export class COSServer {
   }
 
   // System stats
-  async getStats(): Promise<Record<string, unknown>> {
+  async getStats(): Promise<COSServerStats> {
     return {
       runtime: {
         subscribers: this.cellHost.eventBus.subscriberCount,

@@ -91,7 +91,7 @@ async function main() {
           const stats = await apiRequest('GET', '/memory');
           console.log('Total entries:', stats.totalEntries);
           for (const [layer, count] of Object.entries(stats.byLayer || {})) {
-            if (count > 0) console.log(`  ${layer}: ${count}`);
+            if (typeof count === 'number' && count > 0) console.log(`  ${layer}: ${count}`);
           }
         }
         break;
@@ -138,9 +138,8 @@ async function main() {
 
       case 'start': {
         console.log('Starting COS server...');
-        // Import and start the bootstrap
         const { main } = require('./bootstrap');
-        const server = await main();
+        await main();
         console.log('COS running. API at', API_URL);
         break;
       }

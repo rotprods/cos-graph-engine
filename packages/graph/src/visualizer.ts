@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { VisualGraphEngine, MermaidRenderer } from './level0-visual';
 import { ExecutionGraphEngine } from './level1-execution';
-import { StateMachine, StateMachineJSON } from './level2-state';
+import { StateMachine } from './level2-state';
 import { DependencyResolver } from './level3-dependency';
 import { CallGraphBuilder } from './level4-call';
 import { CFGBuilder } from './level5-cfg';
@@ -25,6 +25,7 @@ import { NetworkGraphEngine } from './level16-network';
 import { SocialGraphEngine } from './level17-social';
 import { BiologicalGraphEngine } from './level18-biological';
 import { MolecularGraphEngine } from './level19-molecular';
+import { generateId } from '@cos/core';
 
 export interface VisualizerConfig {
   title?: string;
@@ -33,28 +34,199 @@ export interface VisualizerConfig {
   outputFile?: string;
 }
 
-const LEVEL_ENGINES: Record<string, { name: string; color: string; buildDemo: (engine: any) => void }> = {
-  L0: { name: 'Visual Graph', color: '#4A90D9', buildDemo: (e: VisualGraphEngine) => e.buildDemo() },
-  L1: { name: 'Execution Graph', color: '#7B68EE', buildDemo: (e: ExecutionGraphEngine) => e.buildDemo() },
-  L2: { name: 'State Machine', color: '#2ECC71', buildDemo: (e: StateMachine) => e.buildDemo() },
-  L3: { name: 'Dependency Graph', color: '#E74C3C', buildDemo: (e: DependencyResolver) => e.buildDiamond() },
-  L4: { name: 'Call Graph', color: '#F39C12', buildDemo: (e: CallGraphBuilder) => e.buildDemo() },
-  L5: { name: 'CFG', color: '#1ABC9C', buildDemo: (e: CFGBuilder) => e.buildIfElse() },
-  L6: { name: 'DataFlow', color: '#3498DB', buildDemo: (e: DataFlowGraph) => e.buildETLPipeline() },
-  L7: { name: 'Compute Graph', color: '#9B59B6', buildDemo: (e: ComputationalGraph) => e.buildMLP() },
-  L8: { name: 'Knowledge Graph', color: '#E67E22', buildDemo: (e: KnowledgeGraphEngine) => e.buildKnowledgeGraph() },
-  L9: { name: 'Semantic Graph', color: '#1ABC9C', buildDemo: (e: SemanticGraph) => e.buildDemo() },
-  L10: { name: 'Embedding Graph', color: '#2980B9', buildDemo: (e: EmbeddingGraph) => e.buildDemo() },
-  L11: { name: 'GraphRAG', color: '#8E44AD', buildDemo: (e: GraphRAGEngine) => e.buildDemo() },
-  L12: { name: 'Memory Graph', color: '#16A085', buildDemo: (e: MemoryGraphEngine) => e.buildMemoryGraph() },
-  L13: { name: 'Agent Graph', color: '#27AE60', buildDemo: (e: AgentGraphEngine) => e.buildDevTeam() },
-  L14: { name: 'Tool Graph', color: '#2C3E50', buildDemo: (e: ToolGraphEngine) => e.buildToolEcosystem() },
-  L15: { name: 'Workflow Graph', color: '#D35400', buildDemo: (e: WorkflowGraphEngine) => e.buildWorkflow() },
-  L16: { name: 'Network Graph', color: '#C0392B', buildDemo: (e: NetworkGraphEngine) => e.buildInfrastructure() },
-  L17: { name: 'Social Graph', color: '#E91E63', buildDemo: (e: SocialGraphEngine) => e.buildTechNetwork() },
-  L18: { name: 'Biological Graph', color: '#00BCD4', buildDemo: (e: BiologicalGraphEngine) => e.buildNeuralCircuit() },
-  L19: { name: 'Molecular Graph', color: '#FF5722', buildDemo: (e: MolecularGraphEngine) => e.buildWater() },
+interface VisualizerLevelSnapshot {
+  nodes: any[];
+  edges: any[];
+  metrics: any;
+}
+
+const LEVEL_META: Record<string, { name: string; color: string }> = {
+  L0: { name: 'Visual Graph', color: '#4A90D9' },
+  L1: { name: 'Execution Graph', color: '#7B68EE' },
+  L2: { name: 'State Machine', color: '#2ECC71' },
+  L3: { name: 'Dependency Graph', color: '#E74C3C' },
+  L4: { name: 'Call Graph', color: '#F39C12' },
+  L5: { name: 'CFG', color: '#1ABC9C' },
+  L6: { name: 'DataFlow', color: '#3498DB' },
+  L7: { name: 'Compute Graph', color: '#9B59B6' },
+  L8: { name: 'Knowledge Graph', color: '#E67E22' },
+  L9: { name: 'Semantic Graph', color: '#1ABC9C' },
+  L10: { name: 'Embedding Graph', color: '#2980B9' },
+  L11: { name: 'GraphRAG', color: '#8E44AD' },
+  L12: { name: 'Memory Graph', color: '#16A085' },
+  L13: { name: 'Agent Graph', color: '#27AE60' },
+  L14: { name: 'Tool Graph', color: '#2C3E50' },
+  L15: { name: 'Workflow Graph', color: '#D35400' },
+  L16: { name: 'Network Graph', color: '#C0392B' },
+  L17: { name: 'Social Graph', color: '#E91E63' },
+  L18: { name: 'Biological Graph', color: '#00BCD4' },
+  L19: { name: 'Molecular Graph', color: '#FF5722' },
 };
+
+function snapshotFromJSON(json: any, metrics: any = {}): VisualizerLevelSnapshot {
+  if (!json || typeof json !== 'object') return { nodes: [], edges: [], metrics };
+  const nodes = json.nodes || json.blocks || json.states || json.entities || json.chunks || json.atoms || [];
+  const edges = json.edges || json.transitions || json.relations || json.bonds || [];
+  return { nodes: Array.isArray(nodes) ? nodes : [], edges: Array.isArray(edges) ? edges : [], metrics };
+}
+
+function buildLevelSnapshot(levelId: string): VisualizerLevelSnapshot {
+  switch (levelId) {
+    case 'L0': {
+      const engine = new VisualGraphEngine('Visualizer Demo');
+      const start = engine.addNode({ label: 'Start', type: 'start' });
+      const process = engine.addNode({ label: 'Process', type: 'process' });
+      const decision = engine.addNode({ label: 'Decision', type: 'decision' });
+      const end = engine.addNode({ label: 'End', type: 'end' });
+      engine.addEdge(start, process, 'enter');
+      engine.addEdge(process, decision, 'evaluate');
+      engine.addEdge(decision, end, 'done');
+      const json = engine.toJSON();
+      return snapshotFromJSON(json, { nodeCount: json.nodes.length, edgeCount: json.edges.length });
+    }
+    case 'L1':
+      return {
+        nodes: [
+          { id: 'l1-input', name: 'Input', type: 'function' },
+          { id: 'l1-transform', name: 'Transform', type: 'transform' },
+          { id: 'l1-output', name: 'Output', type: 'function' },
+        ],
+        edges: [
+          { source: 'l1-input', target: 'l1-transform', type: 'data' },
+          { source: 'l1-transform', target: 'l1-output', type: 'data' },
+        ],
+        metrics: { nodeCount: 3, edgeCount: 2, projection: 'schema-fixture' },
+      };
+    case 'L2': {
+      const engine = new StateMachine('Visualizer FSM', [
+        { id: 'idle', label: 'Idle', type: 'initial' },
+        { id: 'running', label: 'Running' },
+        { id: 'done', label: 'Done', type: 'final' },
+      ], [
+        { from: 'idle', to: 'running', event: 'start' },
+        { from: 'running', to: 'done', event: 'finish' },
+      ], 'idle');
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L3': {
+      const engine = new DependencyResolver();
+      const app = generateId();
+      const core = generateId();
+      const runtime = generateId();
+      const graphId = engine.createGraph('Visualizer Dependencies', [
+        { id: app, name: 'app', type: 'package' },
+        { id: core, name: 'core', type: 'library' },
+        { id: runtime, name: 'runtime', type: 'module' },
+      ], [
+        { source: app, target: core, type: 'depends_on' },
+        { source: app, target: runtime, type: 'depends_on' },
+      ]);
+      const graph = engine.getGraph(graphId)!;
+      return { nodes: graph.nodes, edges: graph.edges, metrics: { nodeCount: graph.nodes.length, edgeCount: graph.edges.length } };
+    }
+    case 'L4': {
+      const engine = new CallGraphBuilder();
+      const graphId = engine.createGraph('Visualizer Calls');
+      const main = engine.enterCall(graphId, 'main', 'function');
+      const parse = engine.enterCall(graphId, 'parse', 'function');
+      engine.exitCall(graphId, parse);
+      engine.exitCall(graphId, main);
+      const graph = engine.getGraph(graphId)!;
+      return { nodes: graph.nodes, edges: graph.edges, metrics: engine.metrics(graphId) };
+    }
+    case 'L5': {
+      const engine = new CFGBuilder();
+      const cfgId = engine.createCFG('Visualizer CFG');
+      engine.buildIfThenElse(cfgId, 'ready', 'process', 'recover', 'merge');
+      const cfg = engine.getCFG(cfgId)!;
+      return { nodes: cfg.blocks, edges: cfg.edges, metrics: engine.metrics(cfgId) };
+    }
+    case 'L6': {
+      const engine = new DataFlowGraph();
+      engine.buildETLPipeline();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L7': {
+      const engine = new ComputationalGraph();
+      engine.buildMLP();
+      const json = engine.toJSON();
+      return snapshotFromJSON(json, {
+        nodeCount: json.nodes.length,
+        edgeCount: json.edges.length,
+        parameterCount: engine.paramCount(),
+      });
+    }
+    case 'L8': {
+      const engine = new KnowledgeGraphEngine();
+      engine.buildAIEcosystem();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L9': {
+      const engine = new SemanticGraph();
+      engine.buildAnimalTaxonomy();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L10': {
+      const engine = new EmbeddingGraph();
+      engine.addNode({ id: 'emb-a', label: 'Graph', vector: [1, 0, 0] });
+      engine.addNode({ id: 'emb-b', label: 'Memory', vector: [0.9, 0.1, 0] });
+      engine.addNode({ id: 'emb-c', label: 'Vision', vector: [0, 1, 0] });
+      engine.buildKNN(2);
+      return { nodes: engine.nodes, edges: engine.edges, metrics: engine.metrics() };
+    }
+    case 'L11': {
+      const engine = new GraphRAGEngine();
+      engine.buildDemo();
+      return {
+        nodes: engine.entities.map(entity => ({ id: entity.id, label: entity.name, type: entity.type })),
+        edges: engine.relations,
+        metrics: engine.metrics(),
+      };
+    }
+    case 'L12': {
+      const engine = new MemoryGraphEngine('Visualizer Memory');
+      engine.buildConversation();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L13': {
+      const engine = new AgentGraphEngine('Visualizer Agents');
+      engine.buildDevTeam();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L14': {
+      const engine = new ToolGraphEngine('Visualizer Tools');
+      engine.buildToolEcosystem();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L15': {
+      const engine = new WorkflowGraphEngine('Visualizer Workflow');
+      engine.buildSupportWorkflow();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L16': {
+      const engine = new NetworkGraphEngine('Visualizer Network');
+      engine.buildInfrastructure();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L17': {
+      const engine = new SocialGraphEngine('Visualizer Social');
+      engine.buildTechNetwork();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L18': {
+      const engine = new BiologicalGraphEngine('Visualizer Biological');
+      engine.buildNeuralCircuit();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    case 'L19': {
+      const engine = new MolecularGraphEngine('Visualizer Molecule');
+      engine.buildWater();
+      return snapshotFromJSON(engine.toJSON(), engine.metrics());
+    }
+    default:
+      return { nodes: [], edges: [], metrics: { error: `Unknown level ${levelId}` } };
+  }
+}
 
 function generateHTML(levels: Array<{ id: string; name: string; color: string; nodes: any[]; edges: any[]; metrics: any }>): string {
   const levelsJson = JSON.stringify(levels);
@@ -394,44 +566,37 @@ export function generateVisualizer(
   levels?: string[],
   config: VisualizerConfig = {}
 ): string {
-  const targetLevels = levels || Object.keys(LEVEL_ENGINES);
+  const targetLevels = levels || Object.keys(LEVEL_META);
   const data: Array<{ id: string; name: string; color: string; nodes: any[]; edges: any[]; metrics: any }> = [];
 
   for (const levelId of targetLevels) {
-    const info = LEVEL_ENGINES[levelId];
+    const info = LEVEL_META[levelId];
     if (!info) continue;
     try {
-      const engine = new (getEngineClass(levelId))();
-      info.buildDemo(engine);
-      const json = engine.toJSON ? engine.toJSON() : {};
-      const metrics = engine.metrics ? engine.metrics() : {};
-      const nodes = json.nodes || json.blocks || json.states || json.entities || json.chunks || json.atoms || [];
-      const edges = json.edges || json.transitions || json.relations || json.bonds || [];
+      const snapshot = buildLevelSnapshot(levelId);
       data.push({
         id: levelId,
         name: info.name,
         color: info.color,
-        nodes: nodes.map((n: any) => ({ id: n.id, label: n.label || n.name || n.element || n.type || n.id, type: n.type || n.role || '' })),
-        edges: edges.map((e: any) => ({ source: e.source || e.from, target: e.target || e.to, type: e.type || e.event || '' })),
-        metrics,
+        nodes: snapshot.nodes.map((n: any) => ({
+          id: String(n.id),
+          label: n.label || n.name || n.element || n.concept || n.type || String(n.id),
+          type: n.type || n.role || '',
+        })),
+        edges: snapshot.edges.map((e: any) => ({
+          source: String(e.source ?? e.from ?? ''),
+          target: String(e.target ?? e.to ?? ''),
+          type: e.type || e.event || e.relation || '',
+        })),
+        metrics: snapshot.metrics,
       });
     } catch (err) {
       data.push({ id: levelId, name: info.name, color: info.color, nodes: [], edges: [], metrics: { error: (err as Error).message } });
     }
   }
 
+  void config;
   return generateHTML(data);
-}
-
-function getEngineClass(levelId: string): any {
-  const map: Record<string, any> = {
-    L0: VisualGraphEngine, L1: ExecutionGraphEngine, L2: StateMachine, L3: DependencyResolver,
-    L4: CallGraphBuilder, L5: CFGBuilder, L6: DataFlowGraph, L7: ComputationalGraph,
-    L8: KnowledgeGraphEngine, L9: SemanticGraph, L10: EmbeddingGraph, L11: GraphRAGEngine,
-    L12: MemoryGraphEngine, L13: AgentGraphEngine, L14: ToolGraphEngine, L15: WorkflowGraphEngine,
-    L16: NetworkGraphEngine, L17: SocialGraphEngine, L18: BiologicalGraphEngine, L19: MolecularGraphEngine,
-  };
-  return map[levelId];
 }
 
 export function generateVisualizerFile(

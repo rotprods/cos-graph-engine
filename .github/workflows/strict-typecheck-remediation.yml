@@ -1,0 +1,24 @@
+name: Strict typecheck remediation
+
+on:
+  push:
+    branches: [fix/strict-typecheck-regressions]
+
+concurrency:
+  group: strict-typecheck-remediation
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run asbuild
+      - run: npx --no-install tsc --noEmit

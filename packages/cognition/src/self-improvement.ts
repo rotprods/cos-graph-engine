@@ -1,6 +1,6 @@
-import { EntityId, CellContext, Confidence, Cost, Timestamp } from '@cos/core';
+import { EntityId, CellContext, Confidence, Cost, Timestamp, ReasoningEngineType } from '@cos/core';
 import { generateId } from '@cos/core';
-import { ReasoningEngineRegistry, ReasoningEngineType } from './reasoning';
+import { ReasoningEngineRegistry } from './reasoning';
 import { EvaluationSystem, EvaluationResult } from './evaluation';
 import { LearningSystem } from './learning';
 
@@ -10,11 +10,11 @@ import { LearningSystem } from './learning';
 // ================================================================
 
 export interface SelfImprovementConfig {
-  evaluationFrequency: number;   // How often to auto-evaluate (every N outputs)
-  consolidationThreshold: number; // Pattern confidence to influence reasoning
-  metaCognitionInterval: number;  // Seconds between meta-cognition reviews
-  minExamplesForPatterns: number; // Minimum examples before patterns affect reasoning
-  maxPatternAge: number;          // Seconds before a pattern is considered stale
+  evaluationFrequency: number;
+  consolidationThreshold: number;
+  metaCognitionInterval: number;
+  minExamplesForPatterns: number;
+  maxPatternAge: number;
 }
 
 export interface PerformanceReport {
@@ -36,7 +36,7 @@ export interface ImprovementAction {
   target: string;
   reason: string;
   priority: 'high' | 'medium' | 'low';
-  impact: number; // 0..1 estimated improvement
+  impact: number;
 }
 
 export class SelfImprovementSystem {
@@ -69,29 +69,11 @@ export class SelfImprovementSystem {
     };
   }
 
-  // ========== RECORD OUTPUT ==========
-  // Record every output for later self-evaluation
-
   async recordOutput(input: unknown, output: unknown): Promise<void> {
-    this.outputHistory.push({
-      input,
-      output,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Trim history to last 1000
-    if (this.outputHistory.length > 1000) {
-      this.outputHistory = this.outputHistory.slice(-500);
-    }
-
-    // Auto-evaluate every N outputs
-    if (this.outputHistory.length % this.config.evaluationFrequency === 0) {
-      await this.autoEvaluate();
-    }
+    this.outputHistory.push({ input, output, timestamp: new Date().toISOString() });
+    if (this.outputHistory.length > 1000) this.outputHistory = this.outputHistory.slice(-500);
+    if (this.outputHistory.length % this.config.evaluationFrequency === 0) await this.autoEvaluate();
   }
-
-  // ========== AUTO-EVALUATE ==========
-  // Automatically evaluate recent output quality
 
   private async autoEvaluate(): Promise<void> {
     const recent = this.outputHistory.slice(-3);
@@ -102,46 +84,24 @@ export class SelfImprovementSystem {
         ['accuracy', 'completeness', 'coherence', 'relevance'],
         { traceId: `auto-eval-${Date.now()}` },
       );
-
       this.evaluationHistory.push(evalResult);
-
-      // Feed into learning system
-      const exampleId = await this.learningSystem.recordExample(
-        entry.input,
-        entry.output,
-        undefined,
-        evalResult.overallScore,
-      );
-
-      // Generate feedback from evaluation
+      const exampleId = await this.learningSystem.recordExample(entry.input, entry.output, undefined, evalResult.overallScore);
       const feedbackNotes = [
         ...evalResult.strengths.map(s => `strength:${s}`),
         ...evalResult.weaknesses.map(w => `weakness:${w}`),
       ].join('; ');
-
       await this.learningSystem.addFeedback(exampleId, evalResult.overallScore, feedbackNotes);
-
-      // Track engine performance
-      // (inferred from evaluation criteria scores)
     }
-
-    // Trim evaluation history
-    if (this.evaluationHistory.length > 500) {
-      this.evaluationHistory = this.evaluationHistory.slice(-250);
-    }
+    if (this.evaluationHistory.length > 500) this.evaluationHistory = this.evaluationHistory.slice(-250);
   }
-
-  // ========== INFLUENCE REASONING ==========
-  // Use learned patterns to influence which reasoning engine is best
 
   async recommendEngine(input: unknown): Promise<{
     engine: ReasoningEngineType;
     confidence: Confidence;
     reason: string;
   }> {
+    void input;
     const patterns = await this.learningSystem.getPatterns(this.config.consolidationThreshold);
-
-    // No patterns yet — default to CoT
     if (patterns.length < this.config.minExamplesForPatterns) {
       return {
         engine: 'chain_of_thought',
@@ -150,63 +110,49 @@ export class SelfImprovementSystem {
       };
     }
 
-    // Use patterns to score each engine
     const engineScores: Map<ReasoningEngineType, { score: number; reasons: string[] }> = new Map();
     for (const engine of ['chain_of_thought', 'tree_of_thoughts', 'reflection'] as ReasoningEngineType[]) {
       engineScores.set(engine, { score: 0.5, reasons: [] });
     }
 
-    // Patterns influence engine scores
     for (const p of patterns) {
       if (p.pattern.includes('accuracy') && p.confidence > 0.7) {
         const current = engineScores.get('chain_of_thought')!;
         current.score += 0.15;
-        current.reasons.push(`Pattern "${p.pattern}" (conf:${(p.confidence*100).toFixed(0)}%) favors CoT`);
+        current.reasons.push(`Pattern "${p.pattern}" (conf:${(p.confidence * 100).toFixed(0)}%) favors CoT`);
       }
       if (p.pattern.includes('complexity') || p.pattern.includes('novelty')) {
         const current = engineScores.get('tree_of_thoughts')!;
         current.score += 0.2;
-        current.reasons.push(`Pattern "${p.pattern}" (conf:${(p.confidence*100).toFixed(0)}%) favors ToT`);
+        current.reasons.push(`Pattern "${p.pattern}" (conf:${(p.confidence * 100).toFixed(0)}%) favors ToT`);
       }
       if (p.pattern.includes('quality') || p.pattern.includes('improve')) {
         const current = engineScores.get('reflection')!;
         current.score += 0.15;
-        current.reasons.push(`Pattern "${p.pattern}" (conf:${(p.confidence*100).toFixed(0)}%) favors Reflection`);
+        current.reasons.push(`Pattern "${p.pattern}" (conf:${(p.confidence * 100).toFixed(0)}%) favors Reflection`);
       }
     }
 
-    // Pick best engine
     let bestEngine: ReasoningEngineType = 'chain_of_thought';
     let bestScore = 0;
     let bestReason = '';
-
     for (const [engine, data] of engineScores) {
       if (data.score > bestScore) {
         bestScore = data.score;
         bestEngine = engine;
-        bestReason = data.reasons.join('; ') || `Score: ${(data.score*100).toFixed(0)}/100`;
+        bestReason = data.reasons.join('; ') || `Score: ${(data.score * 100).toFixed(0)}/100`;
       }
     }
-
-    return {
-      engine: bestEngine,
-      confidence: Math.min(bestScore, 0.95),
-      reason: bestReason,
-    };
+    return { engine: bestEngine, confidence: Math.min(bestScore, 0.95), reason: bestReason };
   }
 
-  // ========== META-COGNITION ==========
-  // System reflects on its own performance and suggests improvements
-
   async runMetaCognition(force: boolean = false): Promise<PerformanceReport> {
+    void force;
     const now = new Date().toISOString();
     const periodStart = this.lastMetaCognition || new Date(Date.now() - 86400000).toISOString();
     const periodEnd = now;
-
-    // Analyze recent evaluations
     const recentEvals = this.evaluationHistory.slice(-50);
     const totalEvals = recentEvals.length;
-
     let averageScore = 0;
     const weaknesses = new Map<string, number>();
 
@@ -217,44 +163,36 @@ export class SelfImprovementSystem {
         weaknesses.set(key, (weaknesses.get(key) || 0) + 1);
       }
     }
-
     averageScore = totalEvals > 0 ? averageScore / totalEvals : 0;
 
-    // Determine trend (compare first half vs second half)
     const half = Math.floor(recentEvals.length / 2);
     const firstHalf = recentEvals.slice(0, half);
     const secondHalf = recentEvals.slice(half);
     const firstAvg = firstHalf.reduce((s, e) => s + e.overallScore, 0) / (firstHalf.length || 1);
     const secondAvg = secondHalf.reduce((s, e) => s + e.overallScore, 0) / (secondHalf.length || 1);
-
     const diff = secondAvg - firstAvg;
-    const trend: 'improving' | 'stable' | 'declining' =
-      diff > 0.05 ? 'improving' : diff < -0.05 ? 'declining' : 'stable';
+    const trend: 'improving' | 'stable' | 'declining' = diff > 0.05 ? 'improving' : diff < -0.05 ? 'declining' : 'stable';
 
-    // Get top patterns
     const patterns = await this.learningSystem.getPatterns(0.5);
     const topPatterns = patterns.slice(0, 5);
-
-    // Generate improvement suggestions
     const suggestions: string[] = [];
     const recommendedActions: ImprovementAction[] = [];
 
     if (trend === 'declining') {
-      suggestions.push(`Performance declining (${(diff*100).toFixed(1)}%). Consider increasing evaluation frequency.`);
+      suggestions.push(`Performance declining (${(diff * 100).toFixed(1)}%). Consider increasing evaluation frequency.`);
       recommendedActions.push({
         type: 'adjust_reasoning',
         target: 'evaluation_frequency',
-        reason: `Score declining by ${(Math.abs(diff)*100).toFixed(0)}%`,
+        reason: `Score declining by ${(Math.abs(diff) * 100).toFixed(0)}%`,
         priority: 'high',
         impact: 0.3,
       });
     }
 
-    // Most common weaknesses
     const sortedWeaknesses = [...weaknesses.entries()].sort((a, b) => b[1] - a[1]);
     for (const [w, count] of sortedWeaknesses.slice(0, 3)) {
-      if (count > totalEvals * 0.3) {
-        suggestions.push(`Weakness "${w}" appears in ${((count/totalEvals)*100).toFixed(0)}% of evaluations`);
+      if (totalEvals > 0 && count > totalEvals * 0.3) {
+        suggestions.push(`Weakness "${w}" appears in ${((count / totalEvals) * 100).toFixed(0)}% of evaluations`);
         recommendedActions.push({
           type: 'retrain_patterns',
           target: w,
@@ -268,7 +206,8 @@ export class SelfImprovementSystem {
     if (patterns.length === 0) {
       suggestions.push('No learning patterns yet. Continue using the system to build pattern database.');
     } else {
-      suggestions.push(`${patterns.length} patterns active. Top: "${patterns[0]?.pattern}" (conf: ${(patterns[0]?.confidence*100).toFixed(0)}%)`);
+      const topPattern = patterns[0];
+      suggestions.push(`${patterns.length} patterns active. Top: "${topPattern.pattern}" (conf: ${(topPattern.confidence * 100).toFixed(0)}%)`);
     }
 
     const report: PerformanceReport = {
@@ -284,20 +223,14 @@ export class SelfImprovementSystem {
       suggestions,
       recommendedActions,
     };
-
     this.reports.set(report.id, report);
     this.lastMetaCognition = now;
-
     return report;
   }
 
-  // ========== SCHEDULED META-COGNITION ==========
-
   startAutoMetaCognition(): void {
     if (this.metaCognitionTimer) return;
-    this.metaCognitionTimer = setInterval(async () => {
-      await this.runMetaCognition();
-    }, this.config.metaCognitionInterval * 1000);
+    this.metaCognitionTimer = setInterval(async () => { await this.runMetaCognition(); }, this.config.metaCognitionInterval * 1000);
   }
 
   stopAutoMetaCognition(): void {
@@ -307,8 +240,6 @@ export class SelfImprovementSystem {
     }
   }
 
-  // ========== QUERIES ==========
-
   async getLatestReport(): Promise<PerformanceReport | null> {
     const reports = Array.from(this.reports.values());
     if (reports.length === 0) return null;
@@ -316,9 +247,7 @@ export class SelfImprovementSystem {
   }
 
   async getPerformanceHistory(limit: number = 10): Promise<PerformanceReport[]> {
-    return Array.from(this.reports.values())
-      .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-      .slice(0, limit);
+    return Array.from(this.reports.values()).sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, limit);
   }
 
   get stats() {
@@ -328,6 +257,8 @@ export class SelfImprovementSystem {
       reportsGenerated: this.reports.size,
       autoCognitionActive: this.metaCognitionTimer !== null,
       lastMetaCognition: this.lastMetaCognition,
+      reasoningEnginesTracked: this.enginePerformance.size,
+      reasoningRegistryAvailable: Boolean(this.reasoningRegistry),
     };
   }
 }

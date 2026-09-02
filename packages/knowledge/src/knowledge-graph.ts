@@ -1,6 +1,6 @@
 import {
-  KnowledgeStatement, EntityId, Confidence, Timestamp,
-  GraphNode, GraphEdge, GraphQuery, GraphPath, GraphStats, IPropertyGraph,
+  KnowledgeStatement, EntityId,
+  GraphPath, GraphStats, IPropertyGraph,
 } from '@cos/core';
 import { generateId } from '@cos/core';
 import { PropertyGraph } from './property-graph';
@@ -21,15 +21,10 @@ export class KnowledgeGraph {
       timestamp: new Date().toISOString(),
     };
 
-    // Store as statement
     this.statements.set(id, stored);
-
-    // Create graph nodes and edge
-    // Subject node
     const subjectId = await this.ensureNode(statement.subject, 'concept');
     const objectId = await this.ensureNode(statement.object, 'concept');
 
-    // Edge: subject --predicate--> object
     await this.graph.addEdge({
       id: generateId(),
       source: subjectId,
@@ -49,11 +44,9 @@ export class KnowledgeGraph {
 
   async query(subject?: string, predicate?: string, object?: string): Promise<KnowledgeStatement[]> {
     let results = Array.from(this.statements.values());
-
     if (subject) results = results.filter(s => s.subject.toLowerCase().includes(subject.toLowerCase()));
     if (predicate) results = results.filter(s => s.predicate.toLowerCase().includes(predicate.toLowerCase()));
     if (object) results = results.filter(s => s.object.toLowerCase().includes(object.toLowerCase()));
-
     return results.sort((a, b) => b.confidence - a.confidence);
   }
 
@@ -79,6 +72,7 @@ export class KnowledgeGraph {
       id: generateId(),
       type,
       label,
+      representations: {},
       properties: {},
       tags: [],
       createdAt: new Date().toISOString(),

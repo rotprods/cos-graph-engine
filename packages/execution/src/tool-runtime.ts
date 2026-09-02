@@ -1,9 +1,8 @@
 import {
   ToolDefinition, ToolResult, ITool, CellContext,
-  EntityId, Cost, Version, Permission,
+  EntityId,
 } from '@cos/core';
 import { generateId, CellError } from '@cos/core';
-import * as fs from 'fs';
 import * as fsp from 'fs/promises';
 import * as https from 'https';
 import * as http from 'http';
@@ -39,6 +38,7 @@ export class FileSystemTool implements ITool {
   };
 
   async execute(input: { operation: string; path: string; content?: string }, context: CellContext): Promise<ToolResult> {
+    void context;
     const startTime = Date.now();
     try {
       const targetPath = path.resolve(input.path);
@@ -124,6 +124,7 @@ export class HTTPTool implements ITool {
   };
 
   async execute(input: { method: string; url: string; headers?: Record<string, string>; body?: string; timeout?: number }, context: CellContext): Promise<ToolResult> {
+    void context;
     const startTime = Date.now();
     const timeout = input.timeout || 10000;
 
@@ -204,20 +205,17 @@ export class SearchTool implements ITool {
   };
 
   async execute(input: { query: string; source?: string; limit?: number }, context: CellContext): Promise<ToolResult> {
+    void context;
     const startTime = Date.now();
     const query = input.query.toLowerCase();
     const limit = input.limit || 10;
     const results: Array<{ type: string; path: string; content: string; score: number }> = [];
 
     try {
-      // Search filesystem for matching files
       if (!input.source || input.source === 'files' || input.source === 'all') {
-        for (const dir of ['.']) {
-          await this.searchDir(path.resolve(dir), query, results, 2);
-        }
+        await this.searchDir(path.resolve('.'), query, results, 2);
       }
 
-      // Sort by score, limit
       results.sort((a, b) => b.score - a.score);
       const topResults = results.slice(0, limit);
 
@@ -277,8 +275,9 @@ export class CodeSandbox {
   private config = { maxMemory: 256, maxOutput: 1024 * 1024, timeout: 30000 };
 
   async execute(code: string, language: string = 'javascript', context?: CellContext): Promise<{
-    stdout: string; stderr: string; exitCode: number; duration: number; memoryUsed: number; error: any;
+    stdout: string; stderr: string; exitCode: number; duration: number; memoryUsed: number; error: { code: string; message?: string } | null;
   }> {
+    void context;
     const startTime = Date.now();
     const output: string[] = [];
     const errors: string[] = [];
@@ -290,21 +289,26 @@ export class CodeSandbox {
     try {
       const sandbox = {
         console: {
-          log: (...args: any[]) => output.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
-          error: (...args: any[]) => errors.push(args.map(String).join(' ')),
+          log: (...args: unknown[]) => output.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
+          error: (...args: unknown[]) => errors.push(args.map(String).join(' ')),
         },
-        setTimeout: setTimeout,
-        clearTimeout: clearTimeout,
-        Math, JSON, Date, Array, Object, String, Number, Boolean, RegExp, Map, Set, Promise, Error, parseInt, parseFloat, isNaN, isFinite,
+        Math, JSON, Date, Array, Object, String, Number, Boolean, RegExp, Map, Set, Error, parseInt, parseFloat, isNaN, isFinite,
       };
 
-      const context = vm.createContext(sandbox);
-      const script = new vm.Script(code, { timeout: this.config.timeout });
-      const result = script.runInContext(context, { timeout: this.config.timeout });
+      const vmContext = vm.createContext(sandbox, {
+        name: 'cos-code-sandbox',
+        codeGeneration: { strings: false, wasm: false },
+      });
+      const script = new vm.Script(code, { filename: 'sandbox.js' });
+      // Timeout belongs to execution, not Script construction. Keeping it here
+      // ensures synchronous runaway code is interrupted by Node's VM runtime.
+      const result = script.runInContext(vmContext, { timeout: this.config.timeout });
+      const resultText = result !== undefined ? `\n=> ${JSON.stringify(result)}` : '';
+      const stdout = (output.join('\n') + resultText).slice(0, this.config.maxOutput);
 
       return {
-        stdout: output.join('\n') + (result !== undefined ? '\n=> ' + JSON.stringify(result) : ''),
-        stderr: errors.join('\n'),
+        stdout,
+        stderr: errors.join('\n').slice(0, this.config.maxOutput),
         exitCode: 0,
         duration: Date.now() - startTime,
         memoryUsed: 0,
@@ -312,7 +316,7 @@ export class CodeSandbox {
       };
     } catch (error) {
       return {
-        stdout: output.join('\n'),
+        stdout: output.join('\n').slice(0, this.config.maxOutput),
         stderr: (error as Error).message,
         exitCode: 1,
         duration: Date.now() - startTime,
@@ -322,6 +326,7 @@ export class CodeSandbox {
     }
   }
 }
+
 
 // ================================================================
 // TOOL REGISTRY

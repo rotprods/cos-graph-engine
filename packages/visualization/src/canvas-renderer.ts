@@ -226,7 +226,7 @@ export class CanvasGraphRenderer {
         y: this._screenY(pos.y),
         color: this._nodeColor,
         radius: this._nodeRadius * this._zoom,
-        label: node ? (node.label || id) : id,
+        label: node && typeof node.label === 'string' ? node.label : id,
       });
     }
 
