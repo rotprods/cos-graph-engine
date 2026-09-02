@@ -207,7 +207,7 @@ export class SVGGraphRenderer {
     // Nodes
     for (const [id, pos] of positions) {
       const node = graph.getNode(id);
-      const label = node ? (node.label || id) : id;
+      const label = node && typeof node.label === 'string' ? node.label : id;
       lines.push(`  <circle cx="${pos.x.toFixed(1)}" cy="${pos.y.toFixed(1)}" r="${nodeRadius}" fill="${nodeColor}" stroke="${edgeColor}" stroke-width="1.5" filter="url(#glow)" />`);
       if (showLabels) {
         lines.push(`  <text x="${pos.x.toFixed(1)}" y="${(pos.y + 4).toFixed(1)}" text-anchor="middle" fill="${labelColor}" font-size="11" font-family="sans-serif">${_escapeXml(label)}</text>`);
