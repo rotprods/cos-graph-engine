@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Node 22.16.0
-        uses: actions/setup-node@e797f83bcb11b83ae66e0230d6156d7c80228e7c
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '22.16.0'
           cache: npm
@@ -74,7 +74,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Set up Node 22.16.0
-        uses: actions/setup-node@e797f83bcb11b83ae66e0230d6156d7c80228e7c
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '22.16.0'
           cache: npm
