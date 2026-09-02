@@ -256,25 +256,34 @@ export function createJSFallback(): WASMModule {
 
     pageRank(indptr: Int32Array, indices: Int32Array, damping: number, iterations: number): Float64Array {
       const n = indptr.length - 1;
+      if (n <= 0) return new Float64Array(0);
+
       const rank = new Float64Array(n);
       const newRank = new Float64Array(n);
-      const initRank = 1.0 / n;
-      rank.fill(initRank);
+      const initialRank = 1.0 / n;
+      rank.fill(initialRank);
+
       for (let iter = 0; iter < iterations; iter++) {
         let danglingSum = 0.0;
-        for (let i = 0; i < n; i++) { if (indptr[i] === indptr[i + 1]) danglingSum += rank[i]; }
-        const baseRank = (1.0 - damping) / n;
-        for (let i = 0; i < n; i++) {
-          let sum = 0.0;
-          const start = indptr[i];
-          const end = indptr[i + 1];
-          for (let j = start; j < end; j++) {
-            const neighbor = indices[j];
-            const outDegree = indptr[neighbor + 1] - indptr[neighbor];
-            if (outDegree > 0) sum += rank[neighbor] / outDegree;
-          }
-          newRank[i] = baseRank + damping * sum + damping * initRank * danglingSum;
+        for (let source = 0; source < n; source++) {
+          if (indptr[source] === indptr[source + 1]) danglingSum += rank[source];
         }
+
+        const baseRank = (1.0 - damping) / n + (damping * danglingSum) / n;
+        newRank.fill(baseRank);
+
+        for (let source = 0; source < n; source++) {
+          const start = indptr[source];
+          const end = indptr[source + 1];
+          const outDegree = end - start;
+          if (outDegree === 0) continue;
+
+          const contribution = (damping * rank[source]) / outDegree;
+          for (let j = start; j < end; j++) {
+            newRank[indices[j]] += contribution;
+          }
+        }
+
         rank.set(newRank);
       }
       return rank;
