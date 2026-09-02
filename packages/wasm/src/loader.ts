@@ -67,7 +67,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
     return new Int32Array(memory.buffer, ptr, 1)[0];
   }
 
-  const fnBFS = exports.bfs as (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+  const fnBFS = exports.bfs as (a: number, b: number, c: number, d: number, e: number) => number;
   const fnDFS = exports.dfs as (a: number, b: number, c: number, d: number, e: number, f: number) => number;
   const fnDFSHasPath = exports.dfsHasPath as (a: number, b: number, c: number, d: number, e: number, f: number) => number;
   const fnSetOutput = exports.setOutputBuffer as (a: number) => void;
@@ -77,7 +77,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
   const fnComponents = exports.connectedComponents as (a: number, b: number, c: number, d: number, e: number) => number;
   const fnTopoSort = exports.topologicalSort as (a: number, b: number, c: number, d: number, e: number) => number;
   const fnHasCycle = exports.hasCycle as (a: number, b: number, c: number, d: number) => number;
-  const fnDijkstra = exports.dijkstra as (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+  const fnDijkstra = exports.dijkstra as (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
 
   // Pre-allocate internal buffers
   const queuePtr = alloc(65536 * 4);
@@ -90,7 +90,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
       const indptrPtr = writeI32(indptr);
       const indicesPtr = writeI32(indices);
       fnSetOutput(outputPtr);
-      const count = fnBFS(indptrPtr, indptr.length, indicesPtr, indices.length, source, n);
+      const count = fnBFS(indptrPtr, indptr.length, indicesPtr, indices.length, source);
       const result = new Int32Array(Math.max(0, count));
       for (let i = 0; i < count && i < n; i++) result[i] = readI32(outputPtr + i * 4);
       return result;
@@ -101,7 +101,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
       const outputPtr = alloc(n * 4);
       const indptrPtr = writeI32(indptr);
       const indicesPtr = writeI32(indices);
-      const count = fnDFS(indptrPtr, indptr.length, indicesPtr, indices.length, source, n);
+      const count = fnDFS(indptrPtr, indptr.length, indicesPtr, indices.length, source, outputPtr);
       const result = new Int32Array(Math.max(0, count));
       for (let i = 0; i < count && i < n; i++) result[i] = readI32(outputPtr + i * 4);
       return result;
@@ -127,7 +127,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
       const indptrPtr = writeI32(indptr);
       const indicesPtr = writeI32(indices);
       const n = indptr.length - 1;
-      const found = fnShortest(indptrPtr, indptr.length, indicesPtr, indices.length, source, target, resultPtr, n);
+      const found = fnShortest(indptrPtr, indptr.length, indicesPtr, indices.length, source, target, resultPtr);
       const distance = readI32(resultPtr + 4);
       return new Int32Array([found, distance]);
     },
@@ -146,7 +146,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
       const compPtr = alloc(n * 4);
       const indptrPtr = writeI32(indptr);
       const indicesPtr = writeI32(indices);
-      const count = fnComponents(indptrPtr, indptr.length, indicesPtr, indices.length, n, compPtr);
+      const count = fnComponents(indptrPtr, indptr.length, indicesPtr, indices.length, compPtr);
       const ids = new Int32Array(n);
       for (let i = 0; i < n; i++) ids[i] = readI32(compPtr + i * 4);
       return { componentIds: ids, count };
@@ -157,7 +157,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
       const outputPtr = alloc(n * 4);
       const indptrPtr = writeI32(indptr);
       const indicesPtr = writeI32(indices);
-      const count = fnTopoSort(indptrPtr, indptr.length, indicesPtr, indices.length, n, outputPtr);
+      const count = fnTopoSort(indptrPtr, indptr.length, indicesPtr, indices.length, outputPtr);
       if (count === 0) return new Int32Array(0); // cycle detected
       const result = new Int32Array(count);
       for (let i = 0; i < count; i++) result[i] = readI32(outputPtr + i * 4);
@@ -168,7 +168,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
       const n = indptr.length - 1;
       const indptrPtr = writeI32(indptr);
       const indicesPtr = writeI32(indices);
-      return fnHasCycle(indptrPtr, indptr.length, indicesPtr, indices.length, n) !== 0;
+      return fnHasCycle(indptrPtr, indptr.length, indicesPtr, indices.length) !== 0;
     },
 
     dijkstra(indptr: Int32Array, indices: Int32Array, weights: Int32Array, source: number): { distances: Int32Array; parents: Int32Array } {
@@ -178,7 +178,7 @@ export function createWASMModule(wasmBuffer: ArrayBuffer): WASMModule {
       const indptrPtr = writeI32(indptr);
       const indicesPtr = writeI32(indices);
       const weightsPtr = writeI32(weights);
-      fnDijkstra(indptrPtr, indptr.length, indicesPtr, indices.length, weightsPtr, source, n, distPtr, parentPtr);
+      fnDijkstra(indptrPtr, indptr.length, indicesPtr, indices.length, weightsPtr, weights.length, source, distPtr, parentPtr);
       const distances = new Int32Array(n);
       const parents = new Int32Array(n);
       for (let i = 0; i < n; i++) {
