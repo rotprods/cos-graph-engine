@@ -1,0 +1,31 @@
+name: Dependency path diagnostic
+
+on:
+  push:
+    branches: [fix/strict-typecheck-regressions]
+    paths:
+      - '.github/workflows/dependency-path-diagnostic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  explain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Explain vulnerable packages
+        run: |
+          echo '=== brace-expansion ==='
+          npm explain brace-expansion || true
+          echo '=== js-yaml ==='
+          npm explain js-yaml || true
+          echo '=== direct dependency tree ==='
+          npm ls brace-expansion js-yaml --all || true
