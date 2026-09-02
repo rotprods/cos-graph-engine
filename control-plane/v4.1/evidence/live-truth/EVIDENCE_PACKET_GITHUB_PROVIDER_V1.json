@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "evidence_v4_1_github_live_truth_0e4b5f2e",
+  "status": "TARGETED_PASS",
+  "recordedAt": "2026-09-02T10:53:46+02:00",
+  "implementationSha": "0e4b5f2e89520e6bd5dc3b5bcec6908e173ea793",
+  "sourceParentSha": "406cf4e9af6c878cc9eebe888593fd7014005593",
+  "contractVersion": "4.1.0-alpha.9",
+  "authorityCeiling": "TARGETED_PASS_SHADOW_ONLY",
+  "trustClass": "INTEGRITY_ONLY",
+  "mutationMode": "READ_ONLY",
+  "providerTransport": "INJECTED_NOT_QUALIFIED",
+  "artifactIdentity": [
+    {"path":"control-plane/v4.1/observe/github-live-truth-contract.v1.json","gitBlobSha":"42bc8863dd8fee11024465f3515d027405ddddbe","sha256":"e8df837af1fa70c87b62aaa3a1ab25c86b8891485c33d34a071c99d5e9c9df23","exactPublishedBytesExecuted":true},
+    {"path":"control-plane/v4.1/observe/github-provider-observer.mjs","gitBlobSha":"7a624dd38081cf101526618fc75c983b2fe63931","sha256":"cd1da458cd42591e55bbadbad569c718a23febf3364b3098388303e08198b743","exactPublishedBytesExecuted":true},
+    {"path":"control-plane/v4.1/observe/github-live-truth-verify.mjs","gitBlobSha":"d6998f36d025c78aa80a8c5c4eee6b9f793017d3","sha256":"d3c4cd9ab02bf60fad23456921a1366f08b763856c413d0949e0a4f34e6d7a27","exactPublishedBytesExecuted":true},
+    {"path":"control-plane/v4.1/observe/github-live-truth-selftest.mjs","gitBlobSha":"3dc583524c08ba575042babcd81e075056b4d736","sha256":"456207d1b7ee05df8d8837a39252c5b59b98880af21df459f06d97a4b88d1e93","exactPublishedBytesExecuted":true},
+    {"path":"scripts/validate-v4.1-github-live-truth.mjs","gitBlobSha":"a1c6b129a1b034a80f41bbcb9af95c44bbd9f8d1","sha256":"d0f371ef544d365c894dc9c510416f956dc98f01bd909cef7f2c08ef42b1ef52","exactPublishedBytesExecuted":true}
+  ],
+  "executions": [
+    {"command":"node --check github-provider-observer.mjs && node --check github-live-truth-verify.mjs && node --check github-live-truth-selftest.mjs && node --check validate-v4.1-github-live-truth.mjs","result":"PASS","exitCode":0},
+    {"command":"node scripts/validate-v4.1-github-live-truth.mjs --self-test","result":"PASS","exitCode":0,"assertions":27,"failures":0,"reportSha256":"d3d95e35b2cecaa198041f23a3bf37edf34a5c3d315f54bbadef314199aa7f96"}
+  ],
+  "failureFamiliesClosed": [
+    {"id":"V41-GH-DUPLICATE-BRANCH-READ","finding":"default and target branch could be read twice and disagree if the provider ref moved between calls","repair":"branch reads are cached per snapshot; identical branch identity is read once"},
+    {"id":"V41-GH-HEAD-TARGET-SEMANTIC-MISMATCH","finding":"local HEAD was compared to remote target even when the local checkout was on another branch","repair":"HEAD-vs-target comparison is only defined when local currentBranch equals local targetBranch and remote target identity matches"},
+    {"id":"V41-GH-UNBOUNDED-CLIENT","finding":"an injected provider client could hang the snapshot indefinitely","repair":"every provider call is bounded by a validated timeout and timeout becomes explicit UNKNOWN"},
+    {"id":"V41-GH-404-ABSENCE","finding":"provider lookup failure could be overinterpreted as absence","repair":"404/403/rate-limit/unavailability are normalized to explicit UNKNOWN states"},
+    {"id":"V41-GH-IDENTITY-SWAP","finding":"repository or branch responses could describe a different identity than requested","repair":"requested repository and branch identities are checked before an observation is accepted"},
+    {"id":"V41-GH-CHECKS-MALFORMED","finding":"branch-protection requiredChecks could contain non-string or duplicate values","repair":"required checks are non-empty unique strings and normalized deterministically"},
+    {"id":"V41-GH-RAW-ERROR-LEAK","finding":"provider client exceptions may contain sensitive response material","repair":"exceptions normalize to PROVIDER_UNAVAILABLE and raw exception strings are never persisted in the snapshot"},
+    {"id":"V41-GH-AHEAD-BEHIND-INVENTION","finding":"different SHAs do not prove ahead/behind without ancestry evidence","repair":"reconciliation reports only MATCH/DIVERGED/UNKNOWN and pins aheadBehind to UNKNOWN in this slice"}
+  ],
+  "proofBoundary": [
+    "proves only normalization, validation, timeout and reconciliation behavior for an injected read-only GitHub client interface",
+    "the kernel itself contains no provider token, SDK or network transport",
+    "the injected client is assumed read-only by capability contract; this evidence does not independently prove its implementation performs no writes",
+    "provider response authenticity and authenticated transport are not proved by this slice",
+    "404/403 are explicitly not authoritative absence",
+    "PRs, issues, Actions and deployments are outside this alpha.9 snapshot",
+    "INTEGRITY_ONLY / SHADOW_ONLY do not authorize promotion, main mutation or deployment"
+  ],
+  "nextSafeAction": "open the alpha.9 child PR, then implement a bounded adapter for the authorized GitHub read connector and a higher-level LiveTruth bundle that combines local+provider observations while preserving separate provenance and uncertainty"
+}

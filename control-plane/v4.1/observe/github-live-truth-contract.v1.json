@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "contractId": "cos_repo_assurance_v4_1_github_live_truth",
+  "version": "4.1.0-alpha.9",
+  "sourceParentSha": "406cf4e9af6c878cc9eebe888593fd7014005593",
+  "authorityCeiling": "SHADOW_ONLY",
+  "trustClass": "INTEGRITY_ONLY",
+  "observationMode": "INJECTED_READ_ONLY_PROVIDER",
+  "provider": "GITHUB",
+  "fieldStates": [
+    "OBSERVED",
+    "UNKNOWN"
+  ],
+  "unknownReasons": [
+    "PROVIDER_FORBIDDEN",
+    "PROVIDER_NOT_FOUND_OR_HIDDEN",
+    "PROVIDER_RATE_LIMITED",
+    "PROVIDER_UNAVAILABLE",
+    "PROVIDER_UNSUPPORTED",
+    "PROVIDER_MALFORMED_RESPONSE",
+    "PROVIDER_TIMEOUT"
+  ],
+  "readOperations": [
+    "READ_REPOSITORY",
+    "READ_BRANCH",
+    "READ_BRANCH_PROTECTION"
+  ],
+  "reconciliationStates": [
+    "MATCH",
+    "DIVERGED",
+    "UNKNOWN"
+  ],
+  "hardInvariants": [
+    "PROVIDER_CLIENT_INJECTED",
+    "OBSERVER_HAS_NO_PROVIDER_CREDENTIAL",
+    "NO_PROVIDER_WRITE_OPERATION",
+    "PROVIDER_404_IS_UNKNOWN_NOT_ABSENT",
+    "PROVIDER_403_IS_UNKNOWN_NOT_ABSENT",
+    "MALFORMED_PROVIDER_RESPONSE_FAILS_CLOSED",
+    "REPOSITORY_IDENTITY_MUST_MATCH_REQUEST",
+    "BRANCH_IDENTITY_MUST_MATCH_REQUEST",
+    "OBSERVED_BRANCH_SHA_EXACT",
+    "LOCAL_AND_PROVIDER_RECONCILIATION_NEVER_INVENTS_AHEAD_BEHIND",
+    "DIVERGENCE_IS_OBSERVATION_NOT_AUTHORITY",
+    "PROVIDER_SNAPSHOT_AUTHORITY_CEILING_SHADOW_ONLY",
+    "PROVIDER_SNAPSHOT_TRUST_CLASS_INTEGRITY_ONLY",
+    "SAME_BRANCH_READ_ONCE_PER_SNAPSHOT",
+    "PROVIDER_CALLS_BOUNDED_BY_TIMEOUT",
+    "RECONCILIATION_BRANCH_IDENTITIES_MUST_MATCH",
+    "LOCAL_HEAD_ONLY_COMPARED_TO_TARGET_WHEN_CHECKED_OUT_ON_TARGET",
+    "REQUIRED_CHECKS_STRINGS_UNIQUE"
+  ],
+  "proofBoundary": [
+    "client transport/authentication is injected and outside this kernel",
+    "does not prove GitHub response authenticity beyond the injected client boundary",
+    "does not infer absence from 404/403",
+    "does not observe PRs, issues or Actions in this slice",
+    "does not authorize provider mutation or promotion",
+    "injected client is assumed read-only by capability contract; this slice cannot independently prove its transport implementation performs no writes"
+  ]
+}
