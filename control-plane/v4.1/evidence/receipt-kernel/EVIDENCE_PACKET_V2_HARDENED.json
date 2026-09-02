@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "evidenceId": "evidence_v4_1_receipt_kernel_alpha6_b3e93390",
+  "status": "TARGETED_PASS",
+  "recordedAt": "2026-09-02T08:26:22Z",
+  "sourceParentSha": "175c738b0b14e9b82ef97201d3bcc318672b1e7b",
+  "implementationSha": "b3e933901d6ca5cbc1a6733e366457b6ca59b30a",
+  "contractVersion": "4.1.0-alpha.6",
+  "authorityCeiling": "TARGETED_PASS_SHADOW_ONLY",
+  "trustClass": "INTEGRITY_ONLY",
+  "lineage": {
+    "parentReceiptPR": 68,
+    "parentReceiptHeadAtFork": "0ed195a7118ff1c71cde33d3c1d842ab208df045",
+    "alpha5Implementation": "175c738b0b14e9b82ef97201d3bcc318672b1e7b",
+    "alpha5Qualification": "IMPLEMENTED_REVIEWED_NOT_QUALIFIED",
+    "reasonAlpha5NotQualified": "pre-evidence adversarial review found silent structuredClone data-loss and lineage/vocabulary drift gaps"
+  },
+  "environment": {
+    "node": "v22.16.0",
+    "executionMode": "local exact-byte execution followed by deterministic Git-blob identity publication"
+  },
+  "artifactIdentity": [
+    {
+      "path": "control-plane/v4.1/model/receipt-contract.v3.json",
+      "gitBlobSha": "e557618477c66fe943a2e2dcd2cc134fe5a04fb6",
+      "sha256": "d00f8133cc9fe866c5ca9fa7e26eda44dfda42b3d42137383d9368f6f97174f0",
+      "exactPublishedBytesExecuted": true
+    },
+    {
+      "path": "control-plane/v4.1/kernel/receipt-canonical-v3.mjs",
+      "gitBlobSha": "b683b912889e96d30a9a99569cf51b332b8c0d31",
+      "sha256": "6c4253ab78ad95f409b4a7e9db18064f5624c5ffe26d1ab138165abf52cfef92",
+      "exactPublishedBytesExecuted": true
+    },
+    {
+      "path": "control-plane/v4.1/kernel/receipt-verify-v3.mjs",
+      "gitBlobSha": "8b9b177dadc338a2be2f504d6ef694be14b6817b",
+      "sha256": "4dc234e03173cae937fb84407416aa89e0d6f41875d13c006480a75e27414b25",
+      "exactPublishedBytesExecuted": true
+    },
+    {
+      "path": "control-plane/v4.1/kernel/receipt-selftest-v3.mjs",
+      "gitBlobSha": "913ad96ce22a85535557938b180e752005886b6d",
+      "sha256": "3afd91c861fb6ad7b3119a3a087597f5feebb2149747bda7492987744112f0b6",
+      "exactPublishedBytesExecuted": true
+    },
+    {
+      "path": "scripts/validate-v4.1-receipts-v3.mjs",
+      "gitBlobSha": "3fe1a43de9f252829db2f45487c3724058454907",
+      "sha256": "9831b04643d3eee3aa082c79758fd99f6bdd22bf93a1da2e0b39e746ed1b927f",
+      "exactPublishedBytesExecuted": true
+    }
+  ],
+  "executions": [
+    {
+      "startedAt": "2026-09-02T08:26:22Z",
+      "finishedAt": "2026-09-02T08:26:22Z",
+      "command": "node --check receipt-canonical-v3.mjs && node --check receipt-verify-v3.mjs && node --check receipt-selftest-v3.mjs && node --check validate-v4.1-receipts-v3.mjs",
+      "result": "PASS",
+      "exitCode": 0
+    },
+    {
+      "startedAt": "2026-09-02T08:26:22Z",
+      "finishedAt": "2026-09-02T08:26:22Z",
+      "command": "node scripts/validate-v4.1-receipts-v3.mjs --self-test",
+      "result": "PASS",
+      "exitCode": 0,
+      "assertions": 60,
+      "failures": 0,
+      "reportSha256": "afb37e90b13a0fa2e1234ca15454c4a7f51073f36ba718863832dff926a47bf3"
+    }
+  ],
+  "escapedFailureFamiliesClosed": [
+    {
+      "id": "V41-REC-NFC-ROOT",
+      "finding": "root strings bypassed NFC canonicalization in receipt v1 sha256",
+      "repair": "all values, including root strings, are hashed as canonical JSON after NFC normalization"
+    },
+    {
+      "id": "V41-REC-NFC-KEY-ORDER",
+      "finding": "object keys were sorted before NFC normalization",
+      "repair": "normalize keys, reject normalized collisions, then sort normalized keys"
+    },
+    {
+      "id": "V41-REC-SEGMENT-ANCHOR",
+      "finding": "continuation event segments could start above sequence 1 without an anchor",
+      "repair": "genesis forbids anchors; continuation segments require a valid SHA-256 anchor"
+    },
+    {
+      "id": "V41-REC-TRUST-BOUNDARY",
+      "finding": "integrity-vs-authenticity boundary existed only in prose and qualifyingEvidence naming could imply promotion authority",
+      "repair": "every receipt carries INTEGRITY_ONLY; derived authority ceiling is SHADOW_ONLY; authority-claim fields are rejected; API is activeIntegrityEvidence"
+    },
+    {
+      "id": "V41-REC-CLONE-DATA-LOSS",
+      "finding": "structuredClone silently discards symbol-keyed and non-enumerable input before sealing",
+      "repair": "strict canonical validation runs before cloning and rejects symbol/non-enumerable fields"
+    },
+    {
+      "id": "V41-REC-LINEAGE-DRIFT",
+      "finding": "receipt model accepted any syntactically valid sourceParentSha and mutable vocabularies",
+      "repair": "exact parent SHA, receipt status vocabulary and evidence-kind vocabulary are frozen by executable checks"
+    },
+    {
+      "id": "V41-REC-IDENTITY-UNICODE",
+      "finding": "raw Set/Map identity checks could treat NFC-equivalent IDs as distinct",
+      "repair": "receipt IDs, subject IDs, supersession IDs and idempotency keys must already be NFC canonical form"
+    }
+  ],
+  "proofBoundary": [
+    "proves only V4.1 receipt integrity/canonicalization/supersession/event-chain semantics at implementation SHA b3e933901d6ca5cbc1a6733e366457b6ca59b30a",
+    "SHA-256 proves integrity/reproducibility under a trusted storage and authorization boundary; it does not authenticate the writer",
+    "INTEGRITY_ONLY receipts are mechanically capped at SHADOW_ONLY and cannot by themselves authorize promotion",
+    "no external signature, transparency log, hardware root, trusted runner attestation or V6 independent verifier is claimed",
+    "does not prove repository observation or DefectGraph completeness",
+    "does not prove full COS build/typecheck/runtime or runtime hardening PRs #59 onward",
+    "does not prove real PostgreSQL/provider behavior, concurrency, recovery or deployment isolation",
+    "does not authorize main promotion, deployment or production authority"
+  ],
+  "nextSafeAction": "independently review alpha.6 and then reconcile PR #82 state-machine closure with this hardened receipt lineage in a new integration child; any promotion evaluator must reject INTEGRITY_ONLY receipts as authority-bearing until V6"
+}
