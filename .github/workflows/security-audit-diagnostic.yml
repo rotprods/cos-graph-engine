@@ -1,0 +1,45 @@
+name: Dependency security audit diagnostic
+
+on:
+  push:
+    branches: [fix/strict-typecheck-regressions]
+
+concurrency:
+  group: security-audit-diagnostic
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Capture audit JSON without mutating dependencies
+        run: |
+          npm audit --json > npm-audit.json || true
+          node <<'NODE'
+          const fs = require('fs');
+          const audit = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
+          const vulns = audit.vulnerabilities || {};
+          const rows = Object.entries(vulns)
+            .filter(([,v]) => ['high','critical'].includes(v.severity))
+            .map(([name,v]) => ({
+              name,
+              severity: v.severity,
+              direct: !!v.isDirect,
+              range: v.range,
+              fixAvailable: v.fixAvailable,
+              via: (v.via || []).map(x => typeof x === 'string' ? x : ({source:x.source,name:x.name,title:x.title,url:x.url,severity:x.severity,range:x.range}))
+            }));
+          console.log(JSON.stringify({metadata:audit.metadata, highCritical:rows}, null, 2));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-diagnostic
+          path: npm-audit.json
