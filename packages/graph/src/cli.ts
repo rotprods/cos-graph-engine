@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { VisualGraphEngine, MermaidRenderer, GraphvizRenderer, ASCIITreeRenderer } from './level0-visual';
-import { ExecutionGraphEngine, QueueScheduler } from './level1-execution';
+import { ExecutionGraphEngine } from './level1-execution';
 import { StateMachine } from './level2-state';
 import { DependencyResolver } from './level3-dependency';
 import { CallGraphBuilder } from './level4-call';
@@ -26,9 +26,9 @@ import { SocialGraphEngine } from './level17-social';
 import { BiologicalGraphEngine } from './level18-biological';
 import { MolecularGraphEngine } from './level19-molecular';
 import { SMB } from './smb';
-import { InputSanitizer, GraphValidator, SecurityGuard, LevelSecurity } from './security';
-import { setLocale, getLocale, listLocales, getLabels, translateGraph, t } from './i18n';
-import { pluginSystem, Plugin, HookName } from './plugin';
+import { SecurityGuard, LevelSecurity } from './security';
+import { setLocale, getLocale, listLocales, getLabels, t } from './i18n';
+import { pluginSystem } from './plugin';
 import { PipelineL4L5L6 } from './pipeline-l4l5l6';
 import { PipelineL8L9L10L11 } from './pipeline-l8l9l10l11';
 import { PipelineL12L13L14L15 } from './pipeline-l12l13l14l15';
@@ -112,7 +112,6 @@ function parseArgs(argv: string[]): Record<string, string> {
       args[key] = val;
       if (val !== 'true') i++;
     } else {
-      // Store positional as _
       args._ = argv[i];
     }
     i++;
@@ -143,7 +142,7 @@ async function cmdInfo(level: string) {
   console.log(`  ${c(GRAY, 'Class:')}     ${info.cls.name}`);
   console.log(`  ${c(GRAY, 'Pipeline:')}  ${info.pipeline ? c(CYAN, 'yes') : c(GRAY, 'no')}`);
   if (engine) {
-    try { console.log(`  ${c(GRAY, 'Metrics:')}   ${JSON.stringify(engine.metrics ? engine.metrics() : engine.metrics ? 'requires args' : 'N/A')}`); } catch { console.log(`  ${c(GRAY, 'Metrics:')}   N/A`); }
+    try { console.log(`  ${c(GRAY, 'Metrics:')}   ${JSON.stringify(engine.metrics ? engine.metrics() : 'N/A')}`); } catch { console.log(`  ${c(GRAY, 'Metrics:')}   N/A`); }
     console.log(`  ${c(GRAY, 'Methods:')}`);
     const proto = info.cls.prototype;
     const methods = Object.getOwnPropertyNames(proto).filter(m => m !== 'constructor' && !m.startsWith('_'));
@@ -214,7 +213,6 @@ async function cmdAnalyze(level: string, trace: string) {
 
 async function cmdRender(mermaid: string, format: string, output: string) {
   const engine = new VisualGraphEngine('Demo Graph');
-  // Build a demo graph manually
   const n1 = engine.addNode({ label: 'Start', type: 'start' });
   const n2 = engine.addNode({ label: 'Process', type: 'process' });
   const n3 = engine.addNode({ label: 'Decision', type: 'decision' });
@@ -222,25 +220,19 @@ async function cmdRender(mermaid: string, format: string, output: string) {
   engine.addEdge(n1, n2, 'enter');
   engine.addEdge(n2, n3, 'evaluate');
   engine.addEdge(n3, n4, 'done');
-  // Get the visual graph object via toJSON
   const graph = engine.toJSON();
   let result = '';
   if (mermaid === 'true' || format === 'mermaid') {
-    const renderer = new MermaidRenderer();
-    result = renderer.render(graph);
+    result = new MermaidRenderer().render(graph);
     console.log(`\n${c(BOLD, 'Mermaid Diagram:')}\n`);
-    console.log(result);
   } else if (format === 'graphviz' || format === 'dot') {
-    const renderer = new GraphvizRenderer();
-    result = renderer.render(graph);
+    result = new GraphvizRenderer().render(graph);
     console.log(`\n${c(BOLD, 'Graphviz DOT:')}\n`);
-    console.log(result);
   } else {
-    const renderer = new ASCIITreeRenderer();
-    result = renderer.render(graph);
+    result = new ASCIITreeRenderer().render(graph);
     console.log(`\n${c(BOLD, 'ASCII Diagram:')}\n`);
-    console.log(result);
   }
+  console.log(result);
   if (output && output !== 'true') {
     fs.writeFileSync(path.resolve(output), result, 'utf-8');
     console.log(`  ${c(GREEN, '✓')} Written to ${output}`);
@@ -253,9 +245,7 @@ async function cmdSmb(opts: Record<string, string>) {
     const graphs = await smb.listGraphs();
     console.log(`\n${c(BOLD, 'SMB Saved Graphs:')}`);
     if (graphs.length === 0) console.log(`  ${c(GRAY, 'No graphs saved yet.')}`);
-    for (const g of graphs) {
-      console.log(`  ${c(CYAN, g.key.padEnd(20))} ${c(GRAY, g.timestamp)}`);
-    }
+    for (const g of graphs) console.log(`  ${c(CYAN, g.key.padEnd(20))} ${c(GRAY, g.timestamp)}`);
     return;
   }
   if (opts.save === 'true' && opts.level) {
@@ -290,19 +280,20 @@ async function cmdPipeline(name: string) {
   const pipelines: Record<string, { name: string; run: () => any }> = {
     L4L5L6: { name: 'Call → CFG → DataFlow', run: () => {
       const p = new PipelineL4L5L6();
-      return p.runPipeline([]);
+      p.traceToDataFlow({ name: 'CLI pipeline', entries: [] });
+      return { metrics: p.metrics() };
     }},
     L8L9L10L11: { name: 'Knowledge → Semantic → Embedding → GraphRAG', run: () => {
       const p = new PipelineL8L9L10L11();
-      return p.runPipeline([]);
+      return p.runPipeline([], []);
     }},
     L12L13L14L15: { name: 'Memory → Agent → Tool → Workflow', run: () => {
       const p = new PipelineL12L13L14L15();
-      return p.runPipeline([], [], [], []);
+      return p.runPipeline([], []);
     }},
     L16L17L18L19: { name: 'Network → Social → Bio → Molecular', run: () => {
       const p = new PipelineL16L17L18L19();
-      return p.runPipeline([]);
+      return p.runPipeline([], []);
     }},
   };
   const p = pipelines[name.toUpperCase()];
@@ -415,7 +406,6 @@ async function cmdSecurity(opts: Record<string, string>) {
     return;
   }
 
-  // Default: show all checks
   console.log(`\n${c(BOLD, 'COS Security Guard')}`);
   console.log(`\n${c(BOLD, 'Subcommands:')}`);
   console.log(`  ${c(CYAN, 'cos graph security --action sanitize --input "<text>"')}   ${GRAY}Sanitize input text${RESET}`);
@@ -485,7 +475,6 @@ async function cmdPlugin(args: Record<string, any>) {
     try {
       raw = require('fs').readFileSync(input, 'utf-8');
     } catch {
-      // Try as raw data
       raw = input;
     }
     const result = ps.registry.importFrom(format, raw);
@@ -500,7 +489,6 @@ async function cmdPlugin(args: Record<string, any>) {
 
   if (sub === 'export') {
     const output = args.output || '';
-    // Build a simple demo graph
     const graph = {
       nodes: [
         { id: 'n1', label: 'Start' },
@@ -528,7 +516,6 @@ async function cmdPlugin(args: Record<string, any>) {
     return;
   }
 
-  // Install from marketplace
   if (sub === 'install') {
     const name = args.name || '';
     if (!name) { console.error(c(RED, 'Use --name <plugin> to install')); return; }
@@ -541,7 +528,6 @@ async function cmdPlugin(args: Record<string, any>) {
     return;
   }
 
-  // Default: show help
   console.log(`\n${c(BOLD, 'COS Plugin System')}`);
   console.log(`\n  ${c(GRAY, 'cos graph plugin list')}            ${c(CYAN, 'List all plugins')}`);
   console.log(`  ${c(GRAY, 'cos graph plugin search --query <q>')} ${c(CYAN, 'Search marketplace')}`);
@@ -573,7 +559,6 @@ export async function graphCli(argv: string[]): Promise<void> {
   }
 }
 
-// Standalone entry point
 if (require.main === module) {
   graphCli(process.argv.slice(3)).catch(e => {
     console.error(c(RED, `Error: ${e.message}`));
