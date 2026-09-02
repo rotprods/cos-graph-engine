@@ -7,17 +7,20 @@ on:
       - 'scripts/test-framework-protocol.ts'
       - 'scripts/test-framework-protocol-hardening.ts'
       - 'scripts/test-framework-state-store.ts'
+      - 'scripts/test-framework-state-runtime.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
   push:
     branches:
       - 'feat/graph-framework-protocol-v1'
       - 'feat/graph-state-kernel-v1'
+      - 'feat/graph-state-runtime-v1'
     paths:
       - 'packages/graph/src/framework/**'
       - 'scripts/test-framework-protocol.ts'
       - 'scripts/test-framework-protocol-hardening.ts'
       - 'scripts/test-framework-state-store.ts'
+      - 'scripts/test-framework-state-runtime.ts'
       - 'tsconfig.framework.json'
       - '.github/workflows/framework-protocol.yml'
 
@@ -47,3 +50,4 @@ jobs:
           npx --no-install tsx scripts/test-framework-protocol.ts
           npx --no-install tsx scripts/test-framework-protocol-hardening.ts
           npx --no-install tsx scripts/test-framework-state-store.ts
+          npx --no-install tsx scripts/test-framework-state-runtime.ts
