@@ -1,0 +1,34 @@
+name: CGEV11 auth boundary verification
+on:
+  push:
+    branches: [fix/cgev11-auth-boundary-20260907]
+  pull_request:
+    paths:
+      - 'packages/api/src/auth.ts'
+      - 'packages/api/src/http-server.ts'
+      - 'scripts/test-auth-boundary.cjs'
+      - '.github/workflows/cgev11-auth-verification.yml'
+permissions:
+  contents: read
+concurrency:
+  group: cgev11-auth-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --import tsx scripts/test-auth-boundary.cjs
+      - run: npm run asbuild
+      - run: npx --no-install tsc --noEmit
+      - run: node scripts/test-memory-regressions.cjs
+      - run: timeout 240s npm run test:all
+      - run: npm audit --audit-level=high
