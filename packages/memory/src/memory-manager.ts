@@ -12,6 +12,7 @@ export class InMemoryStore implements IMemoryStore {
   private entries: Map<EntityId, MemoryEntry> = new Map();
   private layerIndex: Map<MemoryLayer, Set<EntityId>> = new Map();
   private tagIndex: Map<string, Set<EntityId>> = new Map();
+  private sweepTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor() {
     const layers: MemoryLayer[] = [
@@ -20,7 +21,40 @@ export class InMemoryStore implements IMemoryStore {
       'vector', 'knowledge_graph', 'cache', 'reflection',
     ];
     for (const layer of layers) this.layerIndex.set(layer, new Set());
-    setInterval(() => this.sweepExpired(), 60000);
+    this.sweepTimer = setInterval(() => {
+      void this.sweepExpired().catch(error => {
+        console.error('[InMemoryStore] Expiration sweep failed:', error);
+      });
+    }, 60000);
+    // Housekeeping must not keep an otherwise idle CLI process alive.
+    this.sweepTimer.unref();
+  }
+
+  /** Stop housekeeping without deleting data. Safe to call more than once. */
+  dispose(): void {
+    if (this.sweepTimer !== undefined) {
+      clearInterval(this.sweepTimer);
+      this.sweepTimer = undefined;
+    }
+  }
+
+  private index(entry: MemoryEntry): void {
+    if (!this.layerIndex.has(entry.layer)) this.layerIndex.set(entry.layer, new Set());
+    this.layerIndex.get(entry.layer)!.add(entry.id);
+    for (const tag of entry.tags || []) {
+      if (!this.tagIndex.has(tag)) this.tagIndex.set(tag, new Set());
+      this.tagIndex.get(tag)!.add(entry.id);
+    }
+  }
+
+  private unindex(entry: MemoryEntry): void {
+    this.layerIndex.get(entry.layer)?.delete(entry.id);
+    for (const tag of entry.tags || []) {
+      const ids = this.tagIndex.get(tag);
+      if (!ids) continue;
+      ids.delete(entry.id);
+      if (ids.size === 0) this.tagIndex.delete(tag);
+    }
   }
 
   async store(entry: MemoryEntry): Promise<EntityId> {
@@ -28,16 +62,14 @@ export class InMemoryStore implements IMemoryStore {
     const stored: MemoryEntry = {
       ...entry,
       id,
+      tags: [...(entry.tags || [])],
       createdAt: entry.createdAt || new Date().toISOString(),
       lastAccessed: new Date().toISOString(),
     };
-
+    const previous = this.entries.get(id);
+    if (previous) this.unindex(previous);
     this.entries.set(id, stored);
-    this.layerIndex.get(entry.layer)?.add(id);
-    for (const tag of entry.tags || []) {
-      if (!this.tagIndex.has(tag)) this.tagIndex.set(tag, new Set());
-      this.tagIndex.get(tag)!.add(id);
-    }
+    this.index(stored);
     return id;
   }
 
@@ -59,6 +91,8 @@ export class InMemoryStore implements IMemoryStore {
   }
 
   async query(q: MemoryQuery): Promise<MemoryEntry[]> {
+    // Query and direct retrieval must agree even before the periodic sweep runs.
+    await this.sweepExpired();
     let results = Array.from(this.entries.values());
 
     if (q.layer) results = results.filter(e => e.layer === q.layer);
@@ -107,26 +141,27 @@ export class InMemoryStore implements IMemoryStore {
   async update(id: EntityId, updates: Partial<MemoryEntry>): Promise<void> {
     const entry = this.entries.get(id);
     if (!entry) throw new Error(`Memory entry ${id} not found`);
-    Object.assign(entry, updates);
-    entry.lastAccessed = new Date().toISOString();
+    if (updates.id !== undefined && updates.id !== id) {
+      throw new Error(`Memory entry identity is immutable: ${id}`);
+    }
+    // Remove old index membership before applying changes to the indexed fields.
+    this.unindex(entry);
+    Object.assign(entry, updates, { id, lastAccessed: new Date().toISOString() });
+    if (updates.tags !== undefined) entry.tags = [...updates.tags];
+    this.index(entry);
   }
 
   async delete(id: EntityId): Promise<void> {
     const entry = this.entries.get(id);
     if (!entry) return;
-
+    this.unindex(entry);
     this.entries.delete(id);
-    this.layerIndex.get(entry.layer)?.delete(id);
-    for (const tag of entry.tags) this.tagIndex.get(tag)?.delete(id);
   }
 
   async clear(layer?: MemoryLayer): Promise<void> {
     if (layer) {
-      const layerSet = this.layerIndex.get(layer);
-      if (layerSet) {
-        for (const id of layerSet) this.entries.delete(id);
-        layerSet.clear();
-      }
+      const ids = [...(this.layerIndex.get(layer) || [])];
+      for (const id of ids) await this.delete(id);
     } else {
       this.entries.clear();
       for (const layerSet of this.layerIndex.values()) layerSet.clear();
@@ -135,6 +170,7 @@ export class InMemoryStore implements IMemoryStore {
   }
 
   async stats(): Promise<MemoryStoreStats> {
+    await this.sweepExpired();
     const byLayer: Partial<Record<MemoryLayer, number>> = {};
     let totalSize = 0;
     let oldest: Timestamp | null = null;
@@ -203,7 +239,7 @@ export class MemoryManager {
       content,
       representations: {},
       importance: options.importance ?? this.defaultImportance(layer),
-      ttl: options.ttl ?? this.defaultTTL(layer),
+      ttl: options.ttl === undefined ? this.defaultTTL(layer) : options.ttl,
       version: { major: 1, minor: 0, patch: 0 },
       createdAt: new Date().toISOString(),
       lastAccessed: new Date().toISOString(),
@@ -229,9 +265,7 @@ export class MemoryManager {
     let consolidated = 0;
     for (const entry of shortTermEntries) {
       if (entry.importance >= threshold) {
-        entry.layer = 'long_term';
-        entry.consolidated = true;
-        entry.ttl = null;
+        // Let the store change the layer so it can reconcile the old indexes.
         await this.storeImpl.update(entry.id, { layer: 'long_term', consolidated: true, ttl: null });
         consolidated++;
       }
@@ -261,10 +295,20 @@ export class MemoryManager {
     const target = await this.storeImpl.retrieve(targetId);
     if (!source || !target) return;
 
-    const linksRaw = source.metadata['links'];
-    const links = Array.isArray(linksRaw)
-      ? [...linksRaw] as Array<{ target: string; relation: string }>
-      : [];
+    const linksRaw: unknown = source.metadata['links'];
+    let decoded: unknown = linksRaw;
+    if (typeof linksRaw === 'string') {
+      try { decoded = JSON.parse(linksRaw); }
+      catch { throw new Error(`Invalid serialized memory links for ${sourceId}`); }
+    }
+    if (decoded === undefined || decoded === null) decoded = [];
+    if (!Array.isArray(decoded) || !decoded.every(link =>
+      link !== null && typeof link === 'object'
+      && typeof link.target === 'string' && typeof link.relation === 'string'
+    )) {
+      throw new Error(`Invalid memory links for ${sourceId}`);
+    }
+    const links: Array<{ target: string; relation: string }> = [...decoded];
     links.push({ target: targetId, relation });
     await this.storeImpl.update(sourceId, {
       metadata: { ...source.metadata, links: JSON.stringify(links) },
