@@ -4,6 +4,13 @@ import { COSServer } from './server';
 import { AuthMiddleware, AuthIdentity } from './auth';
 import { Configuration } from '@cos/infrastructure';
 
+class HttpRequestError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = 'HttpRequestError';
+  }
+}
+
 // ================================================================
 // Phase 5: HTTP API Server
 // REST endpoints for the Cognitive Operating System
@@ -55,6 +62,7 @@ export class HttpApiServer {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -268,25 +276,88 @@ export class HttpApiServer {
         await this.sendJson(res, 404, { error: 'Not found', path });
       }
     } catch (error) {
-      await this.sendJson(res, 500, { error: (error as Error).message });
+      const status = error instanceof HttpRequestError ? error.status : 500;
+      const message = error instanceof HttpRequestError ? error.message : 'Internal server error';
+      if (status >= 500) {
+        console.error('[COS API] request failed', { status, type: error instanceof Error ? error.name : 'UnknownError' });
+      }
+      await this.sendJson(res, status, { error: message });
     }
   }
 
-  private readBody(req: http.IncomingMessage): Promise<any> {
-    return new Promise((resolve) => {
+  private maxBodyBytes(): number {
+    const configured = this.config.get<number>('server.maxBodyBytes');
+    if (Number.isSafeInteger(configured) && configured! > 0) {
+      return Math.min(configured!, 8 * 1024 * 1024);
+    }
+    return 1024 * 1024;
+  }
+
+  private readBody(req: http.IncomingMessage): Promise<Record<string, any>> {
+    const maxBytes = this.maxBodyBytes();
+    const lengthHeader = req.headers['content-length'];
+    if (lengthHeader !== undefined) {
+      const rawLength = Array.isArray(lengthHeader) ? lengthHeader[0] : lengthHeader;
+      const declared = Number(rawLength);
+      if (!Number.isSafeInteger(declared) || declared < 0) {
+        return Promise.reject(new HttpRequestError(400, 'Invalid Content-Length'));
+      }
+      if (declared > maxBytes) return Promise.reject(new HttpRequestError(413, 'Request body too large'));
+    }
+
+    return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
-      req.on('data', (chunk: Buffer) => chunks.push(chunk));
-      req.on('end', () => {
-        const raw = Buffer.concat(chunks).toString();
+      let bytes = 0;
+      let settled = false;
+      const cleanup = () => {
+        req.off('data', onData);
+        req.off('end', onEnd);
+        req.off('error', onError);
+        req.off('aborted', onAborted);
+      };
+      const fail = (error: HttpRequestError) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        req.resume();
+        reject(error);
+      };
+      const onData = (chunk: Buffer | string) => {
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        bytes += buffer.length;
+        if (bytes > maxBytes) {
+          fail(new HttpRequestError(413, 'Request body too large'));
+          return;
+        }
+        chunks.push(buffer);
+      };
+      const onEnd = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        const raw = Buffer.concat(chunks).toString('utf8');
         if (!raw) return resolve({});
-        try { resolve(JSON.parse(raw)); }
-        catch { resolve({ raw }); }
-      });
+        let parsed: unknown;
+        try { parsed = JSON.parse(raw); }
+        catch { reject(new HttpRequestError(400, 'Malformed JSON request body')); return; }
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          reject(new HttpRequestError(400, 'JSON request body must be an object'));
+          return;
+        }
+        resolve(parsed as Record<string, any>);
+      };
+      const onError = () => fail(new HttpRequestError(400, 'Request body read failed'));
+      const onAborted = () => fail(new HttpRequestError(400, 'Request body aborted'));
+      req.on('data', onData);
+      req.once('end', onEnd);
+      req.once('error', onError);
+      req.once('aborted', onAborted);
     });
   }
 
   private sendJson(res: http.ServerResponse, status: number, data: unknown): void {
-    res.writeHead(status, { 'Content-Type': 'application/json' });
+    if (status >= 400) res.setHeader('Cache-Control', 'no-store');
+    res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(data, null, 2));
   }
 }
@@ -347,7 +418,6 @@ input{background:#0d1117;border:1px solid #30363d;color:#c9d1d9;padding:6px 12px
 <h1>🧠 Cognitive Operating System <small id="subtitle">loading...</small></h1>
 <div id="status-bar"></div>
 <div class="grid" id="grid"></div>
-
 <script>
 const API = window.location.origin;
 
@@ -671,17 +741,17 @@ async function research() {
     const data = await res.json();
 
     // Report
-    let reportHtml = \`<div style="font-size:14px;font-weight:600;margin-bottom:8px">\${data.report?.title || 'Research Analysis'}</div>\`;
-    reportHtml += \`<div>\${(data.report?.summary || data.report || '').substring(0, 2000)}</div>\`;
+    let reportHtml = `<div style="font-size:14px;font-weight:600;margin-bottom:8px">${data.report?.title || 'Research Analysis'}</div>`;
+    reportHtml += `<div>${(data.report?.summary || data.report || '').substring(0, 2000)}</div>`;
     if (data.report?.conclusions) {
       reportHtml += '<div style="margin-top:12px;font-weight:600">Conclusions:</div><ul style="margin-top:4px;padding-left:20px">';
-      data.report.conclusions.forEach((c: string) => reportHtml += \`<li style="font-size:12px;margin:2px 0">\${c}</li>\`);
+      data.report.conclusions.forEach((c: string) => reportHtml += `<li style="font-size:12px;margin:2px 0">${c}</li>`);
       reportHtml += '</ul>';
     }
     reportHtml += '<div style="margin-top:12px;font-size:11px;color:#8b949e;border-top:1px solid #21262d;padding-top:8px">';
-    reportHtml += \`<span class="badge badge-blue">conf: \${(data.confidence*100).toFixed(0)}%</span> \`;
-    reportHtml += \`<span class="badge badge-green">\${data.reasoning?.length || 0} steps</span> \`;
-    reportHtml += \`<span class="badge badge-blue">\${data.memory?.entries || 0} memories</span>\`;
+    reportHtml += `<span class="badge badge-blue">conf: ${(data.confidence*100).toFixed(0)}%</span> `;
+    reportHtml += `<span class="badge badge-green">${data.reasoning?.length || 0} steps</span> `;
+    reportHtml += `<span class="badge badge-blue">${data.memory?.entries || 0} memories</span>`;
     reportHtml += '</div>';
     document.getElementById('report').innerHTML = reportHtml;
 
@@ -689,12 +759,12 @@ async function research() {
     let traceHtml = '';
     if (data.reasoning) {
       data.reasoning.forEach((step: any, i: number) => {
-        traceHtml += \`<div class="step">Step \${i + 1}: \${step.output?.substring(0, 80) || ''}</div>\`;
-        if (step.confidence) traceHtml += \`<div class="meta">  confidence: \${(step.confidence*100).toFixed(0)}%</div>\`;
+        traceHtml += `<div class="step">Step ${i + 1}: ${step.output?.substring(0, 80) || ''}</div>`;
+        if (step.confidence) traceHtml += `<div class="meta">  confidence: ${(step.confidence*100).toFixed(0)}%</div>`;
       });
     }
     if (data.llmTrace) {
-      traceHtml += \`<div class="result" style="margin-top:8px">🤖 LLM: \${(data.llmTrace.content || '').substring(0, 200)}</div>\`;
+      traceHtml += `<div class="result" style="margin-top:8px">🤖 LLM: ${(data.llmTrace.content || '').substring(0, 200)}</div>`;
     }
     document.getElementById('trace').innerHTML = traceHtml || '<div style="color:#8b949e">No reasoning trace available</div>';
 
@@ -704,25 +774,25 @@ async function research() {
       kgHtml += '<div style="font-weight:600;margin-bottom:6px">Knowledge Graph</div>';
       if (Array.isArray(data.knowledge)) {
         data.knowledge.slice(0, 5).forEach((k: any) => {
-          kgHtml += \`<div class="stat-row"><span class="key">\${k.subject || '?'}</span><span class="val">\${k.predicate || '→'} \${k.object || '?'}</span></div>\`;
+          kgHtml += `<div class="stat-row"><span class="key">${k.subject || '?'}</span><span class="val">${k.predicate || '→'} ${k.object || '?'}</span></div>`;
         });
       }
     }
     if (data.memory) {
       kgHtml += '<div style="font-weight:600;margin-top:10px;margin-bottom:6px">Memory</div>';
-      kgHtml += \`<div class="stat-row"><span class="key">Entries</span><span class="val">\${data.memory.entries || 0}</span></div>\`;
-      kgHtml += \`<div class="stat-row"><span class="key">Layers active</span><span class="val">\${data.memory.layers || 0}</span></div>\`;
+      kgHtml += `<div class="stat-row"><span class="key">Entries</span><span class="val">${data.memory.entries || 0}</span></div>`;
+      kgHtml += `<div class="stat-row"><span class="key">Layers active</span><span class="val">${data.memory.layers || 0}</span></div>`;
     }
     if (data.selfImprovement) {
       kgHtml += '<div style="font-weight:600;margin-top:10px;margin-bottom:6px">Self-Improvement</div>';
-      kgHtml += \`<div class="stat-row"><span class="key">Score</span><span class="val">\${(data.selfImprovement.score*100).toFixed(0)}/100</span></div>\`;
-      kgHtml += \`<div class="stat-row"><span class="key">Trend</span><span class="val"><span class="status-dot \${data.selfImprovement.trend === 'improving' ? 'green' : 'yellow'}"></span>\${data.selfImprovement.trend}</span></div>\`;
+      kgHtml += `<div class="stat-row"><span class="key">Score</span><span class="val">${(data.selfImprovement.score*100).toFixed(0)}/100</span></div>`;
+      kgHtml += `<div class="stat-row"><span class="key">Trend</span><span class="val"><span class="status-dot ${data.selfImprovement.trend === 'improving' ? 'green' : 'yellow'}"></span>${data.selfImprovement.trend}</span></div>`;
     }
     kgHtml += '</div>';
     document.getElementById('knowledge').innerHTML = kgHtml;
 
   } catch (e) {
-    document.getElementById('report').innerHTML = \`<div style="color:#f85149">Error: \${e.message}</div>\`;
+    document.getElementById('report').innerHTML = `<div style="color:#f85149">Error: ${e.message}</div>`;
   }
   document.getElementById('research-btn').disabled = false;
 }
