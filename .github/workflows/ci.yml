@@ -1,324 +1,297 @@
-# COS Graph Engine — CI Pipeline
-# Triggered on push/PR to main/develop
-
+# Manual qualification during COS-MAIN-CONVERGENCE-2026-09-07. No publication or deployment.
 name: CI
-
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
-
+'on':
+  workflow_dispatch: {}
+permissions:
+  contents: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+defaults:
+  run:
+    shell: bash
+    working-directory: .
 env:
-  NODE_VERSION: '22.12.0'
-  WORKING_DIR: .
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
+  NODE_VERSION: 22.12.0
 jobs:
+  ci-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs: &job_receipts
+      tested_sha: ${{ steps.identity.outputs.tested_sha }}
+      completed: ${{ steps.seal.outputs.completed }}
+    steps:
+    - &checkout
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      with:
+        persist-credentials: false
+    - &checkout_identity
+      name: Bind checkout to workflow SHA
+      id: identity
+      run: |
+        set -euo pipefail
+        actual="$(git rev-parse HEAD)"
+        test "$actual" = "$GITHUB_SHA"
+        printf 'tested_sha=%s\n' "$actual" >> "$GITHUB_OUTPUT"
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    - run: node --test scripts/test-ci-results.mjs
+    - &completion_receipt
+      name: Seal successful job
+      id: seal
+      run: printf 'completed=true\n' >> "$GITHUB_OUTPUT"
   lint:
-    name: Lint + Type Check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: TypeScript check
-        run: npx --no-install tsc --noEmit
-
-  test-graph-csr:
-    name: CSR Graph (77 tests)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: CSR tests
-        run: npx tsx scripts/test-csr.ts
-
-  test-graph-pruning:
-    name: Pruning (70 tests)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: Pruning tests
-        run: npx tsx scripts/test-pruning.ts
-
-  test-graph-benchmark:
-    name: Benchmark (64 tests)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: Benchmark tests
-        run: npx tsx scripts/test-benchmark.ts
-
-  test-wasm:
-    name: WASM (23 tests)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: Build WASM modules
-        run: npm run asbuild
-      - name: WASM tests
-        run: npx tsx scripts/test-wasm.ts
-
-  test-observability:
-    name: Observability (228 tests)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: Tracing
-        run: npx tsx packages/observability/tests/tracing.test.ts
-      - name: Collector
-        run: npx tsx packages/observability/tests/collector.test.ts
-      - name: Profiler
-        run: npx tsx packages/observability/tests/profiler.test.ts
-      - name: Dashboard
-        run: npx tsx packages/observability/tests/dashboard.test.ts
-
-  test-visualization:
-    name: Visualization (90 tests)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: SVG Renderer
-        run: npx tsx packages/visualization/tests/svg-renderer.test.ts
-      - name: Canvas Renderer
-        run: npx tsx packages/visualization/tests/canvas-renderer.test.ts
-      - name: Web Component
-        run: npx tsx packages/visualization/tests/web-component.test.ts
-
-  test-core:
-    name: COS Core (390+ tests)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: Run all core suites
-        run: |
-          npx tsx scripts/test-level1-diamond.ts
-          npx tsx scripts/test-level1-mutation.ts
-          npx tsx scripts/test-level3-consistency.ts
-          npx tsx scripts/test-level3-mutation.ts
-          npx tsx scripts/test-level7-compute.ts
-          npx tsx scripts/test-levels-12-19.ts
-          npx tsx scripts/test-level0-visual.ts
-          npx tsx scripts/test-level2-state.ts
-          npx tsx scripts/test-level4-call.ts
-          npx tsx scripts/test-level5-cfg.ts
-          npx tsx scripts/test-level6-dataflow.ts
-          npx tsx scripts/test-levels-8-11.ts
-      - name: Verify
-        run: echo "All COS core tests passed"
-
-  benchmark:
-    name: Performance Benchmarks
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: Build WASM
-        run: npm run asbuild
-      - name: Run benchmarks
-        run: npx tsx scripts/benchmark-perf.ts 2>&1
-      - name: Generate HTML report
-        run: npx tsx scripts/generate-benchmark-report.ts 2>&1
-      - name: Upload benchmark report
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-report
-          path: ${{ env.WORKING_DIR }}/benchmark-report.html
-      - name: Upload benchmark history
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-history
-          path: ${{ env.WORKING_DIR }}/benchmark-reports/
-
-  coverage:
-    name: Code Coverage (c8)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: Run with coverage
-        run: npm run coverage 2>&1
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: ${{ env.WORKING_DIR }}/coverage/
-
-  docker:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    needs: [lint, test-graph-csr, test-graph-pruning, test-graph-benchmark, test-wasm, test-observability, test-visualization, test-core]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    permissions:
-      contents: read
-      packages: write
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ env.WORKING_DIR }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  full-regression:
-    name: Full Regression
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - &setup_node
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: npm
+        cache-dependency-path: package-lock.json
+    - &install
+      name: Frozen install without lifecycle hooks
+      run: npm ci --ignore-scripts --no-audit --no-fund
+    - run: npx --no-install tsc --noEmit
+    - *completion_receipt
     needs:
-      - lint
-      - test-graph-csr
-      - test-graph-pruning
-      - test-graph-benchmark
-      - test-wasm
-      - test-observability
-      - test-visualization
-      - test-core
-      - benchmark
-      - coverage
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
-      - run: npm ci
-      - name: Run all suites
-        run: npm run test:all 2>&1
-      - name: Verify
-        run: echo "✅ Full regression passed"
-
-  complete:
-    name: ✅ All Checks Passed
+    - ci-contract
+    name: Strict Type Check
+  test-graph-csr:
     runs-on: ubuntu-latest
-    needs: [full-regression]
-    if: success()
+    timeout-minutes: 20
+    outputs: *job_receipts
     steps:
-      - run: echo "✅ CI complete — all tests, benchmarks, coverage, and regression gates passed"
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - run: npx --no-install tsx scripts/test-csr.ts
+    - *completion_receipt
+    needs:
+    - ci-contract
+  test-graph-pruning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - run: npx --no-install tsx scripts/test-pruning.ts
+    - *completion_receipt
+    needs:
+    - ci-contract
+  test-graph-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - run: npx --no-install tsx scripts/test-benchmark.ts
+    - *completion_receipt
+    needs:
+    - ci-contract
+  test-wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - run: npm run asbuild
+    - run: npx --no-install tsx scripts/test-wasm.ts
+    - name: Compiled WASM and JS PageRank oracle
+      run: npm test --workspace=@cos/wasm
+    - *completion_receipt
+    needs:
+    - ci-contract
+  test-observability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - run: npx --no-install tsx packages/observability/tests/tracing.test.ts
+    - run: npx --no-install tsx packages/observability/tests/collector.test.ts
+    - run: npx --no-install tsx packages/observability/tests/profiler.test.ts
+    - run: npx --no-install tsx packages/observability/tests/dashboard.test.ts
+    - *completion_receipt
+    needs:
+    - ci-contract
+  test-visualization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - run: npx --no-install tsx packages/visualization/tests/svg-renderer.test.ts
+    - run: npx --no-install tsx packages/visualization/tests/canvas-renderer.test.ts
+    - run: npx --no-install tsx packages/visualization/tests/web-component.test.ts
+    - *completion_receipt
+    needs:
+    - ci-contract
+  test-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - run: npx --no-install tsx scripts/test-level1-diamond.ts
+    - run: npx --no-install tsx scripts/test-level1-mutation.ts
+    - run: npx --no-install tsx scripts/test-level3-consistency.ts
+    - run: npx --no-install tsx scripts/test-level3-mutation.ts
+    - run: npx --no-install tsx scripts/test-level7-compute.ts
+    - run: npx --no-install tsx scripts/test-levels-12-19.ts
+    - run: npx --no-install tsx scripts/test-level0-visual.ts
+    - run: npx --no-install tsx scripts/test-level2-state.ts
+    - run: npx --no-install tsx scripts/test-level4-call.ts
+    - run: npx --no-install tsx scripts/test-level5-cfg.ts
+    - run: npx --no-install tsx scripts/test-level6-dataflow.ts
+    - run: npx --no-install tsx scripts/test-levels-8-11.ts
+    - *completion_receipt
+    needs:
+    - ci-contract
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - run: npm run asbuild
+    - run: npx --no-install tsx scripts/benchmark-perf.ts 2>&1
+    - run: npx --no-install tsx scripts/generate-benchmark-report.ts 2>&1
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: benchmark-report
+        path: benchmark-report.html
+        if-no-files-found: error
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: benchmark-history
+        path: benchmark-reports/
+        if-no-files-found: error
+    - *completion_receipt
+    needs:
+    - ci-contract
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - run: npm run coverage 2>&1
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: coverage-report
+        path: coverage/
+        if-no-files-found: error
+    - *completion_receipt
+    needs:
+    - ci-contract
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    - run: docker build --tag "cos-graph-engine:ci-${GITHUB_SHA}" .
+    - *completion_receipt
+    needs:
+    - ci-contract
+    - lint
+    - test-graph-csr
+    - test-graph-pruning
+    - test-graph-benchmark
+    - test-wasm
+    - test-observability
+    - test-visualization
+    - test-core
+    - benchmark
+    - coverage
+    name: Docker Build Only (no registry login or push)
+  full-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs: *job_receipts
+    steps:
+    - *checkout
+    - *checkout_identity
+    - *setup_node
+    - *install
+    - name: Build WASM for clean full regression
+      run: npm run asbuild
+    - run: npm run test:all 2>&1
+    - *completion_receipt
+    needs:
+    - ci-contract
+    - lint
+    - test-graph-csr
+    - test-graph-pruning
+    - test-graph-benchmark
+    - test-wasm
+    - test-observability
+    - test-visualization
+    - test-core
+    - benchmark
+    - coverage
+    - docker
+  complete:
+    name: All configured CI checks passed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ always() }}
+    needs:
+    - ci-contract
+    - lint
+    - test-graph-csr
+    - test-graph-pruning
+    - test-graph-benchmark
+    - test-wasm
+    - test-observability
+    - test-visualization
+    - test-core
+    - benchmark
+    - coverage
+    - docker
+    - full-regression
+    steps:
+    - *checkout
+    - *checkout_identity
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    - name: Fail closed on every mandatory job and receipt
+      env:
+        COS_CI_RESULTS: ${{ toJSON(needs) }}
+      run: node scripts/verify-ci-results.mjs
