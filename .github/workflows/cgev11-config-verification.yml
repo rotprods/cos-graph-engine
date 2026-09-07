@@ -1,0 +1,39 @@
+name: CGEV11 configuration and integrated regression verification
+on:
+  push:
+    branches: [fix/cgev11-config-bindings-20260907]
+  pull_request:
+    paths:
+      - 'packages/infrastructure/src/config.ts'
+      - 'scripts/test-config-bindings.cjs'
+      - '.github/workflows/cgev11-config-verification.yml'
+permissions:
+  contents: read
+concurrency:
+  group: cgev11-config-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --import tsx scripts/test-config-bindings.cjs
+      - run: node --import tsx scripts/test-auth-boundary.cjs
+      - run: node scripts/test-memory-regressions.cjs
+      - run: npm run asbuild
+      - run: npx --no-install tsc --noEmit
+      - run: timeout 240s npm run test:all
+      - name: Extended suites
+        run: |
+          for suite in test:csr test:pruning test:benchmark test:wasm test:observability test:visualization; do
+            timeout 120s npm run "$suite"
+          done
+      - run: npm audit --audit-level=high
