@@ -71,6 +71,12 @@ export class HttpApiServer {
       const authHeader = req.headers['authorization'] as string | undefined;
       const identity = await this.auth.authenticate(authHeader);
 
+      // Authorize before body parsing or any service side effects.
+      if (!this.auth.authorize(identity, method, path)) {
+        await this.sendJson(res, identity.tokenType === 'none' ? 401 : 403, { error: 'Unauthorized or insufficient permissions' });
+        return;
+      }
+
       // Route
       const body = await this.readBody(req);
 
@@ -253,7 +259,8 @@ export class HttpApiServer {
           confidence: llmResponse.usage.totalTokens > 0 ? 0.8 : 0.5,
         });
       } else if (path === '/config' && method === 'GET') {
-        await this.sendJson(res, 200, this.config.snapshot());
+        res.setHeader('Cache-Control', 'no-store');
+        await this.sendJson(res, 200, this.auth.redactedConfiguration());
       } else if (path === '/auth/token' && method === 'POST') {
         const token = this.auth.generateToken(body.userId || 'user', body.role || 'user');
         await this.sendJson(res, 200, { token });
