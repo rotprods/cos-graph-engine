@@ -4,14 +4,21 @@ import {
 } from '@cos/core';
 import { generateId } from '@cos/core';
 
-// ================================================================
-// In-Memory Store (default implementation)
-// ================================================================
+type AccessTelemetry = { lastAccessed: Timestamp; accessCount: number };
+
+function detached<T>(value: T, label: string): T {
+  try {
+    return structuredClone(value);
+  } catch {
+    throw new Error(`${label} contains non-cloneable data`);
+  }
+}
 
 export class InMemoryStore implements IMemoryStore {
   private entries: Map<EntityId, MemoryEntry> = new Map();
   private layerIndex: Map<MemoryLayer, Set<EntityId>> = new Map();
   private tagIndex: Map<string, Set<EntityId>> = new Map();
+  private accessTelemetry: Map<EntityId, AccessTelemetry> = new Map();
   private sweepTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor() {
@@ -22,15 +29,14 @@ export class InMemoryStore implements IMemoryStore {
     ];
     for (const layer of layers) this.layerIndex.set(layer, new Set());
     this.sweepTimer = setInterval(() => {
-      void this.sweepExpired().catch(error => {
-        console.error('[InMemoryStore] Expiration sweep failed:', error);
+      void this.sweepExpired().catch(() => {
+        console.error('[InMemoryStore] Expiration sweep failed');
       });
     }, 60000);
-    // Housekeeping must not keep an otherwise idle CLI process alive.
     this.sweepTimer.unref();
   }
 
-  /** Stop housekeeping without deleting data. Safe to call more than once. */
+  /** Stop housekeeping without deleting canonical memory. Idempotent. */
   dispose(): void {
     if (this.sweepTimer !== undefined) {
       clearInterval(this.sweepTimer);
@@ -57,18 +63,53 @@ export class InMemoryStore implements IMemoryStore {
     }
   }
 
+  private telemetry(entry: MemoryEntry): AccessTelemetry {
+    return this.accessTelemetry.get(entry.id) ?? {
+      lastAccessed: entry.lastAccessed,
+      accessCount: entry.accessCount,
+    };
+  }
+
+  private materialize(entry: MemoryEntry, touch: boolean): MemoryEntry {
+    let access = this.telemetry(entry);
+    if (touch) {
+      access = {
+        lastAccessed: new Date().toISOString(),
+        accessCount: access.accessCount + 1,
+      };
+      this.accessTelemetry.set(entry.id, access);
+    }
+    const result = detached(entry, `Memory entry ${entry.id}`);
+    result.lastAccessed = access.lastAccessed;
+    result.accessCount = access.accessCount;
+    return result;
+  }
+
+  private isExpired(entry: MemoryEntry, now: number = Date.now()): boolean {
+    if (entry.ttl === null || entry.ttl <= 0) return false;
+    const created = new Date(entry.createdAt).getTime();
+    return Number.isFinite(created) && now - created > entry.ttl * 1000;
+  }
+
   async store(entry: MemoryEntry): Promise<EntityId> {
-    const id = entry.id || generateId();
+    const input = detached(entry, 'Memory entry');
+    const id = input.id || generateId();
+    const now = new Date().toISOString();
     const stored: MemoryEntry = {
-      ...entry,
+      ...input,
       id,
-      tags: [...(entry.tags || [])],
-      createdAt: entry.createdAt || new Date().toISOString(),
-      lastAccessed: new Date().toISOString(),
+      tags: [...(input.tags || [])],
+      createdAt: input.createdAt || now,
+      lastAccessed: input.lastAccessed || now,
+      accessCount: Number.isFinite(input.accessCount) ? input.accessCount : 0,
     };
     const previous = this.entries.get(id);
     if (previous) this.unindex(previous);
     this.entries.set(id, stored);
+    this.accessTelemetry.set(id, {
+      lastAccessed: stored.lastAccessed,
+      accessCount: stored.accessCount,
+    });
     this.index(stored);
     return id;
   }
@@ -76,79 +117,90 @@ export class InMemoryStore implements IMemoryStore {
   async retrieve(id: EntityId): Promise<MemoryEntry | null> {
     const entry = this.entries.get(id);
     if (!entry) return null;
-
-    if (entry.ttl !== null && entry.ttl > 0) {
-      const age = Date.now() - new Date(entry.createdAt).getTime();
-      if (age > entry.ttl * 1000) {
-        await this.delete(id);
-        return null;
-      }
+    if (this.isExpired(entry)) {
+      await this.delete(id);
+      return null;
     }
-
-    entry.lastAccessed = new Date().toISOString();
-    entry.accessCount += 1;
-    return entry;
+    return this.materialize(entry, true);
   }
 
   async query(q: MemoryQuery): Promise<MemoryEntry[]> {
-    // Query and direct retrieval must agree even before the periodic sweep runs.
     await this.sweepExpired();
     let results = Array.from(this.entries.values());
 
-    if (q.layer) results = results.filter(e => e.layer === q.layer);
-
-    const tags = q.tags;
-    if (tags?.length) {
-      results = results.filter(e => tags.some(tag => e.tags.includes(tag)));
+    if (q.layer) results = results.filter(entry => entry.layer === q.layer);
+    if (q.content) {
+      const needle = q.content.toLocaleLowerCase('en-US');
+      results = results.filter(entry => {
+        let haystack: string;
+        try { haystack = typeof entry.content === 'string' ? entry.content : JSON.stringify(entry.content); }
+        catch { return false; }
+        return haystack.toLocaleLowerCase('en-US').includes(needle);
+      });
+    }
+    if (q.tags?.length) {
+      results = results.filter(entry => q.tags!.some(tag => entry.tags.includes(tag)));
+    }
+    if (q.importance) {
+      const { min, max } = q.importance;
+      if (min !== undefined) results = results.filter(entry => entry.importance >= min);
+      if (max !== undefined) results = results.filter(entry => entry.importance <= max);
+    }
+    if (q.timeRange) {
+      const { from, to } = q.timeRange;
+      if (from) results = results.filter(entry => entry.createdAt >= from);
+      if (to) results = results.filter(entry => entry.createdAt <= to);
     }
 
-    const importance = q.importance;
-    if (importance) {
-      const min = importance.min;
-      const max = importance.max;
-      if (min !== undefined) results = results.filter(e => e.importance >= min);
-      if (max !== undefined) results = results.filter(e => e.importance <= max);
-    }
-
-    const timeRange = q.timeRange;
-    if (timeRange) {
-      const from = timeRange.from;
-      const to = timeRange.to;
-      if (from) results = results.filter(e => e.createdAt >= from);
-      if (to) results = results.filter(e => e.createdAt <= to);
-    }
-
-    const sortBy = q.sortBy;
-    if (sortBy) {
+    if (q.sortBy) {
       const order = q.sortOrder === 'desc' ? -1 : 1;
+      const sortBy = q.sortBy;
       results.sort((a, b) => {
-        const aVal = a[sortBy];
-        const bVal = b[sortBy];
+        const aAccess = this.telemetry(a);
+        const bAccess = this.telemetry(b);
+        const aVal = sortBy === 'lastAccessed' ? aAccess.lastAccessed
+          : sortBy === 'accessCount' ? aAccess.accessCount : a[sortBy];
+        const bVal = sortBy === 'lastAccessed' ? bAccess.lastAccessed
+          : sortBy === 'accessCount' ? bAccess.accessCount : b[sortBy];
         if (typeof aVal === 'number' && typeof bVal === 'number') return (aVal - bVal) * order;
-        return String(aVal).localeCompare(String(bVal)) * order;
+        return String(aVal).localeCompare(String(bVal), 'en') * order;
       });
     }
 
-    if (q.limit && q.limit > 0) results = results.slice(0, q.limit);
-
-    for (const entry of results) {
-      entry.lastAccessed = new Date().toISOString();
-      entry.accessCount += 1;
-    }
-    return results;
+    const offset = q.offset === undefined ? 0 : Math.max(0, Math.trunc(q.offset));
+    if (offset > 0) results = results.slice(offset);
+    if (q.limit !== undefined && q.limit >= 0) results = results.slice(0, Math.trunc(q.limit));
+    return results.map(entry => this.materialize(entry, true));
   }
 
   async update(id: EntityId, updates: Partial<MemoryEntry>): Promise<void> {
-    const entry = this.entries.get(id);
-    if (!entry) throw new Error(`Memory entry ${id} not found`);
+    const current = this.entries.get(id);
+    if (!current) throw new Error(`Memory entry ${id} not found`);
     if (updates.id !== undefined && updates.id !== id) {
       throw new Error(`Memory entry identity is immutable: ${id}`);
     }
-    // Remove old index membership before applying changes to the indexed fields.
-    this.unindex(entry);
-    Object.assign(entry, updates, { id, lastAccessed: new Date().toISOString() });
-    if (updates.tags !== undefined) entry.tags = [...updates.tags];
-    this.index(entry);
+
+    const patch = detached(updates, `Memory update ${id}`);
+    const { accessCount, lastAccessed, ...statePatch } = patch;
+    const candidate: MemoryEntry = {
+      ...current,
+      ...statePatch,
+      id,
+      tags: patch.tags === undefined ? [...current.tags] : [...patch.tags],
+      accessCount: current.accessCount,
+      lastAccessed: current.lastAccessed,
+    };
+    detached(candidate, `Memory update ${id}`);
+
+    this.unindex(current);
+    this.entries.set(id, candidate);
+    this.index(candidate);
+
+    const previousAccess = this.telemetry(current);
+    this.accessTelemetry.set(id, {
+      accessCount: accessCount === undefined ? previousAccess.accessCount : accessCount,
+      lastAccessed: lastAccessed === undefined ? previousAccess.lastAccessed : lastAccessed,
+    });
   }
 
   async delete(id: EntityId): Promise<void> {
@@ -156,17 +208,19 @@ export class InMemoryStore implements IMemoryStore {
     if (!entry) return;
     this.unindex(entry);
     this.entries.delete(id);
+    this.accessTelemetry.delete(id);
   }
 
   async clear(layer?: MemoryLayer): Promise<void> {
     if (layer) {
       const ids = [...(this.layerIndex.get(layer) || [])];
       for (const id of ids) await this.delete(id);
-    } else {
-      this.entries.clear();
-      for (const layerSet of this.layerIndex.values()) layerSet.clear();
-      this.tagIndex.clear();
+      return;
     }
+    this.entries.clear();
+    this.accessTelemetry.clear();
+    for (const layerSet of this.layerIndex.values()) layerSet.clear();
+    this.tagIndex.clear();
   }
 
   async stats(): Promise<MemoryStoreStats> {
@@ -175,23 +229,20 @@ export class InMemoryStore implements IMemoryStore {
     let totalSize = 0;
     let oldest: Timestamp | null = null;
     let newest: Timestamp | null = null;
-
     for (const entry of this.entries.values()) {
       byLayer[entry.layer] = (byLayer[entry.layer] || 0) + 1;
       totalSize += JSON.stringify(entry).length;
       if (!oldest || entry.createdAt < oldest) oldest = entry.createdAt;
       if (!newest || entry.createdAt > newest) newest = entry.createdAt;
     }
-
     const allLayers: MemoryLayer[] = [
       'working', 'short_term', 'long_term', 'semantic',
       'procedural', 'episodic', 'temporal', 'spatial',
       'vector', 'knowledge_graph', 'cache', 'reflection',
     ];
-
     return {
       totalEntries: this.entries.size,
-      byLayer: Object.fromEntries(allLayers.map(l => [l, byLayer[l] || 0])) as Record<MemoryLayer, number>,
+      byLayer: Object.fromEntries(allLayers.map(layer => [layer, byLayer[layer] || 0])) as Record<MemoryLayer, number>,
       totalSizeBytes: totalSize,
       oldestEntry: oldest,
       newestEntry: newest,
@@ -200,20 +251,11 @@ export class InMemoryStore implements IMemoryStore {
 
   private async sweepExpired(): Promise<void> {
     const now = Date.now();
-    const toDelete: EntityId[] = [];
-    for (const entry of this.entries.values()) {
-      if (entry.ttl !== null && entry.ttl > 0) {
-        const age = now - new Date(entry.createdAt).getTime();
-        if (age > entry.ttl * 1000) toDelete.push(entry.id);
-      }
-    }
-    for (const id of toDelete) await this.delete(id);
+    const expired: EntityId[] = [];
+    for (const entry of this.entries.values()) if (this.isExpired(entry, now)) expired.push(entry.id);
+    for (const id of expired) await this.delete(id);
   }
 }
-
-// ================================================================
-// Memory Manager — orchestrates all layers
-// ================================================================
 
 export class MemoryManager {
   private storeImpl: IMemoryStore;
@@ -250,7 +292,6 @@ export class MemoryManager {
       source: options.source || ('system' as EntityId),
       metadata: (options.metadata || {}) as Record<string, string | number | boolean | null>,
     };
-
     entry.importance = this.scoreImportance(entry);
     return this.storeImpl.store(entry);
   }
@@ -261,11 +302,10 @@ export class MemoryManager {
   async delete(id: EntityId): Promise<void> { return this.storeImpl.delete(id); }
 
   async consolidate(threshold: number = 0.7): Promise<number> {
-    const shortTermEntries = await this.storeImpl.query({ layer: 'short_term', sortBy: 'importance', sortOrder: 'desc' });
+    const entries = await this.storeImpl.query({ layer: 'short_term', sortBy: 'importance', sortOrder: 'desc' });
     let consolidated = 0;
-    for (const entry of shortTermEntries) {
+    for (const entry of entries) {
       if (entry.importance >= threshold) {
-        // Let the store change the layer so it can reconcile the old indexes.
         await this.storeImpl.update(entry.id, { layer: 'long_term', consolidated: true, ttl: null });
         consolidated++;
       }
@@ -274,17 +314,14 @@ export class MemoryManager {
   }
 
   async forget(threshold: number = 0.2, maxAge: number = 86400 * 7): Promise<number> {
-    const oldEntries = await this.storeImpl.query({ sortBy: 'importance', sortOrder: 'asc' });
+    const entries = await this.storeImpl.query({ sortBy: 'importance', sortOrder: 'asc' });
     let forgotten = 0;
     const now = Date.now();
-    for (const entry of oldEntries) {
+    for (const entry of entries) {
       if (entry.layer === 'long_term' || entry.layer === 'semantic') continue;
-      if (entry.importance < threshold) {
-        const age = now - new Date(entry.createdAt).getTime();
-        if (age > maxAge * 1000) {
-          await this.storeImpl.delete(entry.id);
-          forgotten++;
-        }
+      if (entry.importance < threshold && now - new Date(entry.createdAt).getTime() > maxAge * 1000) {
+        await this.storeImpl.delete(entry.id);
+        forgotten++;
       }
     }
     return forgotten;
@@ -294,6 +331,7 @@ export class MemoryManager {
     const source = await this.storeImpl.retrieve(sourceId);
     const target = await this.storeImpl.retrieve(targetId);
     if (!source || !target) return;
+    if (!relation.trim()) throw new Error('Memory relation must be non-empty');
 
     const linksRaw: unknown = source.metadata['links'];
     let decoded: unknown = linksRaw;
@@ -308,8 +346,10 @@ export class MemoryManager {
     )) {
       throw new Error(`Invalid memory links for ${sourceId}`);
     }
-    const links: Array<{ target: string; relation: string }> = [...decoded];
-    links.push({ target: targetId, relation });
+    const links = decoded as Array<{ target: string; relation: string }>;
+    if (!links.some(link => link.target === targetId && link.relation === relation)) {
+      links.push({ target: targetId, relation });
+    }
     await this.storeImpl.update(sourceId, {
       metadata: { ...source.metadata, links: JSON.stringify(links) },
     });
