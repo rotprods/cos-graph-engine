@@ -1,12 +1,15 @@
 name: CGEV11 auth boundary verification
 on:
   push:
-    branches: [fix/cgev11-auth-boundary-20260907]
+    branches: [integration/main-baseline-20260907]
   pull_request:
     paths:
       - 'packages/api/src/auth.ts'
       - 'packages/api/src/http-server.ts'
+      - 'packages/memory/**'
+      - 'packages/wasm/**'
       - 'scripts/test-auth-boundary.cjs'
+      - 'scripts/test-memory-regressions.cjs'
       - '.github/workflows/cgev11-auth-verification.yml'
 permissions:
   contents: read
@@ -16,7 +19,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,8 +30,9 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: node --import tsx scripts/test-auth-boundary.cjs
-      - run: npm run asbuild
-      - run: npx --no-install tsc --noEmit
       - run: node scripts/test-memory-regressions.cjs
+      - run: npm run asbuild
+      - run: npm test --workspace=@cos/wasm
+      - run: npx --no-install tsc --noEmit
       - run: timeout 240s npm run test:all
       - run: npm audit --audit-level=high

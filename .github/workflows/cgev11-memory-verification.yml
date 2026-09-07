@@ -1,84 +1,65 @@
 name: CGEV11 memory integrity verification
-
 on:
   push:
-    branches: [fix/cgev11-memory-integrity-20260907]
+    branches: [integration/main-baseline-20260907]
   pull_request:
     paths:
       - 'packages/memory/**'
+      - 'packages/wasm/**'
       - 'scripts/test-memory-regressions.cjs'
       - '.github/workflows/cgev11-memory-verification.yml'
-
 permissions:
   contents: read
-
 concurrency:
   group: cgev11-memory-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   regressions:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+        with: {persist-credentials: false}
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22.12.0'
-          cache: npm
+        with: {node-version: '22.12.0', cache: npm}
       - run: npm ci --no-audit --no-fund
-      - name: Memory lifecycle and integrity regressions
-        run: node scripts/test-memory-regressions.cjs
+      - run: node scripts/test-memory-regressions.cjs
   full-suite:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+        with: {persist-credentials: false}
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22.12.0'
-          cache: npm
+        with: {node-version: '22.12.0', cache: npm}
       - run: npm ci --no-audit --no-fund
       - run: npm run asbuild
+      - run: npm test --workspace=@cos/wasm
       - run: npx --no-install tsc --noEmit
-      - name: Complete canonical suite including natural CLI exit
-        run: timeout 240s npm run test:all
+      - run: timeout 240s npm run test:all
   extended:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       fail-fast: false
-      matrix:
-        suite: [test:csr, test:pruning, test:benchmark, test:wasm, test:observability, test:visualization]
+      matrix: {suite: [test:csr, test:pruning, test:benchmark, test:wasm, test:observability, test:visualization]}
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+        with: {persist-credentials: false}
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22.12.0'
-          cache: npm
+        with: {node-version: '22.12.0', cache: npm}
       - run: npm ci --no-audit --no-fund
       - run: npm run asbuild
       - name: Extended suite
-        env:
-          SUITE: ${{ matrix.suite }}
+        env: {SUITE: '${{ matrix.suite }}'}
         run: timeout 180s npm run "$SUITE"
   security:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+        with: {persist-credentials: false}
       - uses: actions/setup-node@v4
-        with:
-          node-version: '22.12.0'
-          cache: npm
+        with: {node-version: '22.12.0', cache: npm}
       - run: npm ci --no-audit --no-fund
-      - name: Fail-closed dependency audit
-        run: npm audit --audit-level=high
+      - run: npm audit --audit-level=high

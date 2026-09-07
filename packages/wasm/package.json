@@ -12,8 +12,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "npx asc assembly/index.ts --outFile build/optimized.wasm --optimizeLevel 3 --shrinkLevel 1 --exportRuntime",
-    "test": "tsx tests/loader.test.ts"
+    "build": "asc assembly/index.ts --outFile build/optimized.wasm --optimizeLevel 3 --shrinkLevel 1 --exportRuntime",
+    "test": "npm run build && tsx tests/loader.test.ts"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com/"
