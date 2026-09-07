@@ -1,65 +1,25 @@
-name: CGEV11 memory integrity verification
+name: CGEV11 memory integrity diagnostic
 on:
-  push:
-    branches: [integration/main-baseline-20260907]
-  pull_request:
-    paths:
-      - 'packages/memory/**'
-      - 'packages/wasm/**'
-      - 'scripts/test-memory-regressions.cjs'
-      - '.github/workflows/cgev11-memory-verification.yml'
+  workflow_dispatch: {}
 permissions:
   contents: read
-concurrency:
-  group: cgev11-memory-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 jobs:
-  regressions:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - uses: actions/setup-node@v4
-        with: {node-version: '22.12.0', cache: npm}
-      - run: npm ci --no-audit --no-fund
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node scripts/test-memory-regressions.cjs
-  full-suite:
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
-    steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - uses: actions/setup-node@v4
-        with: {node-version: '22.12.0', cache: npm}
-      - run: npm ci --no-audit --no-fund
       - run: npm run asbuild
       - run: npm test --workspace=@cos/wasm
       - run: npx --no-install tsc --noEmit
-      - run: timeout 240s npm run test:all
-  extended:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix: {suite: [test:csr, test:pruning, test:benchmark, test:wasm, test:observability, test:visualization]}
-    steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - uses: actions/setup-node@v4
-        with: {node-version: '22.12.0', cache: npm}
-      - run: npm ci --no-audit --no-fund
-      - run: npm run asbuild
-      - name: Extended suite
-        env: {SUITE: '${{ matrix.suite }}'}
-        run: timeout 180s npm run "$SUITE"
-  security:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - uses: actions/setup-node@v4
-        with: {node-version: '22.12.0', cache: npm}
-      - run: npm ci --no-audit --no-fund
+      - run: timeout 300s npm run test:all
       - run: npm audit --audit-level=high

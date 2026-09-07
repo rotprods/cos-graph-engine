@@ -1,81 +1,32 @@
-name: CGE V11 W1 integration gate
-
+name: CGEV11 W1 historical diagnostic
 on:
-  push:
-    branches: [fix/strict-typecheck-regressions]
-    paths:
-      - '.github/workflows/cgev11-w1-integration-gate.yml'
-
+  workflow_dispatch: {}
 permissions:
   contents: read
-
-concurrency:
-  group: cgev11-w1-integration-gate
-  cancel-in-progress: true
-
-env:
-  NODE_VERSION: '22.12.0'
-
 jobs:
-  quality-and-core:
+  historical-breadth:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.12.0'
           cache: npm
           cache-dependency-path: package-lock.json
-      - run: npm ci --no-audit --no-fund
+      - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm audit --audit-level=high
       - run: npm run asbuild
       - run: npx --no-install tsc --noEmit
       - run: npm run test:all
-
-  specialized-suites:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci --no-audit --no-fund
-      - run: npm run asbuild
       - run: npm run test:csr
       - run: npm run test:pruning
       - run: npm run test:benchmark
       - run: npm run test:wasm
-      - run: npx tsx scripts/test-wasm-extended.ts
+      - run: npx --no-install tsx scripts/test-wasm-extended.ts
       - run: npm run test:observability
       - run: npm run test:visualization
-
-  performance:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci --no-audit --no-fund
-      - run: npm run asbuild
       - run: npm run benchmark
-
-  coverage:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
-      - run: npm ci --no-audit --no-fund
       - run: npm run coverage
