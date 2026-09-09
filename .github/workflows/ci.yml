@@ -2,7 +2,9 @@ name: COS Main Convergence Gate
 
 on:
   push:
-    branches: [integration/main-baseline-20260907]
+    branches: [integration/main-baseline-20260907, main]
+  pull_request:
+    branches: [main]
   workflow_dispatch: {}
 
 permissions:
