@@ -186,7 +186,7 @@ export class GraphOfThoughtsEngine implements IReasoningEngine {
       cost: { units: 'tokens', amount: 500 },
       latency: Date.now() - startTime,
       timestamp: new Date().toISOString(),
-      metadata: { phase: 4, nodeCount: this.nodes.size, pathLength: pathToRoot.length, bestConfidence: bestLeaf?.confidence },
+      metadata: { phase: 4, nodeCount: this.nodes.size, pathLength: pathToRoot.length, bestConfidence: bestLeaf?.confidence ?? null },
     });
 
     return steps;

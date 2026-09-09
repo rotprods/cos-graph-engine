@@ -5,10 +5,10 @@
 // ================================================================
 
 import { NetworkGraphEngine, NetworkNode, NetworkNodeType, NetworkEdgeType } from './level16-network';
-import { SocialGraphEngine, SocialNode, SocialNodeType, SocialEdgeType } from './level17-social';
-import { BiologicalGraphEngine, BiologicalNode, BioNodeType, BioEdgeType } from './level18-biological';
-import { MolecularGraphEngine, AtomNode, AtomType, BondType, BondEdge } from './level19-molecular';
-import { EntityId, generateId } from '@cos/core';
+import { SocialGraphEngine, SocialNodeType, SocialEdgeType } from './level17-social';
+import { BiologicalGraphEngine, BioEdgeType } from './level18-biological';
+import { MolecularGraphEngine, AtomType, BondType } from './level19-molecular';
+import { EntityId } from '@cos/core';
 
 // ===== Pipeline Types =====
 
@@ -41,7 +41,10 @@ export class PipelineL16L17L18L19 {
   }
 
   /** Step 1: Build Network topology */
-  buildNetworkGraph(nodes: Array<Omit<NetworkNode, 'id' | 'createdAt'>>, edges: Array<{ source: EntityId; target: EntityId; type: NetworkEdgeType }>): void {
+  buildNetworkGraph(
+    nodes: Array<Omit<NetworkNode, 'id' | 'createdAt'>>,
+    edges: Array<{ source: EntityId; target: EntityId; type: NetworkEdgeType }>,
+  ): void {
     for (const n of nodes) {
       this.networkGraph.addNode(n);
     }
@@ -54,7 +57,6 @@ export class PipelineL16L17L18L19 {
   networkToSocial(): SocialGraphEngine {
     this.socialGraph = new SocialGraphEngine('Pipeline Social');
 
-    // Map network types to social personas
     const socialTypeMap: Record<string, SocialNodeType> = {
       server: 'person',
       router: 'influencer',
@@ -68,30 +70,27 @@ export class PipelineL16L17L18L19 {
       cache: 'page',
     };
 
-    const netNodes = this.networkGraph.getNodes();
-    for (const n of netNodes) {
-      const socialType = socialTypeMap[n.type] || 'person';
-      this.socialGraph.addNode({
+    // Each level owns its own generated EntityIds. Keep an explicit identity
+    // projection rather than fabricating IDs such as `s_${networkId}`.
+    const networkToSocialId = new Map<EntityId, EntityId>();
+    for (const n of this.networkGraph.getNodes()) {
+      const socialId = this.socialGraph.addNode({
         name: `${n.name}_persona`,
-        type: socialType,
+        type: socialTypeMap[n.type] || 'person',
         verified: n.healthy,
         followers: Math.floor((n.throughput || 100) / 10),
         influence: (n.latency || 100) > 50 ? 0.3 : 0.8,
         interests: [`infra_${n.type}`, 'tech'],
         location: n.region,
       });
+      networkToSocialId.set(n.id, socialId);
     }
 
-    // Create social edges from network edges
-    const netEdges = this.networkGraph.getEdges();
-    for (const e of netEdges) {
-      const socialEdgeType = this.mapNetworkToSocialEdge(e.type);
-      this.socialGraph.addEdge({
-        source: `s_${e.source}`,
-        target: `s_${e.target}`,
-        type: socialEdgeType,
-        strength: 0.7,
-      });
+    for (const e of this.networkGraph.getEdges()) {
+      const source = networkToSocialId.get(e.source);
+      const target = networkToSocialId.get(e.target);
+      if (!source || !target) continue;
+      this.socialGraph.addEdge(source, target, this.mapNetworkToSocialEdge(e.type), 0.7);
     }
 
     return this.socialGraph;
@@ -101,28 +100,32 @@ export class PipelineL16L17L18L19 {
   socialToBiological(): BiologicalGraphEngine {
     this.biologicalGraph = new BiologicalGraphEngine('Pipeline Neural Circuit');
     const socialNodes = this.socialGraph.getNodes();
+    const socialToBioId = new Map<EntityId, EntityId>();
 
-    // Map social nodes to neurons
     for (const n of socialNodes) {
-      this.biologicalGraph.addNode({
+      const bioId = this.biologicalGraph.addNode({
         name: `neuron_${n.name}`,
         type: 'neuron',
         weight: (n.influence || 0.5) * 2,
         threshold: 0.5,
         firingRate: (n.followers || 100) / 1000,
       });
+      socialToBioId.set(n.id, bioId);
     }
 
-    // Map social edges to synaptic connections
-    const socialEdges = this.socialGraph.getEdges();
-    for (const e of socialEdges) {
-      this.biologicalGraph.addEdge({
-        source: `bio_${e.source}`,
-        target: `bio_${e.target}`,
-        type: this.mapSocialToBioEdge(e.type),
-        strength: e.strength || 0.5,
-        plasticity: 0.1,
-      });
+    for (const e of this.socialGraph.getEdges()) {
+      const source = socialToBioId.get(e.source);
+      const target = socialToBioId.get(e.target);
+      if (!source || !target) continue;
+
+      const bioEdgeId = this.biologicalGraph.addEdge(
+        source,
+        target,
+        this.mapSocialToBioEdge(e.type),
+        e.strength || 0.5,
+      );
+      const bioEdge = this.biologicalGraph.getEdges().find(edge => edge.id === bioEdgeId);
+      if (bioEdge) bioEdge.plasticity = 0.1;
     }
 
     return this.biologicalGraph;
@@ -135,7 +138,6 @@ export class PipelineL16L17L18L19 {
 
     if (bioNodes.length === 0) return this.molecularGraph;
 
-    // Create atoms from bio nodes
     const atomIds: EntityId[] = [];
     const elements: AtomType[] = ['C', 'N', 'O', 'S', 'P', 'F'];
     for (let i = 0; i < bioNodes.length; i++) {
@@ -153,14 +155,15 @@ export class PipelineL16L17L18L19 {
       atomIds.push(id);
     }
 
-    // Create bonds from bio edges
-    const bioEdges = this.biologicalGraph.getEdges();
-    for (const e of bioEdges) {
+    for (const e of this.biologicalGraph.getEdges()) {
       const sourceIdx = bioNodes.findIndex(n => n.id === e.source);
       const targetIdx = bioNodes.findIndex(n => n.id === e.target);
       if (sourceIdx >= 0 && targetIdx >= 0) {
-        const bondType = this.strengthToBondType(e.strength || 0.5);
-        this.molecularGraph.addBond(atomIds[sourceIdx], atomIds[targetIdx], bondType);
+        this.molecularGraph.addBond(
+          atomIds[sourceIdx],
+          atomIds[targetIdx],
+          this.strengthToBondType(e.strength || 0.5),
+        );
       }
     }
 
@@ -170,7 +173,7 @@ export class PipelineL16L17L18L19 {
   /** End-to-end pipeline */
   runPipeline(
     netNodes: Array<Omit<NetworkNode, 'id' | 'createdAt'>>,
-    netEdges: Array<{ source: EntityId; target: EntityId; type: NetworkEdgeType }>
+    netEdges: Array<{ source: EntityId; target: EntityId; type: NetworkEdgeType }>,
   ): NetworkToMolecularResult {
     this.buildNetworkGraph(netNodes, netEdges);
     this.networkToSocial();
@@ -213,13 +216,10 @@ export class PipelineL16L17L18L19 {
     };
   }
 
-  /** Access underlying engines */
   getNetworkGraph(): NetworkGraphEngine { return this.networkGraph; }
   getSocialGraph(): SocialGraphEngine { return this.socialGraph; }
   getBiologicalGraph(): BiologicalGraphEngine { return this.biologicalGraph; }
   getMolecularGraph(): MolecularGraphEngine { return this.molecularGraph; }
-
-  // ===== Private =====
 
   private mapNetworkToSocialEdge(type: NetworkEdgeType): SocialEdgeType {
     const map: Record<string, SocialEdgeType> = {
@@ -230,7 +230,7 @@ export class PipelineL16L17L18L19 {
       replicates_to: 'family_of',
       connects_to: 'mentions',
     };
-    return (map[type] || 'friend_of') as SocialEdgeType;
+    return map[type] || 'friend_of';
   }
 
   private mapSocialToBioEdge(type: SocialEdgeType): BioEdgeType {
@@ -243,7 +243,7 @@ export class PipelineL16L17L18L19 {
       family_of: 'connects_to',
       mentions: 'binds_to',
     };
-    return (map[type] || 'connects_to') as BioEdgeType;
+    return map[type] || 'connects_to';
   }
 
   private strengthToBondType(strength: number): BondType {

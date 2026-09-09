@@ -3,7 +3,7 @@
 // DAG runner: planifica, ejecuta, observa
 // ================================================================
 
-import { EntityId, CellContext, CellOutput, Cost, Confidence, Timestamp } from '@cos/core';
+import { EntityId, CellContext, Cost, Confidence, Timestamp } from '@cos/core';
 import { generateId } from '@cos/core';
 
 export type ExecNodeType = 'function' | 'tool' | 'subgraph' | 'condition' | 'transform' | 'sleep';
@@ -56,13 +56,11 @@ export class ExecutionGraphEngine {
 
   async createGraph(name: string, nodes: ExecNode[], edges: ExecEdge[], options?: { maxConcurrency?: number }): Promise<EntityId> {
     const id = generateId();
-    // Validate no duplicate node IDs
     const nodeIds = new Set<EntityId>();
     for (const node of nodes) {
       if (nodeIds.has(node.id)) throw new Error(`Duplicate node ID: ${node.id}`);
       nodeIds.add(node.id);
     }
-    // Ensure every edge has an id and references valid nodes
     for (const edge of edges) {
       if (!edge.id) edge.id = generateId();
       if (!nodeIds.has(edge.source)) throw new Error(`Edge source ${edge.source} not found in nodes`);
@@ -72,7 +70,6 @@ export class ExecutionGraphEngine {
     return id;
   }
 
-  /** Add a node to an existing graph */
   addNode(graphId: EntityId, node: ExecNode): void {
     const graph = this.graphs.get(graphId);
     if (!graph) throw new Error(`Graph ${graphId} not found`);
@@ -80,7 +77,6 @@ export class ExecutionGraphEngine {
     graph.nodes.push(node);
   }
 
-  /** Remove a node and its connected edges from an existing graph */
   removeNode(graphId: EntityId, nodeId: EntityId): void {
     const graph = this.graphs.get(graphId);
     if (!graph) throw new Error(`Graph ${graphId} not found`);
@@ -90,7 +86,6 @@ export class ExecutionGraphEngine {
     graph.edges = graph.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
   }
 
-  /** Add an edge to an existing graph */
   addEdge(graphId: EntityId, edge: ExecEdge): void {
     const graph = this.graphs.get(graphId);
     if (!graph) throw new Error(`Graph ${graphId} not found`);
@@ -100,7 +95,6 @@ export class ExecutionGraphEngine {
     graph.edges.push(edge);
   }
 
-  /** Remove an edge by id */
   removeEdge(graphId: EntityId, edgeId: EntityId): void {
     const graph = this.graphs.get(graphId);
     if (!graph) throw new Error(`Graph ${graphId} not found`);
@@ -112,12 +106,12 @@ export class ExecutionGraphEngine {
   async executeGraph(graphId: EntityId, input?: unknown): Promise<Map<EntityId, ExecNodeResult>> {
     const graph = this.graphs.get(graphId);
     if (!graph) throw new Error(`Graph ${graphId} not found`);
+    const activeGraph = graph;
 
-    // Validate no cycles first
     const visited = new Set<EntityId>(), inStack = new Set<EntityId>();
     function dfs(id: EntityId): boolean {
       visited.add(id); inStack.add(id);
-      for (const e of graph.edges.filter(e => e.source === id)) {
+      for (const e of activeGraph.edges.filter(e => e.source === id)) {
         if (!visited.has(e.target)) { if (dfs(e.target)) return true; }
         else if (inStack.has(e.target)) return true;
       }
@@ -140,9 +134,7 @@ export class ExecutionGraphEngine {
       if (deg === 0) queue.push(id);
     }
 
-    // Track remaining in-degree for each node to avoid scanning all entries per batch
     const remainingInDegree = new Map<EntityId, number>(inDegree);
-
     for (const q of queue) dataFlow.set(q, input);
 
     while (queue.length > 0) {
@@ -154,7 +146,6 @@ export class ExecutionGraphEngine {
         nodeResults.set(nodeId, result);
         completed.add(nodeId);
 
-        // Propagate data using proper adjacency lookup
         const targets = adjacency.get(nodeId) || [];
         for (const targetId of targets) {
           const edge = graph.edges.find(e => e.source === nodeId && e.target === targetId);
@@ -168,26 +159,18 @@ export class ExecutionGraphEngine {
             completed.add(targetId);
             continue;
           }
-          // Last-write-wins: when multiple upstream nodes feed the same target,
-          // the last one to complete determines the value. This is a documented
-          // design choice — not a bug — for single-value dataflow graphs.
           dataFlow.set(targetId, output);
         }
       }));
 
-      // Check which nodes are now unblocked using tracked remaining in-degree
       for (const batchId of batch) {
         if (nodeResults.get(batchId)?.status === 'skipped') continue;
         const targets = adjacency.get(batchId) || [];
         for (const targetId of targets) {
           if (completed.has(targetId) || queue.includes(targetId)) continue;
           const current = remainingInDegree.get(targetId) || 0;
-          if (current > 0) {
-            remainingInDegree.set(targetId, current - 1);
-          }
-          if (remainingInDegree.get(targetId) === 0 && !completed.has(targetId)) {
-            queue.push(targetId);
-          }
+          if (current > 0) remainingInDegree.set(targetId, current - 1);
+          if (remainingInDegree.get(targetId) === 0 && !completed.has(targetId)) queue.push(targetId);
         }
       }
     }
@@ -198,21 +181,18 @@ export class ExecutionGraphEngine {
 
   private async executeNodeWithRetry(node: ExecNode, input: unknown, context: CellContext): Promise<ExecNodeResult> {
     const maxRetries = node.retries || 0;
-    const timeout = node.timeout || 30000;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       const result = await this.executeNode(node, input, context);
       if (result.status !== 'failed') return result;
     }
 
-    // All retries exhausted — return the last failure
     const start = Date.now();
-    const result: ExecNodeResult = {
+    return {
       nodeId: node.id, status: 'failed', input, output: undefined, duration: Date.now() - start,
       confidence: 0, cost: { units: 'credits', amount: 0 }, startedAt: new Date().toISOString(),
       error: `All ${maxRetries + 1} attempts failed`,
     };
-    return result;
   }
 
   private async executeNode(node: ExecNode, input: unknown, context: CellContext): Promise<ExecNodeResult> {
@@ -250,18 +230,14 @@ export class ExecutionGraphEngine {
   private buildAdjacency(graph: ExecutionGraph): Map<EntityId, EntityId[]> {
     const adj = new Map<EntityId, EntityId[]>();
     for (const node of graph.nodes) adj.set(node.id, []);
-    for (const edge of graph.edges) {
-      adj.get(edge.source)!.push(edge.target);
-    }
+    for (const edge of graph.edges) adj.get(edge.source)!.push(edge.target);
     return adj;
   }
 
   private buildInDegree(graph: ExecutionGraph): Map<EntityId, number> {
     const deg = new Map<EntityId, number>();
     for (const node of graph.nodes) deg.set(node.id, 0);
-    for (const edge of graph.edges) {
-      deg.set(edge.target, (deg.get(edge.target) || 0) + 1);
-    }
+    for (const edge of graph.edges) deg.set(edge.target, (deg.get(edge.target) || 0) + 1);
     return deg;
   }
 

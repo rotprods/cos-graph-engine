@@ -9,22 +9,16 @@
 
 import { generateId } from '@cos/core';
 
-// ============================================================
-// TraceHop
-// ============================================================
-
 export interface TraceHop {
   hopIndex: number;
   nodeId: string;
   depth: number;
   duration: number;
   source: 'forward' | 'backward' | 'pruned';
+  /** Monotonic timestamp captured at ingestion for ordering/latency analysis. */
+  timestamp: number;
   metadata?: Record<string, unknown>;
 }
-
-// ============================================================
-// TraceSummary
-// ============================================================
 
 export interface TraceSummary {
   totalHops: number;
@@ -35,10 +29,6 @@ export interface TraceSummary {
   hopsBySource: Record<string, number>;
 }
 
-// ============================================================
-// TraceSession interface
-// ============================================================
-
 export interface TraceSession {
   readonly id: string;
   readonly hops: readonly TraceHop[];
@@ -46,10 +36,6 @@ export interface TraceSession {
   getSummary(): TraceSummary;
   reset(): void;
 }
-
-// ============================================================
-// TraceSessionImpl — concrete implementation
-// ============================================================
 
 export class TraceSessionImpl implements TraceSession {
   readonly id: string;
@@ -68,10 +54,7 @@ export class TraceSessionImpl implements TraceSession {
   }
 
   addHop(hop: Omit<TraceHop, 'timestamp'>): void {
-    this._hops.push({
-      ...hop,
-      timestamp: performance.now(),
-    });
+    this._hops.push({ ...hop, timestamp: performance.now() });
   }
 
   getSummary(): TraceSummary {
@@ -102,10 +85,6 @@ export class TraceSessionImpl implements TraceSession {
   }
 }
 
-// ============================================================
-// NoopTraceSession — singleton zero-overhead
-// ============================================================
-
 const NOOP_SUMMARY: TraceSummary = {
   totalHops: 0,
   prunedHops: 0,
@@ -135,10 +114,6 @@ export class NoopTraceSession implements TraceSession {
     // no-op
   }
 }
-
-// ============================================================
-// Utility: format a TraceSession as a readable table
-// ============================================================
 
 export function formatTraceSummary(summary: TraceSummary): string {
   const lines: string[] = [];

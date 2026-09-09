@@ -1,13 +1,13 @@
 /**
  * Tests for WASM Loader — Extended
  *
- * 25 tests covering:
- *  - createJSFallback: bfs, dfs, dfsHasPath, pageRank, shortestPath, betweenness
- *  - connectedComponents, topologicalSort, hasCycle, dijkstra
- *  - Edge cases: empty graph, single node, disconnected, cycle
+ * Covers the JS fallback plus a compiled-WASM PageRank oracle so backend
+ * equivalence cannot hide a shared mathematical defect.
  */
 
-import { createJSFallback, WASMModule, isWASMAvailable } from '../src/loader';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { createJSFallback, createWASMModule, WASMModule, isWASMAvailable } from '../src/loader';
 
 // ============================================================
 // Helpers
@@ -29,6 +29,12 @@ function assertStrictEqual<T>(a: T, b: T, msg: string): void {
   else { failed++; console.error(`  FAIL: ${msg}: expected ${JSON.stringify(a)} === ${JSON.stringify(b)}`); }
 }
 
+function assertApprox(actual: number, expected: number, tolerance: number, msg: string): void {
+  testCount++;
+  if (Math.abs(actual - expected) <= tolerance) { passed++; }
+  else { failed++; console.error(`  FAIL: ${msg}: expected ${actual} ~= ${expected} (±${tolerance})`); }
+}
+
 function section(name: string): void {
   console.log(`\n=== ${name} ===`);
 }
@@ -38,8 +44,8 @@ function buildChain(n: number): { indptr: Int32Array; indices: Int32Array } {
   // Each node i has outgoing edge to i+1, except last node
   // indptr: [0, 1, 2, 3, ..., n-1, n-1]
   const indptr = new Int32Array(n + 1);
-  for (let i = 0; i < n; i++) indptr[i] = i; // node i has edges starting at position i
-  indptr[n] = n - 1; // total edges
+  for (let i = 0; i < n; i++) indptr[i] = i;
+  indptr[n] = n - 1;
   const indices = new Int32Array(n - 1);
   for (let i = 0; i < n - 1; i++) indices[i] = i + 1;
   return { indptr, indices };
@@ -77,6 +83,26 @@ function buildAdj(adj: number[][]): { indptr: Int32Array; indices: Int32Array } 
   let idx = 0;
   for (let i = 0; i < n; i++) { for (const e of adj[i]) indices[idx++] = e; }
   return { indptr, indices };
+}
+
+function assertPageRankChainOracle(module: WASMModule, backend: string): void {
+  const { indptr, indices } = buildChain(5);
+  const result = module.pageRank(indptr, indices, 0.85, 20);
+  const expected = [0.08118305, 0.15019045, 0.20884783, 0.25870436, 0.30107431];
+
+  assertStrictEqual(result.length, 5, `${backend}: PageRank returns 5 values`);
+  const total = Array.from(result).reduce((sum, rank) => sum + rank, 0);
+  assertApprox(total, 1, 1e-9, `${backend}: PageRank mass is conserved`);
+  for (let i = 0; i < expected.length; i++) {
+    assertApprox(result[i], expected[i], 1e-6, `${backend}: PageRank[${i}] matches independent oracle`);
+  }
+  assert(result[4] > result[0], `${backend}: terminal node outranks source in directed chain`);
+}
+
+function loadCompiledWASM(): WASMModule {
+  const bytes = readFileSync(resolve(__dirname, '../build/optimized.wasm'));
+  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  return createWASMModule(buffer);
 }
 
 // ============================================================
@@ -121,7 +147,6 @@ section('DFS — chain 10');
   const result = wasm.dfs(indptr, indices, 0);
   assert(result.length === 10, 'DFS visits all 10 nodes');
   assertStrictEqual(result[0], 0, 'first node is source');
-  // DFS chain order: 0, 9, 8, 7, 6, 5, 4, 3, 2, 1
   assert(result.length === 10, 'DFS returns all nodes');
 }
 
@@ -136,15 +161,17 @@ section('DFS has path');
 }
 
 // ============================================================
-section('PageRank — chain 5');
+section('PageRank — independent oracle');
 
 {
-  const { indptr, indices } = buildChain(5);
-  const result = wasm.pageRank(indptr, indices, 0.85, 20);
-  assert(result.length === 5, 'PageRank returns 5 values');
-  for (let i = 0; i < 5; i++) assert(result[i] > 0, `PageRank[${i}] > 0`);
-  // Check that first node has higher rank than last (chain: first gets more PR)
-  assert(result[0] > result[4], 'first node rank > last node rank');
+  assertPageRankChainOracle(wasm, 'JS fallback');
+}
+
+// ============================================================
+section('PageRank — compiled WASM independent oracle');
+
+{
+  assertPageRankChainOracle(loadCompiledWASM(), 'compiled WASM');
 }
 
 // ============================================================
@@ -202,8 +229,7 @@ section('Topological sort — DAG');
 section('Has cycle — cycle detection');
 
 {
-  // 0 → 1 → 2 → 0 (cycle!)
-  const adj: number[][] = [[1], [2], [3], [0]]; // 3→0, but 0→1, 1→2, 2→3 creates cycle
+  const adj: number[][] = [[1], [2], [3], [0]];
   const { indptr, indices } = buildAdj(adj);
 
   assert(wasm.hasCycle(indptr, indices) === true, 'cycle detected');
@@ -227,7 +253,7 @@ section('Dijkstra — chain 10');
   const weights = new Int32Array(indices.length);
   for (let i = 0; i < weights.length; i++) weights[i] = 1;
 
-  const { distances, parents } = wasm.dijkstra(indptr, indices, weights, 0);
+  const { distances } = wasm.dijkstra(indptr, indices, weights, 0);
   assertStrictEqual(distances[0], 0, 'distance to source is 0');
   assertStrictEqual(distances[9], 9, 'distance to last node is 9');
 }
@@ -249,7 +275,7 @@ section('Empty graph — single node');
   const bfsResult = wasm.bfs(indptr, indices, 0);
   assertStrictEqual(bfsResult.length, 1, 'BFS returns source node');
 
-  const { componentIds, count } = wasm.connectedComponents(indptr, indices);
+  const { count } = wasm.connectedComponents(indptr, indices);
   assertStrictEqual(count, 1, '1 component for single node');
 }
 
@@ -266,14 +292,12 @@ section('Grid 3x3 — BFS');
 section('Dijkstra — no path');
 
 {
-  // Two disconnected nodes: 0 and 1 (no edges)
   const indptr = new Int32Array([0, 0, 0]);
   const indices = new Int32Array(0);
   const weights = new Int32Array(0);
 
-  const { distances, parents } = wasm.dijkstra(indptr, indices, weights, 0);
+  const { distances } = wasm.dijkstra(indptr, indices, weights, 0);
   assertStrictEqual(distances[0], 0, 'distance to source is 0');
-  // Distance to node 1 should remain INF (2147483647)
   assert(distances[1] > 1000000, 'distance to unreachable node is INF');
 }
 
@@ -281,5 +305,5 @@ section('Dijkstra — no path');
 // Summary
 // ============================================================
 console.log(`\n=== Summary ===`);
-console.log(`Passed: ${passed}, Failed: ${failed}`);
+console.log(`Assertions: ${testCount}, Passed: ${passed}, Failed: ${failed}`);
 if (failed > 0) process.exit(1);
