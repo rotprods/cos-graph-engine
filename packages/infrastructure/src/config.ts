@@ -62,11 +62,25 @@ export class Configuration {
   loadFromEnv(prefix: string = 'COS_'): void {
     const layer = this.layers.find(l => l.source === 'env');
     if (!layer) return;
-    for (const [key, value] of Object.entries(process.env)) {
-      if (key.startsWith(prefix)) {
-        const configKey = key.replace(prefix, '').toLowerCase().replace(/_/g, '.');
-        layer.values[configKey] = value;
-      }
+    const boundNames = new Set<string>();
+    for (const schema of this.schemas.values()) {
+      if (schema.env?.startsWith(prefix)) boundNames.add(schema.env);
+    }
+
+    // Preserve generic configuration keys, without inventing aliases for bindings.
+    for (const [name, value] of Object.entries(process.env)) {
+      if (!name.startsWith(prefix) || boundNames.has(name) || value === undefined) continue;
+      const configKey = name.slice(prefix.length).toLowerCase().replace(/_/g, '.');
+      const schema = this.schemas.get(configKey);
+      layer.values[configKey] = schema ? this.coerce(value, schema.type) : value;
+    }
+
+    // Declared bindings win over generic spellings regardless of environment order.
+    // Values still live in the env layer, below file and runtime overrides.
+    for (const [key, schema] of this.schemas) {
+      if (!schema.env?.startsWith(prefix)) continue;
+      const value = process.env[schema.env];
+      if (value !== undefined) layer.values[key] = this.coerce(value, schema.type);
     }
     this.rebuild();
   }
