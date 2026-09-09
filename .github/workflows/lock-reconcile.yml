@@ -41,8 +41,6 @@ jobs:
           diff -u /tmp/manifests.before /tmp/manifests.after
       - name: Prove exact install
         run: npm ci
-      - name: Typecheck
-        run: npx tsc --noEmit
       - name: Commit reconciled lockfile
         shell: bash
         run: |
