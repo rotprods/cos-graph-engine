@@ -9,10 +9,18 @@ export interface SemanticNode {
   definition?: string; examples?: string[]; embedding?: number[];
 }
 
+export interface LegacySemanticNode {
+  id: string; name: string; concepts?: string[];
+}
+
 export interface SemanticEdge {
   id: string; source: string; target: string;
   relation: 'is_a' | 'has_property' | 'related_to' | 'part_of' | 'opposite_of' | 'causes' | 'requires';
   strength: number;
+}
+
+export interface LegacySemanticEdge {
+  id: string; source: string; target: string; type: string; weight?: number;
 }
 
 export class SemanticGraph {
@@ -29,7 +37,10 @@ export class SemanticGraph {
     }
   }
 
-  addNode(n: SemanticNode): string {
+  addNode(input: SemanticNode | LegacySemanticNode): string {
+    const n: SemanticNode = 'concept' in input
+      ? input
+      : { id: input.id, concept: input.name, type: 'entity', examples: input.concepts };
     if (this.nodes.some(x => x.id === n.id)) throw new Error(`Duplicate semantic node ID: ${n.id}`);
     this.nodes.push(n); this.buildAdjacency(); return n.id;
   }
@@ -42,7 +53,21 @@ export class SemanticGraph {
     this.buildAdjacency();
   }
 
-  addEdge(e: SemanticEdge): void {
+  addEdge(input: SemanticEdge | LegacySemanticEdge): void {
+    const relationMap: Record<string, SemanticEdge['relation']> = {
+      similar: 'related_to', dissimilar: 'opposite_of', is_a: 'is_a',
+      has_property: 'has_property', related_to: 'related_to', part_of: 'part_of',
+      opposite_of: 'opposite_of', causes: 'causes', requires: 'requires',
+    };
+    const e: SemanticEdge = 'relation' in input
+      ? input
+      : {
+          id: input.id,
+          source: input.source,
+          target: input.target,
+          relation: relationMap[input.type] ?? 'related_to',
+          strength: input.weight ?? 1,
+        };
     if (!this.nodes.some(n => n.id === e.source)) throw new Error(`Edge source ${e.source} not found`);
     if (!this.nodes.some(n => n.id === e.target)) throw new Error(`Edge target ${e.target} not found`);
     this.edges.push(e); this.buildAdjacency();
@@ -56,6 +81,40 @@ export class SemanticGraph {
 
   getNode(nodeId: string): SemanticNode | undefined { return this.nodes.find(n => n.id === nodeId); }
   getEdge(edgeId: string): SemanticEdge | undefined { return this.edges.find(e => e.id === edgeId); }
+
+  findSimilar(nodeId: string, limit: number = 5): SemanticNode[] {
+    if (!this.getNode(nodeId) || limit <= 0) return [];
+    return this.nodes
+      .filter(n => n.id !== nodeId)
+      .map(node => {
+        const direct = this.edges
+          .filter(e => (e.source === nodeId && e.target === node.id) || (e.target === nodeId && e.source === node.id))
+          .reduce((best, e) => Math.max(best, e.strength), 0);
+        return { node, score: Math.max(direct, this.similarity(nodeId, node.id)) };
+      })
+      .filter(x => x.score > 0)
+      .sort((a, b) => b.score - a.score || a.node.id.localeCompare(b.node.id))
+      .slice(0, limit)
+      .map(x => x.node);
+  }
+
+  findPath(sourceId: string, targetId: string): SemanticNode[] {
+    if (!this.getNode(sourceId) || !this.getNode(targetId)) return [];
+    const queue: string[][] = [[sourceId]];
+    const visited = new Set<string>([sourceId]);
+    while (queue.length) {
+      const path = queue.shift()!;
+      const current = path[path.length - 1];
+      if (current === targetId) return path.map(id => this.getNode(id)!).filter(Boolean);
+      const neighbors = this.edges.flatMap(e => e.source === current ? [e.target] : e.target === current ? [e.source] : []);
+      for (const neighbor of neighbors) {
+        if (visited.has(neighbor)) continue;
+        visited.add(neighbor);
+        queue.push([...path, neighbor]);
+      }
+    }
+    return [];
+  }
 
   buildAnimalTaxonomy() {
     this.addNode({ id: 'animal', concept: 'Animal', type: 'class', definition: 'Living organism' });
@@ -71,51 +130,47 @@ export class SemanticGraph {
     this.addEdge({ id: generateId(), source: 'eagle', target: 'bird', relation: 'is_a', strength: 0.9 });
   }
 
-  lca(id1: string, id2: string): SemanticNode | null {
-    const ancestors1 = new Set<string>();
-    const collect = (id: string, set: Set<string>) => {
-      set.add(id);
-      for (const e of this.edges.filter(e => e.target === id && e.relation === 'is_a')) {
-        collect(e.source, set);
-      }
-    };
-    collect(id1, ancestors1);
-    const queue = [id2]; const visited = new Set<string>();
+  private ancestorsWithDistance(start: string): Map<string, number> {
+    const distances = new Map<string, number>([[start, 0]]);
+    const queue: string[] = [start];
     while (queue.length) {
       const id = queue.shift()!;
-      if (ancestors1.has(id)) return this.getNode(id) || null;
-      if (visited.has(id)) continue; visited.add(id);
-      for (const e of this.edges.filter(e => e.target === id && e.relation === 'is_a')) {
-        queue.push(e.source);
+      const d = distances.get(id)!;
+      for (const edge of this.edges.filter(e => e.source === id && e.relation === 'is_a')) {
+        if (!distances.has(edge.target)) {
+          distances.set(edge.target, d + 1);
+          queue.push(edge.target);
+        }
       }
     }
-    return null;
+    return distances;
+  }
+
+  lca(id1: string, id2: string): SemanticNode | null {
+    const a1 = this.ancestorsWithDistance(id1);
+    const a2 = this.ancestorsWithDistance(id2);
+    const common = [...a1.keys()]
+      .filter(id => a2.has(id))
+      .sort((x, y) => (a1.get(x)! + a2.get(x)!) - (a1.get(y)! + a2.get(y)!) || x.localeCompare(y));
+    return common.length ? this.getNode(common[0]) ?? null : null;
   }
 
   similarity(id1: string, id2: string): number {
+    if (id1 === id2) return this.getNode(id1) ? 1 : 0;
     const ancestor = this.lca(id1, id2);
     if (!ancestor) return 0;
-    const depth = (id: string): number => {
-      let d = 0; let cur = id;
-      while (true) {
-        const parent = this.edges.find(e => e.target === cur && e.relation === 'is_a');
-        if (!parent) break;
-        cur = parent.source; d++;
-      }
-      return d;
-    };
-    const d1 = depth(id1); const d2 = depth(id2); const da = depth(ancestor.id);
-    return (2 * da) / (d1 + d2);
+    const a1 = this.ancestorsWithDistance(id1);
+    const a2 = this.ancestorsWithDistance(id2);
+    const d1 = a1.get(ancestor.id);
+    const d2 = a2.get(ancestor.id);
+    if (d1 === undefined || d2 === undefined) return 0;
+    return 1 / (1 + d1 + d2);
   }
 
   toMermaid(): string {
     let m = 'graph TD\n';
-    for (const n of this.nodes) {
-      m += `    ${n.id}["${n.concept}"]\n`;
-    }
-    for (const e of this.edges) {
-      m += `    ${e.source} -->|"${e.relation}"| ${e.target}\n`;
-    }
+    for (const n of this.nodes) m += `    ${n.id}["${n.concept}"]\n`;
+    for (const e of this.edges) m += `    ${e.source} -->|"${e.relation}"| ${e.target}\n`;
     return m;
   }
 
