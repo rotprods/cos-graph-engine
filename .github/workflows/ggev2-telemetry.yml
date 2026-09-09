@@ -1,0 +1,46 @@
+name: GGEV2 Telemetry Bridge
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'tools/ggev2_emit.py'
+      - 'docs/GGEV2_TELEMETRY.md'
+      - '.github/workflows/ggev2-telemetry.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  telemetry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile emitter
+        run: python -m py_compile tools/ggev2_emit.py
+      - name: Emit and verify heartbeat
+        run: |
+          python tools/ggev2_emit.py HEARTBEAT \
+            --agent-id rot://agent/cos/ci \
+            --session-id rot://session/cos/ci/${GITHUB_RUN_ID} \
+            --project-id rot://project/cos \
+            --objective-id rot://objective/cos/ggev2-adoption \
+            --workstream-id rot://workstream/cos/ggev2-adoption \
+            --branch "$GITHUB_HEAD_REF" \
+            --head-sha "$GITHUB_SHA" \
+            --watermark 1 > /tmp/ggev2.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/ggev2.json'))
+          assert d['authority']=='OBSERVATION_ONLY'
+          assert d['event_type']=='HEARTBEAT'
+          assert len(d['head_sha'])==40
+          assert d['event_watermark']==1
+          PY
+      - name: Reject abbreviated SHA
+        run: |
+          if python tools/ggev2_emit.py HEARTBEAT --agent-id a --session-id s --project-id p --objective-id o --workstream-id w --branch x --head-sha deadbee --watermark 1; then
+            echo 'abbreviated SHA unexpectedly accepted' >&2
+            exit 1
+          fi
