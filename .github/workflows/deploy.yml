@@ -1,5 +1,5 @@
-# COS Graph Engine — Deploy Pipeline
-# Triggered after CI passes on main
+# COS Graph Engine — deployment runs only after a successful main CI.
+# A failed upstream CI is not converted into a second failing deployment run.
 
 name: Deploy
 
@@ -7,43 +7,33 @@ on:
   workflow_run:
     workflows: ["CI"]
     branches: [main]
-    types:
-      - completed
+    types: [completed]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
 env:
-  NODE_VERSION: '18.20.4'
-  WORKING_DIR: cos
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   K8S_NAMESPACE: cos-graph-engine
   K8S_DEPLOYMENT: cos-engine
 
 jobs:
-  # ─── Report CI Status ──────────────────────────────────────────
-  check-ci:
-    name: Check CI Status
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
-    steps:
-      - run: |
-          echo "❌ CI workflow did not succeed (conclusion: ${{ github.event.workflow_run.conclusion }})"
-          exit 1
-
-  # ─── Build and Tag Docker Image ────────────────────────────────
   build:
     name: Build & Push Docker
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: read
       packages: write
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
     outputs:
       tags: ${{ steps.meta.outputs.tags }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -58,100 +48,116 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=production,enable=true
+            type=raw,value=production
             type=sha,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
-          context: ${{ env.WORKING_DIR }}
+          context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ─── Deploy to Kubernetes ──────────────────────────────────────
   deploy:
     name: Deploy to K8s
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
+    outputs:
+      deployed: ${{ steps.eligibility.outputs.enabled }}
+    env:
+      KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check deployment configuration
+        id: eligibility
+        shell: bash
+        run: |
+          if [ -n "${KUBE_CONFIG_DATA:-}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Kubernetes target configured."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "KUBE_CONFIG_DATA is not configured; image build is complete and deployment is intentionally skipped."
+          fi
 
       - name: Set up kubectl
+        if: steps.eligibility.outputs.enabled == 'true'
         uses: azure/setup-kubectl@v4
         with:
           version: 'v1.31.0'
 
       - name: Configure kubeconfig
-        env:
-          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
+        if: steps.eligibility.outputs.enabled == 'true'
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p ~/.kube
-          echo "$KUBE_CONFIG_DATA" | base64 -d > ~/.kube/config 2>/dev/null || \
-          echo "$KUBE_CONFIG_DATA" > ~/.kube/config
+          if printf '%s' "$KUBE_CONFIG_DATA" | base64 -d > ~/.kube/config 2>/dev/null; then
+            :
+          else
+            printf '%s' "$KUBE_CONFIG_DATA" > ~/.kube/config
+          fi
           chmod 600 ~/.kube/config
 
       - name: Update deployment image
+        if: steps.eligibility.outputs.enabled == 'true'
         run: |
           kubectl set image deployment/${{ env.K8S_DEPLOYMENT }} \
             engine=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:production \
             -n ${{ env.K8S_NAMESPACE }}
 
       - name: Rollout status
+        if: steps.eligibility.outputs.enabled == 'true'
         run: |
           kubectl rollout status deployment/${{ env.K8S_DEPLOYMENT }} \
             -n ${{ env.K8S_NAMESPACE }} \
             --timeout=180s
 
       - name: Verify pods
+        if: steps.eligibility.outputs.enabled == 'true'
         run: |
           kubectl get pods -n ${{ env.K8S_NAMESPACE }} -l app.kubernetes.io/component=engine
           kubectl get hpa -n ${{ env.K8S_NAMESPACE }}
 
-  # ─── Smoke Test ────────────────────────────────────────────────
   smoke-test:
     name: Smoke Test
     runs-on: ubuntu-latest
     needs: deploy
+    if: needs.deploy.outputs.deployed == 'true'
     steps:
       - name: Test health endpoint
+        shell: bash
         run: |
+          set -euo pipefail
+          STATUS=000
           for i in {1..10}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              https://api.cos-graph-engine.dev/health 2>/dev/null || echo "000")
+            STATUS="$(curl --fail-with-body -sS -o /dev/null -w '%{http_code}' https://api.cos-graph-engine.dev/health || true)"
             if [ "$STATUS" = "200" ]; then
-              echo "✅ Health check passed (200)"
-              break
+              echo "Health check passed (200)"
+              exit 0
             fi
-            echo "Attempt $i: got $STATUS, waiting..."
+            echo "Attempt $i: got ${STATUS:-000}, waiting..."
             sleep 5
           done
-          if [ "$STATUS" != "200" ]; then
-            echo "❌ Health check failed after 10 attempts"
-            exit 1
-          fi
+          echo "Health check failed after 10 attempts" >&2
+          exit 1
 
       - name: Test metrics endpoint
+        shell: bash
         run: |
-          METRICS=$(curl -s https://api.cos-graph-engine.dev/metrics 2>/dev/null || echo "")
-          if echo "$METRICS" | grep -q "cos_bfs_traversals_total"; then
-            echo "✅ Metrics endpoint returns BFS data"
-          else
-            echo "⚠️ Metrics endpoint might not be ready"
-          fi
+          set -euo pipefail
+          curl --fail-with-body -sS https://api.cos-graph-engine.dev/metrics | grep -q "cos_bfs_traversals_total"
 
-  # ─── Complete ──────────────────────────────────────────────────
   complete:
-    name: ✅ Deploy Complete
+    name: Deploy Complete
     runs-on: ubuntu-latest
-    needs: smoke-test
-    if: success()
+    needs: [build, deploy, smoke-test]
+    if: always() && needs.build.result == 'success' && needs.deploy.result == 'success' && (needs.smoke-test.result == 'success' || needs.smoke-test.result == 'skipped')
     steps:
-      - run: echo "✅ COS Graph Engine deployed successfully to production"
+      - run: echo "Deployment pipeline completed without propagating upstream CI failures."
