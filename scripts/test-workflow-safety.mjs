@@ -21,6 +21,7 @@ for (const name of files) {
   for (const pattern of forbiddenCommands) {
     assert.ok(!pattern.test(text), `${name} contains forbidden convergence side effect: ${pattern}`);
   }
+  assert.doesNotMatch(text, /pull_request_target\s*:/, `${name} must not execute privileged PR-target code`);
   if (name === 'deploy.yml' || name === 'release.yml') {
     assert.match(text, /workflow_dispatch/);
     assert.match(text, /exit 1/);
@@ -28,9 +29,12 @@ for (const name of files) {
 }
 
 const canonical = readFileSync(join(dir, 'ci.yml'), 'utf8');
-assert.match(canonical, /integration\/main-baseline-20260907/);
+assert.match(canonical, /push:\s*\n\s*branches:\s*\[integration\/main-baseline-20260907, main\]/);
+assert.match(canonical, /pull_request:\s*\n\s*branches:\s*\[main\]/);
+assert.match(canonical, /permissions:\s*\n\s*contents:\s*read/);
 assert.match(canonical, /npm run coverage/);
 assert.match(canonical, /docker build/);
+assert.match(canonical, /test-config-bindings\.cjs/);
 assert.match(canonical, /test-auth-boundary\.cjs/);
 assert.match(canonical, /test-memory-regressions\.cjs/);
 assert.match(canonical, /test-wasm-extended\.ts/);
