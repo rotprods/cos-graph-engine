@@ -104,11 +104,12 @@ export function reconstructPath(
 ): u32 {
   let idx: u32 = 0;
   let cur = target;
+  const parentCount = <u32>parents.length;
   const temp = new StaticArray<u32>(parents.length);
 
-  while (cur < parents.length) {
+  while (cur < parentCount) {
     temp[idx++] = cur;
-    if (parents[cur] >= parents.length) break;
+    if (parents[cur] >= parentCount) break;
     cur = parents[cur];
   }
 
