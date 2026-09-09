@@ -184,10 +184,40 @@ jobs:
           test "$actual" = "$GITHUB_SHA"
           echo "tested_sha=$actual" >> "$GITHUB_OUTPUT"
       - run: docker build --tag "cos-graph-engine:convergence-${GITHUB_SHA}" .
-      - name: Runtime workspace module resolution smoke
+      - name: Runtime package and privilege smoke
         run: |
+          set -euo pipefail
           image="cos-graph-engine:convergence-${GITHUB_SHA}"
-          docker run --rm --entrypoint node "$image" -e "require('@cos/core'); require('@cos/api'); require('@cos/infrastructure'); console.log('runtime-module-resolution-ok')"
+          docker run --rm --entrypoint node "$image" -e "require('@cos/core'); require('@cos/api'); require('@cos/infrastructure'); require('@cos/observability'); console.log('runtime-module-resolution-ok')"
+          uid="$(docker run --rm --entrypoint node "$image" -p 'process.getuid ? process.getuid() : -1')"
+          test "$uid" != '0'
+          docker run --rm --entrypoint node "$image" -e "try { require.resolve('typescript'); process.exit(1); } catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }"
+      - name: Production HTTP health smoke
+        run: |
+          set -euo pipefail
+          image="cos-graph-engine:convergence-${GITHUB_SHA}"
+          name="cos-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          docker run -d --name "$name" \
+            -e COS_JWT_SECRET='public-ci-fixture-key-32-bytes-minimum-20260909' \
+            -p 127.0.0.1:18080:8080 "$image" >/dev/null
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/health > /tmp/cos-health.json; then
+              ready=1
+              break
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' "$name")" != 'true' ]; then
+              docker logs "$name"
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          node -e "const h=JSON.parse(require('node:fs').readFileSync('/tmp/cos-health.json','utf8')); if (!h.system || !['healthy','degraded'].includes(h.system.status)) process.exit(1)"
+          docker stop --time 10 "$name" >/dev/null
+          trap - EXIT
       - id: seal
         run: echo 'completed=true' >> "$GITHUB_OUTPUT"
 
