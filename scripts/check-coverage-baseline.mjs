@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 
 const baseline = Object.freeze({
-  statements: 64.44,
-  branches: 74.49,
-  functions: 65.49,
-  lines: 64.44,
+  statements: 73.13,
+  branches: 76.81,
+  functions: 72.85,
+  lines: 73.13,
 });
 
 const summary = JSON.parse(readFileSync('coverage/coverage-summary.json', 'utf8'));
@@ -23,7 +23,7 @@ for (const metric of Object.keys(baseline)) {
 }
 
 console.log(JSON.stringify({
-  suite: 'coverage-measurement-v1',
+  suite: 'coverage-orphan-suites-w1',
   priorBaseline: baseline,
   measured,
   delta: Object.fromEntries(Object.keys(baseline).map((metric) => [
