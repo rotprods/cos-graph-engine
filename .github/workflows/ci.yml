@@ -184,6 +184,10 @@ jobs:
           test "$actual" = "$GITHUB_SHA"
           echo "tested_sha=$actual" >> "$GITHUB_OUTPUT"
       - run: docker build --tag "cos-graph-engine:convergence-${GITHUB_SHA}" .
+      - name: Runtime workspace module resolution smoke
+        run: |
+          image="cos-graph-engine:convergence-${GITHUB_SHA}"
+          docker run --rm --entrypoint node "$image" -e "require('@cos/core'); require('@cos/api'); require('@cos/infrastructure'); console.log('runtime-module-resolution-ok')"
       - id: seal
         run: echo 'completed=true' >> "$GITHUB_OUTPUT"
 
