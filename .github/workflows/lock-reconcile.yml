@@ -1,8 +1,8 @@
 name: Lock Reconcile
 
 on:
-  push:
-    branches: [fix/ci-root-workspace-node22-20260909]
+  pull_request:
+    branches: [main]
     paths:
       - 'package.json'
       - 'package-lock.json'
@@ -13,17 +13,18 @@ permissions:
   contents: write
 
 concurrency:
-  group: lock-reconcile-${{ github.ref }}
+  group: lock-reconcile-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   reconcile:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'fix/ci-root-workspace-node22-20260909'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.head_ref }}
           persist-credentials: true
       - uses: actions/setup-node@v5
         with:
@@ -54,4 +55,4 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add package-lock.json
           git commit -m 'fix(lock): reconcile monorepo workspace metadata'
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
