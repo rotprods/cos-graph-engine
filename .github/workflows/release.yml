@@ -1,141 +1,88 @@
-# COS Graph Engine — Release Pipeline
-# Creates GitHub releases with auto-generated notes
+# COS Graph Engine — release only from an explicit version tag.
+# This avoids recursive version-bump pushes and keeps releases reproducible.
 
 name: Release
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  NODE_VERSION: '18.20.4'
-  WORKING_DIR: cos
+  NODE_VERSION: '24'
+
+permissions:
+  contents: read
 
 jobs:
-  # ─── Tests ─────────────────────────────────────────────────────
   test:
-    name: Run All Tests
+    name: Release Qualification
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: ${{ env.WORKING_DIR }}/package-lock.json
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
+      - name: TypeScript check
+        run: npx tsc --noEmit
       - name: Build WASM
-        run: npm run asbuild 2>/dev/null || echo "WASM build skipped"
-      - name: Run CSR tests
-        run: npx tsx scripts/test-csr.ts
-      - name: Run pruning tests
-        run: npx tsx scripts/test-pruning.ts
-      - name: Run benchmark tests
-        run: npx tsx scripts/test-benchmark.ts
-      - name: Run WASM tests
-        run: npx tsx scripts/test-wasm.ts
-      - name: Run observability tests
-        run: npx tsx packages/observability/tests/tracing.test.ts && \
-             npx tsx packages/observability/tests/collector.test.ts && \
-             npx tsx packages/observability/tests/profiler.test.ts && \
-             npx tsx packages/observability/tests/dashboard.test.ts
-      - name: Run visualization tests
-        run: npx tsx packages/visualization/tests/svg-renderer.test.ts && \
-             npx tsx packages/visualization/tests/canvas-renderer.test.ts && \
-             npx tsx packages/visualization/tests/web-component.test.ts
-      - name: Run core test suite
-        run: npm run test:all 2>&1
-      - name: Verify
-        run: echo "✅ All 552 tests passed"
+        run: npm run asbuild
+      - name: Full regression
+        run: npm run test:all
 
-  # ─── Version Bump ──────────────────────────────────────────────
-  version:
-    name: Version Bump
-    runs-on: ubuntu-latest
-    needs: test
-    timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
-    outputs:
-      new_version: ${{ steps.bump.outputs.new_version }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Bump patch version
-        id: bump
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          MAJOR=$(echo $VERSION | cut -d. -f1)
-          MINOR=$(echo $VERSION | cut -d. -f2)
-          PATCH=$(echo $VERSION | cut -d. -f3)
-          NEW_PATCH=$((PATCH + 1))
-          NEW_VERSION="$MAJOR.$MINOR.$NEW_PATCH"
-          node -e "const p=require('./package.json'); p.version='$NEW_VERSION'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n')"
-          # Update graph package
-          node -e "const p=require('./packages/graph/package.json'); p.version='$NEW_VERSION'; require('fs').writeFileSync('./packages/graph/package.json', JSON.stringify(p, null, 2)+'\n')" 2>/dev/null || true
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-      - name: Commit version bump
-        run: |
-          git config user.name "COS Bot"
-          git config user.email "bot@cos.dev"
-          git add package.json packages/graph/package.json 2>/dev/null
-          git commit -m "chore(release): v${{ steps.bump.outputs.new_version }}"
-          git push
-
-  # ─── GitHub Release ────────────────────────────────────────────
   release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: version
+    needs: test
     timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: ${{ env.WORKING_DIR }}
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Generate release notes
-        id: notes
+      - name: Validate tag matches package version
+        shell: bash
         run: |
-          cat > release-notes.md << 'EOF'
-          ### COS Graph Engine Release v${{ needs.version.outputs.new_version }}
-
-          **Tests:** 552+ passing, 0 failures
-          **Coverage:** 63%+
-          **Dependencies:** 0 (zero-dep rule)
-
-          #### What's New
-
-          - CSR Graph Engine: compressed adjacency storage, bidirectional BFS
-          - Pruning: 7 strategies with composable pipeline
-          - WASM: AssemblyScript bindings, up to 10.49x speedup
-          - Observability: tracing, collector, profiler, Prometheus, telemetry dashboard
-          - Visualization: SVG renderer (force/tree/radial), Canvas (quadtree culling), Web Component
-          - Docker: multi-stage build, Prometheus + Grafana stack
-          - Kubernetes: deployment, HPA, ingress, RBAC
-
-          #### Changes
-          EOF
-          git log --oneline $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD --no-merges >> release-notes.md
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PACKAGE_VERSION" ]; then
+            echo "Tag v$TAG does not match package.json version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+      - name: Generate release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "### COS Graph Engine ${GITHUB_REF_NAME}"
+            echo
+            echo "Release qualified by the full CI regression on Node ${NODE_VERSION}."
+            echo
+            echo "#### Changes"
+          } > release-notes.md
+          PREVIOUS_TAG="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          if [ -n "$PREVIOUS_TAG" ]; then
+            git log --oneline "$PREVIOUS_TAG..$GITHUB_REF_NAME" --no-merges >> release-notes.md
+          else
+            git log --oneline --no-merges -50 >> release-notes.md
+          fi
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.version.outputs.new_version }}
-          name: v${{ needs.version.outputs.new_version }}
-          body_path: ${{ env.WORKING_DIR }}/release-notes.md
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: release-notes.md
           generate_release_notes: true
           make_latest: true
