@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "handoffId": "hof_c4f149c9-87d5-44cc-88b9-db5f028dace9",
+  "recordedAt": "2026-09-10T13:57:00Z",
+  "projectId": "COS_GRAPH_ENGINE",
+  "checkpointId": "CP-T0502_PROVIDER_TRUTH_RECOVERY_PROTOCOL_VERIFIED",
+  "planes": {
+    "github": {
+      "status": "PASS",
+      "pullRequest": 89,
+      "branch": "hardening/t0502f-provider-truth-recovery-milestone",
+      "handoffRef": "checkpoint/t0502f-handoff-20260910",
+      "handoffCommit": "974ef72e346109a1a3504a124be9d25cb8458ef3",
+      "handoffPath": "control-plane/v2/runtime-qualification/t0502f/HANDOFF.md",
+      "resumePath": "control-plane/v2/runtime-qualification/t0502f/resume.json"
+    },
+    "todoist": {
+      "status": "PASS",
+      "projectId": "6hMP59rWj7f5xH7M",
+      "commentId": "6hV99McCf68hvf3v"
+    },
+    "drive": {
+      "status": "DEGRADED_EXTERNAL",
+      "reason": "Google Drive connector became unavailable during handoff synchronization.",
+      "requiredSuccessorRepair": [
+        "append this handoff checkpoint to COS_GRAPH_ENGINE canonical Acta",
+        "append this handoff checkpoint to STATE — AGENTIC_SYSTEMS_OS",
+        "record the repaired Drive revision IDs back into the next cross-plane checkpoint"
+      ]
+    }
+  },
+  "overallStatus": "HANDOFF_READY_WITH_DRIVE_SYNC_DEGRADED",
+  "nextAction": "Successor verifies live truth, repairs Drive sync when available, creates fresh session/claim and resumes CP-T0502-RUNTIME-INTEGRATION-EXECUTED."
+}
