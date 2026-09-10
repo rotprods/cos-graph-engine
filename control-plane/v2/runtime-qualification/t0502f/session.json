@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "sessionId": "ses_0c612378-627c-4a83-8cfb-add377b3df33",
+  "claimId": "claim_d3ce9138-4070-4f09-9981-5e5787ad6717",
+  "correlationId": "corr_b35271e8-d5bb-4264-b8da-6e128bf2f1c8",
+  "projectId": "COS_GRAPH_ENGINE",
+  "agentId": "agent_openai_chatgpt_gpt-5.6-sol",
+  "workstreamId": "ws_phase05_provider_truth_recovery",
+  "objectiveId": "T0502F_I",
+  "createdAt": "2026-09-02T11:14:37Z",
+  "completedAt": "2026-09-02T11:30:00Z",
+  "status": "HANDOFF_READY",
+  "branch": "hardening/t0502f-provider-truth-recovery-milestone",
+  "baseSha": "5e512f5016fb922bca304d772052d4abeb5579ca",
+  "checkpointId": "CP-T0502_PROVIDER_TRUTH_RECOVERY_PROTOCOL_VERIFIED",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "resourceScopes": [
+    "scripts/model-authority-provider-truth-recovery.mjs",
+    "scripts/test-model-authority-provider-truth-recovery.mjs",
+    "scripts/test-authority-provider-truth-recovery.ts",
+    "control-plane/v2/runtime-qualification/t0502f/**"
+  ],
+  "semanticScopes": [
+    "provider timeout-after-acceptance recovery",
+    "unknown outcome fail-closed semantics",
+    "lease takeover and fencing",
+    "repeated authoritative absence",
+    "partial compensation",
+    "bounded state-space safety"
+  ],
+  "completedResults": [
+    "exact-published protocol model syntax PASS",
+    "19 targeted provider-truth recovery scenarios PASS",
+    "bounded exploration visited 2747 states and 6697 transitions at depth 11 with 0 safety violations",
+    "11 adversarial protocol mutants killed",
+    "composition map binds 9 protocol invariants to existing runtime owners",
+    "runtime integration contract exact bytes persisted and structurally clean"
+  ],
+  "unverifiedWork": [
+    "execute runtime integration contract in a clean full monorepo checkout",
+    "authorized live GitHub/Drive read-client qualification",
+    "real isolated Postgres/Supabase transaction and restart qualification",
+    "OS multi-process timeout-after-acceptance/process-kill/fencing campaign",
+    "full repository security/replay/restore qualification"
+  ],
+  "evidencePath": "control-plane/v2/runtime-qualification/t0502f/evidence.json",
+  "nextAction": "T0502F-EXEC: in a clean full monorepo checkout run strict typecheck for the T0502F closure and execute scripts/test-authority-provider-truth-recovery.ts; if green, advance to authorized read-only provider and isolated Postgres qualification before OS multi-process fault injection.",
+  "rollback": "Discard PR #89; PR #83 and earlier targeted-pass provider lineages remain unchanged."
+}

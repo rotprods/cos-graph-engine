@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "templateId": "claim_template_2f587074-2390-4d92-b9c8-958444ba09e7",
+  "projectId": "COS_GRAPH_ENGINE",
+  "objectiveId": "T0502F_RUNTIME_INTEGRATION_EXECUTION",
+  "status": "TEMPLATE_ONLY",
+  "doNotReuseIds": true,
+  "requiredFreshFields": [
+    "sessionId",
+    "claimId",
+    "correlationId",
+    "agentId",
+    "createdAt",
+    "heartbeatAt",
+    "expiresAt",
+    "revision",
+    "fencingToken",
+    "liveParentSha"
+  ],
+  "exclusiveResourceScopes": [
+    "scripts/test-authority-provider-truth-recovery.ts",
+    "tsconfig.t0502f-provider-truth-recovery.json",
+    "control-plane/v2/runtime-qualification/t0502g-runtime-integration/**"
+  ],
+  "sharedReadOnlyResourceScopes": [
+    "packages/execution/src/authority-side-effect-runtime.ts",
+    "packages/execution/src/authority-observed-outcome-recorder.ts",
+    "packages/execution/src/authority-provider-reconciliation.ts",
+    "packages/execution/src/authority-provider-lease-retry-planner.ts",
+    "packages/execution/src/providers/**",
+    "control-plane/v2/runtime-qualification/t0502f/**"
+  ],
+  "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+  "writeContract": {
+    "perMutationParentCas": true,
+    "required": [
+      "claimId",
+      "revision",
+      "fencingToken",
+      "liveParentSha"
+    ],
+    "staleWriterResult": "REJECT_STALE_PARENT"
+  },
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "firstAction": "Re-read live main, PR #89, PR #83, issue #39, current branch head and overlapping claims before populating this template.",
+  "successCondition": "CP-T0502-RUNTIME-INTEGRATION-EXECUTED achieved with exact-SHA evidence.",
+  "failureCondition": "Any stale ref, overlapping claim, clean-checkout failure, strict typecheck failure or integration-contract failure becomes durable BLOCKED/FAIL evidence; do not bypass the gate."
+}

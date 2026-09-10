@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "mapId": "cos-t0502f-provider-truth-recovery-v1",
+  "sourceRevision": "5e512f5016fb922bca304d772052d4abeb5579ca",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "secondAuthorityRuntimeIntroduced": false,
+  "canonicalOwners": [
+    {
+      "capability": "append-only side-effect lifecycle and crash reconciliation",
+      "owner": "AuthoritySideEffectRuntime / AuthoritySideEffectService",
+      "path": "packages/execution/src/authority-side-effect-runtime.ts"
+    },
+    {
+      "capability": "record provider truth after original lease expiry",
+      "owner": "AuthorityObservedOutcomeRecorder",
+      "path": "packages/execution/src/authority-observed-outcome-recorder.ts"
+    },
+    {
+      "capability": "provider outcome classification and retry gating",
+      "owner": "AuthorityProviderReconciler",
+      "path": "packages/execution/src/authority-provider-reconciliation.ts"
+    },
+    {
+      "capability": "fresh retry lease/fencing/provider-attempt identity",
+      "owner": "AuthorityLeaseRetryPlanner / AuthorityLeaseService",
+      "path": "packages/execution/src/authority-provider-lease-retry-planner.ts"
+    },
+    {
+      "capability": "provider evidence cryptographic integrity and binding",
+      "owner": "AuthorityProviderEvidence schema v2",
+      "path": "packages/execution/src/authority-provider-evidence-integrity.ts"
+    },
+    {
+      "capability": "durable repeated authoritative absence",
+      "owner": "AuthorityAbsenceObservationPostgresStore candidate",
+      "path": "packages/execution/src/providers/authority-absence-observation-store-postgres.ts"
+    },
+    {
+      "capability": "read-only GitHub/Drive provider observations",
+      "owner": "T0502E provider read clients + inspectors",
+      "path": "packages/execution/src/providers/"
+    }
+  ],
+  "invariants": [
+    {
+      "id": "PTR-01",
+      "statement": "An unknown provider outcome cannot authorize retry or commit.",
+      "modelGuards": ["RETRY_WITHOUT_REPEATED_ABSENCE_PROOF", "COMMIT_WITHOUT_APPLIED_PROVIDER_TRUTH"],
+      "runtimeOwner": "AuthorityProviderReconciler.inspect",
+      "runtimeBehavior": "status=unknown throws PROVIDER_RECONCILIATION_INCONCLUSIVE and leaves reconciliation_required",
+      "contractScenario": "unknownNeverAuthorizesRetry",
+      "qualification": "MODEL_EXECUTED_RUNTIME_CONTRACT_WRITTEN"
+    },
+    {
+      "id": "PTR-02",
+      "statement": "Provider application observed after response loss commits historical truth without repeating the original mutation.",
+      "modelGuards": ["MULTIPLE_ACCEPTED_PROVIDER_EFFECTS", "COMMIT_WITHOUT_APPLIED_EVIDENCE"],
+      "runtimeOwner": "AuthorityObservedOutcomeRecorder.recover",
+      "runtimeBehavior": "proves historical fence, verifies provider evidence and records observed applied outcome",
+      "contractScenario": "appliedAfterLostResponseAndTakeover",
+      "qualification": "MODEL_EXECUTED_RUNTIME_CONTRACT_WRITTEN"
+    },
+    {
+      "id": "PTR-03",
+      "statement": "A stale worker cannot commit after a newer fencing token exists.",
+      "modelGuards": ["NON_MONOTONIC_RETRY_FENCE"],
+      "runtimeOwner": "AuthorityExecutionRuntime + AuthorityLeaseService",
+      "runtimeBehavior": "live commit evaluates current fencing token at explicit recorded time and rejects stale token",
+      "contractScenario": "appliedAfterLostResponseAndTakeover stale-live-commit",
+      "qualification": "MODEL_EXECUTED_RUNTIME_CONTRACT_WRITTEN"
+    },
+    {
+      "id": "PTR-04",
+      "statement": "not_applied requires repeated authoritative absence before retry can be prepared.",
+      "modelGuards": ["ABSENCE_PROOF_WITH_FEWER_THAN_TWO_OBSERVATIONS", "ABSENCE_PROOF_BEFORE_CONSISTENCY_WINDOW", "RETRY_WITHOUT_REPEATED_ABSENCE_PROOF"],
+      "runtimeOwner": "AuthorityRepeatedAbsenceGate + AuthorityAbsenceObservationStore + AuthorityProviderReconciler",
+      "runtimeBehavior": "one absence remains unknown; only repeated separated absence produces not_applied",
+      "contractScenario": "repeatedAbsencePreparesFreshRetry uses pre-qualified durable absence evidence",
+      "qualification": "MODEL_EXECUTED_T0502D_TARGETED_PASS_RUNTIME_COMPOSITION_WRITTEN"
+    },
+    {
+      "id": "PTR-05",
+      "statement": "Every authorized retry has a strictly newer fence and a rotated provider idempotency key.",
+      "modelGuards": ["NON_MONOTONIC_RETRY_FENCE", "PROVIDER_KEY_REUSE"],
+      "runtimeOwner": "AuthorityLeaseRetryPlanner.planRetry",
+      "runtimeBehavior": "acquires a new monotonic lease and rejects equal/older fence or reused provider key",
+      "contractScenario": "repeatedAbsencePreparesFreshRetry",
+      "qualification": "MODEL_EXECUTED_RUNTIME_CONTRACT_WRITTEN"
+    },
+    {
+      "id": "PTR-06",
+      "statement": "An active lease is never stolen implicitly to prepare a retry.",
+      "modelGuards": ["retry planner active-lease rejection targeted scenario"],
+      "runtimeOwner": "AuthorityLeaseRetryPlanner + AuthorityLeaseService.acquire",
+      "runtimeBehavior": "LEASE_ALREADY_HELD fails closed while an effective lease remains active",
+      "contractScenario": "covered by T0502 model targeted scenario and existing lease contracts",
+      "qualification": "MODEL_EXECUTED_EXISTING_RUNTIME_CONTRACT"
+    },
+    {
+      "id": "PTR-07",
+      "statement": "Partial provider application cannot be treated as absence, retry or full commit.",
+      "modelGuards": ["COMPENSATION_WITHOUT_PARTIAL_PROVIDER_TRUTH", "COMMIT_WITHOUT_APPLIED_PROVIDER_TRUTH"],
+      "runtimeOwner": "AuthoritySideEffectRuntime.recoverInterrupted",
+      "runtimeBehavior": "partial routes to requireCompensation and compensation_required",
+      "contractScenario": "partialRequiresCompensation",
+      "qualification": "MODEL_EXECUTED_RUNTIME_CONTRACT_WRITTEN"
+    },
+    {
+      "id": "PTR-08",
+      "statement": "Provider evidence used to change durable truth is cryptographically verified and bound to the exact original operation attempt.",
+      "modelGuards": ["COMMIT_WITHOUT_APPLIED_EVIDENCE"],
+      "runtimeOwner": "AuthorityProviderEvidence v2 + AuthorityObservedOutcomeRecorder",
+      "runtimeBehavior": "SHA-256 evidence verification plus operation/project/capability/resource/fence/content binding",
+      "contractScenario": "T0501 PR #64 exact-source evidence; T0502F applied scenario consumes ProviderReconciler",
+      "qualification": "T0501_TARGETED_PASS_COMPOSITION_WRITTEN"
+    },
+    {
+      "id": "PTR-09",
+      "statement": "Reconciliation observations are read-only and do not themselves repeat the provider mutation.",
+      "modelGuards": ["MULTIPLE_ACCEPTED_PROVIDER_EFFECTS"],
+      "runtimeOwner": "AuthorityProviderInspectionPort + T0502E GitHub/Drive read clients",
+      "runtimeBehavior": "GET-only pinned transport; inspectors/clients expose no write method",
+      "contractScenario": "applied scenario asserts read-only inspection; T0502E semantic harness",
+      "qualification": "T0502E_TARGETED_CLIENT_CORE_PASS_RUNTIME_COMPOSITION_WRITTEN"
+    }
+  ],
+  "checkpointGate": {
+    "requiredInvariantIds": ["PTR-01", "PTR-02", "PTR-03", "PTR-04", "PTR-05", "PTR-06", "PTR-07", "PTR-08", "PTR-09"],
+    "modelMustPass": true,
+    "mutationGauntletMustPass": true,
+    "runtimeIntegrationContractMustExist": true,
+    "runtimeIntegrationExecutionRequiredForThisCheckpoint": false,
+    "runtimeIntegrationExecutionRequiredForRuntimeAuthority": true
+  },
+  "proofBoundary": {
+    "fullMonorepoClosure": "NOT_RUN",
+    "realProviderMutationTimeoutAfterAcceptance": "NOT_RUN",
+    "realPostgresSupabase": "NOT_RUN",
+    "osMultiProcessContention": "NOT_RUN",
+    "automaticActions": "OFF",
+    "cdDeployRelease": "OFF",
+    "productionMutation": "NONE",
+    "globalScorePromotion": "NONE"
+  }
+}

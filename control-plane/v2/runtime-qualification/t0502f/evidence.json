@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T0502F_I",
+  "checkpointId": "CP-T0502_PROVIDER_TRUTH_RECOVERY_PROTOCOL_VERIFIED",
+  "status": "TARGETED_PROTOCOL_MODEL_PASS_WITH_RUNTIME_INTEGRATION_CONTRACT_WRITTEN",
+  "branch": "hardening/t0502f-provider-truth-recovery-milestone",
+  "baseSha": "5e512f5016fb922bca304d772052d4abeb5579ca",
+  "candidateHeadBeforeEvidence": "ffbe29ca7cc13fccfce6ab40faf3f0a3ad9ce4aa",
+  "executedAt": "2026-09-02T11:29:14Z",
+  "sessionId": "ses_0c612378-627c-4a83-8cfb-add377b3df33",
+  "claimId": "claim_d3ce9138-4070-4f09-9981-5e5787ad6717",
+  "correlationId": "corr_b35271e8-d5bb-4264-b8da-6e128bf2f1c8",
+  "environment": {
+    "node": "v22.16.0",
+    "typescript": "5.8.3",
+    "execution": "local zero-dependency exact-published protocol model and mutation gauntlet; runtime integration contract exact bytes inspected but full monorepo closure unavailable because the execution container cannot resolve github.com"
+  },
+  "artifacts": {
+    "protocolModel": {
+      "path": "scripts/model-authority-provider-truth-recovery.mjs",
+      "gitBlobSha": "8018c1e50abecc43d254d8e1d6fe8eca19ace23b",
+      "sha256": "10d75824f14b654785c5d28ca01d285d51564e98328da32b912c54a7f1e32b2f",
+      "exactPublishedBytesExecuted": true
+    },
+    "mutationGauntlet": {
+      "path": "scripts/test-model-authority-provider-truth-recovery.mjs",
+      "gitBlobSha": "99ed045c393aba711e00320dccb7be6632ce56bb",
+      "sha256": "016d4d061c60ac1995591622b6be050deef9a01d57836efd556f3ac0ea20e219",
+      "exactPublishedBytesExecuted": true
+    },
+    "runtimeIntegrationContract": {
+      "path": "scripts/test-authority-provider-truth-recovery.ts",
+      "gitBlobSha": "c74658ba650a962d01361dcc61925f5fc6b6fb2f",
+      "sha256": "23e0c07cf284c274fc69adbc5e6612131fae05348bd8aa04cfa3128aa3245eec",
+      "exactPublishedBytesMatched": true,
+      "execution": "NOT_RUN_NO_FULL_MONOREPO_CHECKOUT"
+    },
+    "compositionMap": {
+      "path": "control-plane/v2/runtime-qualification/t0502f/composition-map.json",
+      "gitBlobSha": "bada2060f4f59e7784bc63e9b4e29fd3d24bfc10",
+      "invariantCount": 9
+    }
+  },
+  "results": [
+    {
+      "id": "protocol-model-syntax",
+      "status": "PASS",
+      "command": "node --check scripts/model-authority-provider-truth-recovery.mjs"
+    },
+    {
+      "id": "protocol-model-bounded-state-space",
+      "status": "PASS",
+      "command": "node scripts/model-authority-provider-truth-recovery.mjs --self-test",
+      "targetedAssertions": 19,
+      "maxDepth": 11,
+      "statesVisited": 2747,
+      "transitionsExplored": 6697,
+      "safetyViolations": 0,
+      "reportSha256": "c493adc8956d37a120a32188d70320ff5fea5f4559f46c3cdf4745ed704ae226"
+    },
+    {
+      "id": "protocol-mutation-gauntlet",
+      "status": "PASS",
+      "command": "node scripts/test-model-authority-provider-truth-recovery.mjs",
+      "mutationAssertions": 11
+    },
+    {
+      "id": "runtime-integration-contract",
+      "status": "WRITTEN_UNEXECUTED",
+      "command": "tsx scripts/test-authority-provider-truth-recovery.ts",
+      "reason": "The current local execution environment cannot obtain a full repository checkout; no remote Actions run was started to preserve the zero-cost/manual-CI policy."
+    }
+  ],
+  "safetyInvariants": [
+    "an unknown provider outcome cannot authorize retry or commit",
+    "provider applied after a lost response can be recorded without repeating the mutation",
+    "a stale worker cannot commit after a newer fencing token exists",
+    "not_applied requires repeated authoritative absence across the consistency window",
+    "every retry requires a strictly newer fence and rotated provider idempotency key",
+    "an active lease is not stolen implicitly for retry",
+    "partial application routes to compensation and never to blind retry",
+    "provider evidence used to mutate durable truth is integrity-checked and attempt-bound",
+    "provider reconciliation observation is read-only and cannot itself repeat the original mutation"
+  ],
+  "mutationFamiliesKilled": [
+    "duplicate accepted provider effect",
+    "commit without provider-applied truth",
+    "commit without applied evidence",
+    "retry without repeated absence proof",
+    "retry despite an existing provider effect",
+    "partial application incorrectly committed",
+    "single absence promoted to proof",
+    "absence proof before consistency window",
+    "non-monotonic retry fence",
+    "provider idempotency-key reuse",
+    "duplicate same-time absence attempting to game the proof window"
+  ],
+  "nearMisses": [
+    {
+      "id": "NM-T0502F-EXACT-SOURCE-COMMENT-DRIFT",
+      "severity": "P2",
+      "observation": "The first locally exercised protocol-model candidate contained four comments absent from the published Git object, so its evidence was refused even though behavior was identical.",
+      "repair": "Reconstructed the exact published bytes, verified Git blob identity 8018c1e50abecc43d254d8e1d6fe8eca19ace23b and re-ran syntax/self-test before accepting evidence."
+    },
+    {
+      "id": "NM-CGEV2-T079-SCOPE-COLLISION",
+      "severity": "P1",
+      "observation": "A concurrent agent modified packages/graph/src/cli.ts after a sibling lane claimed the same resource.",
+      "repair": "The sibling lane was stopped and PR #80 closed without product mutation; T0502F uses a disjoint runtime-test/control-plane scope."
+    }
+  ],
+  "proofBoundary": {
+    "fullMonorepoRuntimeIntegration": "NOT_RUN",
+    "realGitHubMutationTimeoutAfterAcceptance": "NOT_RUN",
+    "realDriveMutationTimeoutAfterAcceptance": "NOT_RUN",
+    "realPostgresSupabase": "NOT_RUN",
+    "actualDatabaseTransactionIsolation": "NOT_RUN",
+    "osMultiProcessContentionAndProcessKill": "NOT_RUN",
+    "fullRepositoryTypecheck": "NOT_RUN_IN_THIS_LINEAGE",
+    "securityGauntlet": "NOT_RUN",
+    "replayRestore": "NOT_RUN",
+    "automaticGitHubActions": "OFF",
+    "cdDeployRelease": "OFF",
+    "productionMutation": "NONE"
+  },
+  "authorityEffect": "PROTOCOL_ASSURANCE_CHECKPOINT_ONLY_NO_RUNTIME_OR_GLOBAL_SCORE_PROMOTION",
+  "runtimeAuthority": "SHADOW_ONLY",
+  "globalScoreMovement": "NONE",
+  "nextSafeActions": [
+    "T0502F-EXEC: execute scripts/test-authority-provider-truth-recovery.ts in a clean full monorepo checkout without weakening strict TypeScript settings",
+    "T0502G: qualify T0502E GitHub/Drive read-only clients against authorized provider reads while preserving 404/auth ambiguity as unknown",
+    "T0502H: qualify absence/side-effect/lease stores against an isolated zero-cost Postgres/Supabase target with destructive cleanup and no production data",
+    "T0502I: run real multi-process timeout-after-acceptance, worker-kill, lease-takeover and fencing campaign"
+  ]
+}
