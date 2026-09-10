@@ -1,0 +1,57 @@
+name: Durable Memory W1B
+
+on:
+  push:
+    branches: [fix/durable-memory-w1b]
+  pull_request:
+    branches: [test/coverage-orphan-suites-w1]
+    paths:
+      - 'packages/infrastructure/src/persistence.ts'
+      - 'packages/api/src/server-persist.ts'
+      - 'packages/api/src/server.ts'
+      - 'packages/memory/src/memory-manager.ts'
+      - 'scripts/test-durable-memory-w1b.cjs'
+      - '.github/workflows/durable-memory-w1b.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: durable-memory-w1b-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22.12.0'
+
+jobs:
+  durability-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Bind exact source SHA
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Baseline strict TypeScript
+        run: npx --no-install tsc --noEmit
+      - name: W1B durability contract
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-durable-memory-w1b.cjs 2>&1 | tee w1b-durability.log
+      - name: Preserve W1B evidence log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: durable-memory-w1b-${{ github.sha }}
+          path: w1b-durability.log
+          if-no-files-found: warn
