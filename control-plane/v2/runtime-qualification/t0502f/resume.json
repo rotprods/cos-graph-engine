@@ -10,6 +10,7 @@
   "previousClaimStatus": "RELEASED",
   "checkpointId": "CP-T0502_PROVIDER_TRUTH_RECOVERY_PROTOCOL_VERIFIED",
   "checkpointSourceSha": "4ffe141e9a8f85a39e14218d405c6cc2184c0b4e",
+  "immutableHandoffRef": "checkpoint/t0502f-handoff-final-20260910",
   "pullRequest": 89,
   "branch": "hardening/t0502f-provider-truth-recovery-milestone",
   "basePullRequest": 83,
@@ -87,6 +88,11 @@
     "independent exact-head review",
     "clean main convergence"
   ],
+  "crossPlaneSync": {
+    "github": "PASS",
+    "todoist": "PASS",
+    "drive": "DEGRADED_EXTERNAL"
+  },
   "staleRule": "If any live GitHub ref, claim, dependency or evidence object conflicts with this ticket, mark this ticket STALE_CONTEXT and follow live exact refs.",
-  "resumeInstruction": "VERIFY LIVE TRUTH BEFORE EXECUTION. Create a new session/claim, then resume at CP-T0502-RUNTIME-INTEGRATION-EXECUTED."
+  "resumeInstruction": "VERIFY LIVE TRUTH BEFORE EXECUTION. Create a new session/claim, fork from immutableHandoffRef unless superseded by compatible live truth, then resume at CP-T0502-RUNTIME-INTEGRATION-EXECUTED."
 }
