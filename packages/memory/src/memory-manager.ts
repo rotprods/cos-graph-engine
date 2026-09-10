@@ -44,6 +44,21 @@ export class InMemoryStore implements IMemoryStore {
     }
   }
 
+  /**
+   * Export a detached, deterministic snapshot without incrementing access
+   * telemetry. Expired entries are never promoted into durable authority.
+   */
+  exportSnapshot(): MemoryEntry[] {
+    const now = Date.now();
+    const entries: MemoryEntry[] = [];
+    for (const entry of this.entries.values()) {
+      if (this.isExpired(entry, now)) continue;
+      entries.push(this.materialize(entry, false));
+    }
+    entries.sort((a, b) => String(a.id).localeCompare(String(b.id), 'en'));
+    return entries;
+  }
+
   private index(entry: MemoryEntry): void {
     if (!this.layerIndex.has(entry.layer)) this.layerIndex.set(entry.layer, new Set());
     this.layerIndex.get(entry.layer)!.add(entry.id);

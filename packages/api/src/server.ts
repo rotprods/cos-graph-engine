@@ -15,6 +15,10 @@ export interface COSConfig {
   plugins: string[];
 }
 
+export interface COSServerDependencies {
+  memory?: MemoryManager;
+}
+
 export interface COSServerStats {
   runtime: {
     subscribers: number;
@@ -56,7 +60,7 @@ export class COSServer {
   public readonly config: COSConfig;
   private started = false;
 
-  constructor(config?: Partial<COSConfig>) {
+  constructor(config?: Partial<COSConfig>, dependencies: COSServerDependencies = {}) {
     this.config = {
       host: config?.host || 'localhost',
       port: config?.port || 8080,
@@ -65,9 +69,10 @@ export class COSServer {
       plugins: config?.plugins || [],
     };
 
-    // Initialize all subsystems
+    // Initialize all subsystems. Memory is constructor-injected so every
+    // downstream consumer, including AutonomousLoop, shares one authority.
     this.cellHost = new CellHost();
-    this.memory = new MemoryManager();
+    this.memory = dependencies.memory ?? new MemoryManager();
     this.knowledge = new KnowledgeGraph();
     this.embeddings = new EmbeddingSystem();
     this.ontology = new OntologySystem();
