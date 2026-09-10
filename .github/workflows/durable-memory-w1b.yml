@@ -12,6 +12,7 @@ on:
       - 'packages/memory/src/memory-manager.ts'
       - 'scripts/test-durable-memory-w1b.cjs'
       - 'scripts/test-durable-memory-w1b-adversarial.cjs'
+      - 'scripts/test-durable-memory-w1b-schema-matrix.cjs'
       - 'scripts/check-w1b-coverage-ratchet.mjs'
       - 'package.json'
       - '.github/workflows/durable-memory-w1b.yml'
@@ -58,6 +59,10 @@ jobs:
         run: |
           set -euo pipefail
           node --import tsx scripts/test-durable-memory-w1b-adversarial.cjs 2>&1 | tee w1b-adversarial.log
+      - name: W1B schema and error-path matrix
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-durable-memory-w1b-schema-matrix.cjs 2>&1 | tee w1b-schema-matrix.log
       - name: Memory regression corpus
         run: |
           set -euo pipefail
@@ -86,7 +91,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              packages/infrastructure/src/persistence.ts|packages/api/src/server-persist.ts|packages/api/src/server.ts|packages/memory/src/memory-manager.ts|scripts/test-durable-memory-w1b.cjs|scripts/test-durable-memory-w1b-adversarial.cjs|scripts/check-w1b-coverage-ratchet.mjs|.github/workflows/durable-memory-w1b.yml|package.json|docs/hardening/durable-memory/W1B_CLAIM.md|docs/hardening/durable-memory/W1B_RED_EVIDENCE.md)
+              packages/infrastructure/src/persistence.ts|packages/api/src/server-persist.ts|packages/api/src/server.ts|packages/memory/src/memory-manager.ts|scripts/test-durable-memory-w1b.cjs|scripts/test-durable-memory-w1b-adversarial.cjs|scripts/test-durable-memory-w1b-schema-matrix.cjs|scripts/check-w1b-coverage-ratchet.mjs|.github/workflows/durable-memory-w1b.yml|package.json|docs/hardening/durable-memory/W1B_CLAIM.md|docs/hardening/durable-memory/W1B_RED_EVIDENCE.md)
                 ;;
               *)
                 echo "Unexpected W1B scope mutation: $file" >&2
@@ -102,6 +107,7 @@ jobs:
           path: |
             w1b-durability.log
             w1b-adversarial.log
+            w1b-schema-matrix.log
             w1b-memory-regressions.log
             w1b-test-all.log
             w1b-coverage.log
