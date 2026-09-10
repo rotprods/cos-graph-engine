@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "resumeTicketId": "resume_2564e3d4-1e19-4a63-885b-2dcf1e81e2f8",
+  "handoffId": "hof_c4f149c9-87d5-44cc-88b9-db5f028dace9",
+  "projectId": "COS_GRAPH_ENGINE",
+  "repository": "rotprods/cos-graph-engine",
+  "recordedAt": "2026-09-10T13:47:00Z",
+  "previousSessionId": "ses_0c612378-627c-4a83-8cfb-add377b3df33",
+  "previousClaimId": "claim_d3ce9138-4070-4f09-9981-5e5787ad6717",
+  "previousClaimStatus": "RELEASED",
+  "checkpointId": "CP-T0502_PROVIDER_TRUTH_RECOVERY_PROTOCOL_VERIFIED",
+  "checkpointSourceSha": "4ffe141e9a8f85a39e14218d405c6cc2184c0b4e",
+  "pullRequest": 89,
+  "branch": "hardening/t0502f-provider-truth-recovery-milestone",
+  "basePullRequest": 83,
+  "baseSha": "5e512f5016fb922bca304d772052d4abeb5579ca",
+  "authorityStatus": "SHADOW_ONLY",
+  "authorityCeiling": "IMPLEMENTED_UNVERIFIED",
+  "claimable": true,
+  "reusePreviousSession": false,
+  "reusePreviousClaim": false,
+  "mustVerifyLiveTruth": true,
+  "nextCheckpoint": {
+    "id": "CP-T0502-RUNTIME-INTEGRATION-EXECUTED",
+    "objective": "Execute the persisted T0502F runtime integration contract in a clean monorepo closure and bind PASS/FAIL evidence to the exact implementation SHA.",
+    "contractPath": "scripts/test-authority-provider-truth-recovery.ts",
+    "required": [
+      "fresh successor session and claim",
+      "live main / PR #89 / PR #83 / issue #39 reconstruction",
+      "overlap and active-claim check",
+      "clean monorepo checkout",
+      "reproducible dependency install",
+      "strict T0502F TypeScript closure",
+      "integration contract execution",
+      "exact implementation SHA and source/blob identity evidence",
+      "explicit PASS/FAIL/SKIPPED/NOT_RUN semantics",
+      "claim release or fail-closed handoff"
+    ],
+    "forbidden": [
+      "reuse of previous session or claim",
+      "blind provider mutation",
+      "automatic GitHub Actions",
+      "CD / deployment / release",
+      "production database mutation",
+      "global score promotion without broader evidence"
+    ]
+  },
+  "suggestedSuccessorClaim": {
+    "objectiveId": "T0502F_RUNTIME_INTEGRATION_EXECUTION",
+    "exclusiveResourceScopes": [
+      "scripts/test-authority-provider-truth-recovery.ts",
+      "tsconfig.t0502f-provider-truth-recovery.json",
+      "control-plane/v2/runtime-qualification/t0502g-runtime-integration/**"
+    ],
+    "sharedReadOnlyResourceScopes": [
+      "packages/execution/src/authority-side-effect-runtime.ts",
+      "packages/execution/src/authority-observed-outcome-recorder.ts",
+      "packages/execution/src/authority-provider-reconciliation.ts",
+      "packages/execution/src/authority-provider-lease-retry-planner.ts",
+      "packages/execution/src/providers/**",
+      "control-plane/v2/runtime-qualification/t0502f/**"
+    ],
+    "collisionPolicy": "FAIL_CLOSED_AND_HANDOFF",
+    "perMutationParentCas": true,
+    "authorityCeiling": "IMPLEMENTED_UNVERIFIED"
+  },
+  "verifiedEvidence": {
+    "path": "control-plane/v2/runtime-qualification/t0502f/evidence.json",
+    "protocolAssertions": 19,
+    "reachableStates": 2747,
+    "transitionsExplored": 6697,
+    "safetyViolations": 0,
+    "adversarialFailureFamiliesRejected": 11
+  },
+  "knownNotRun": [
+    "full T0502F runtime integration contract in clean monorepo closure",
+    "live GitHub/Drive timeout-after-acceptance mutation campaign",
+    "real isolated PostgreSQL/Supabase transaction/restart proof",
+    "OS multi-process process-kill/takeover/contention",
+    "full security/replay/restore qualification"
+  ],
+  "orderedFrontierAfterNextCheckpoint": [
+    "T0502G authorized read-only provider qualification",
+    "T0502H isolated zero-cost PostgreSQL/Supabase qualification",
+    "T0502I OS multi-process timeout/process-kill/fencing campaign",
+    "Phase 08 replay/restore/security/empirical qualification",
+    "independent exact-head review",
+    "clean main convergence"
+  ],
+  "staleRule": "If any live GitHub ref, claim, dependency or evidence object conflicts with this ticket, mark this ticket STALE_CONTEXT and follow live exact refs.",
+  "resumeInstruction": "VERIFY LIVE TRUTH BEFORE EXECUTION. Create a new session/claim, then resume at CP-T0502-RUNTIME-INTEGRATION-EXECUTED."
+}
