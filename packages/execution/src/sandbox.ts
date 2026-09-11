@@ -8,7 +8,7 @@ export interface SandboxConfig {
   maxCpu: number;         // maximum execution budget in ms
   maxOutput: number;      // maximum captured output size in bytes
   allowedModules: string[];
-  timeout: number;        // hard wall timeout in ms
+  timeout: number;        // hard execution timeout in ms
   networkAccess: boolean;
   filesystemAccess: boolean;
 }
@@ -32,7 +32,9 @@ interface SandboxWireResult {
 }
 
 const SANDBOX_IMAGE = 'node@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868';
+const READY_PREFIX = '__COS_SANDBOX_READY__';
 const RESULT_PREFIX = '__COS_SANDBOX_RESULT__';
+const STARTUP_TIMEOUT_MS = 10_000;
 const DEFAULT_CONFIG: Readonly<SandboxConfig> = Object.freeze({
   maxMemory: 256,
   maxCpu: 30_000,
@@ -46,10 +48,12 @@ const DEFAULT_CONFIG: Readonly<SandboxConfig> = Object.freeze({
 // Security note: node:vm and Node's Permission Model are deliberately NOT the
 // primary boundary. The Docker container is the authority boundary. The VM and
 // Permission Model exist only as defence in depth inside that container.
-const CONTAINER_BOOTSTRAP = String.raw`
+const CONTAINER_BOOTSTRAP = `
 const vm = require('node:vm');
 
 (async () => {
+  process.stdout.write('${READY_PREFIX}\\n');
+
   let raw = '';
   process.stdin.setEncoding('utf8');
   for await (const chunk of process.stdin) raw += chunk;
@@ -62,57 +66,49 @@ const vm = require('node:vm');
     codeGeneration: { strings: false, wasm: false },
   });
 
-  const setup = new vm.Script(` + "`" + `(() => {
-    const max = ${maxOutput};
-    const stdout = [];
-    const stderr = [];
-    let used = 0;
-    let overflow = false;
+  const setupSource = [
+    '(() => {',
+    '  const max = ' + String(maxOutput) + ';',
+    '  const stdout = [];',
+    '  const stderr = [];',
+    '  let used = 0;',
+    '  let overflow = false;',
+    '  const encode = (value) => {',
+    "    if (typeof value === 'string') return value;",
+    '    try {',
+    '      const json = JSON.stringify(value);',
+    '      return json === undefined ? String(value) : json;',
+    '    } catch {',
+    '      return String(value);',
+    '    }',
+    '  };',
+    '  const append = (target, args) => {',
+    "    const line = args.map(encode).join(' ');",
+    '    used += line.length + (target.length === 0 ? 0 : 1);',
+    '    if (used > max) {',
+    '      overflow = true;',
+    "      throw new Error('SANDBOX_OUTPUT_LIMIT');",
+    '    }',
+    '    target.push(line);',
+    '  };',
+    '  const consoleValue = Object.freeze({',
+    '    log: (...args) => append(stdout, args),',
+    '    error: (...args) => append(stderr, args),',
+    '    warn: (...args) => append(stderr, args),',
+    '  });',
+    '  const output = Object.freeze({',
+    "    take: () => ({ stdout: stdout.join('\\\\n'), stderr: stderr.join('\\\\n'), overflow }),",
+    '  });',
+    "  Object.defineProperty(globalThis, 'console', {",
+    '    value: consoleValue, writable: false, configurable: false, enumerable: true,',
+    '  });',
+    "  Object.defineProperty(globalThis, '__cosOutput', {",
+    '    value: output, writable: false, configurable: false, enumerable: false,',
+    '  });',
+    '})()',
+  ].join('\\n');
 
-    const encode = (value) => {
-      if (typeof value === 'string') return value;
-      try {
-        const json = JSON.stringify(value);
-        return json === undefined ? String(value) : json;
-      } catch {
-        return String(value);
-      }
-    };
-
-    const append = (target, args) => {
-      const line = args.map(encode).join(' ');
-      used += line.length + (target.length === 0 ? 0 : 1);
-      if (used > max) {
-        overflow = true;
-        throw new Error('SANDBOX_OUTPUT_LIMIT');
-      }
-      target.push(line);
-    };
-
-    const consoleValue = Object.freeze({
-      log: (...args) => append(stdout, args),
-      error: (...args) => append(stderr, args),
-      warn: (...args) => append(stderr, args),
-    });
-
-    const output = Object.freeze({
-      take: () => ({ stdout: stdout.join('\\n'), stderr: stderr.join('\\n'), overflow }),
-    });
-
-    Object.defineProperty(globalThis, 'console', {
-      value: consoleValue,
-      writable: false,
-      configurable: false,
-      enumerable: true,
-    });
-    Object.defineProperty(globalThis, '__cosOutput', {
-      value: output,
-      writable: false,
-      configurable: false,
-      enumerable: false,
-    });
-  })()` + "`" + `, { filename: 'sandbox-bootstrap.js' });
-
+  const setup = new vm.Script(setupSource, { filename: 'sandbox-bootstrap.js' });
   setup.runInContext(context, { timeout: Math.min(vmTimeout, 1000) });
 
   let value;
@@ -141,7 +137,7 @@ const vm = require('node:vm');
   };
 
   let stdout = truncate(captured.stdout || '');
-  let stderr = truncate(captured.stderr || '');
+  const stderr = truncate(captured.stderr || '');
   let errorCode;
   let errorMessage;
 
@@ -292,10 +288,12 @@ export class CodeSandbox {
 
     return new Promise<CodeExecutionResult>((resolve) => {
       let settled = false;
+      let ready = false;
       let stdout = Buffer.alloc(0);
       let stderr = Buffer.alloc(0);
       let forcedCode: string | null = null;
       let forcedMessage: string | null = null;
+      let executionTimer: NodeJS.Timeout | null = null;
 
       const child = spawn('docker', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -312,18 +310,33 @@ export class CodeSandbox {
         cleanup.on('error', () => undefined);
       };
 
-      const forceStop = (code: string, message: string): void => {
+      const clearTimers = (): void => {
+        clearTimeout(startupTimer);
+        if (executionTimer) clearTimeout(executionTimer);
+      };
+
+      const forceStop = (codeValue: string, message: string): void => {
         if (forcedCode) return;
-        forcedCode = code;
+        forcedCode = codeValue;
         forcedMessage = message;
         child.kill('SIGKILL');
         cleanupContainer();
       };
 
-      const timer = setTimeout(() => {
-        forceStop('SANDBOX_TIMEOUT', `Sandbox exceeded ${wallTimeout}ms execution budget`);
-      }, wallTimeout);
-      timer.unref?.();
+      const startupTimer = setTimeout(() => {
+        forceStop('SANDBOX_STARTUP_TIMEOUT', `Sandbox container did not become ready within ${STARTUP_TIMEOUT_MS}ms`);
+      }, STARTUP_TIMEOUT_MS);
+      startupTimer.unref?.();
+
+      const startExecutionTimer = (): void => {
+        if (ready) return;
+        ready = true;
+        clearTimeout(startupTimer);
+        executionTimer = setTimeout(() => {
+          forceStop('SANDBOX_TIMEOUT', `Sandbox exceeded ${wallTimeout}ms execution budget`);
+        }, wallTimeout);
+        executionTimer.unref?.();
+      };
 
       const collect = (current: Buffer, chunk: Buffer): Buffer => {
         const next = Buffer.concat([current, chunk]);
@@ -336,13 +349,14 @@ export class CodeSandbox {
 
       child.stdout.on('data', (chunk: Buffer) => {
         stdout = collect(stdout, chunk);
+        if (!ready && stdout.toString('utf8').includes(READY_PREFIX)) startExecutionTimer();
       });
       child.stderr.on('data', (chunk: Buffer) => {
         stderr = collect(stderr, chunk);
       });
 
       child.once('error', (error: NodeJS.ErrnoException) => {
-        clearTimeout(timer);
+        clearTimers();
         if (settled) return;
         settled = true;
         cleanupContainer();
@@ -353,7 +367,7 @@ export class CodeSandbox {
       });
 
       child.once('close', (exitCode) => {
-        clearTimeout(timer);
+        clearTimers();
         if (settled) return;
         settled = true;
         cleanupContainer();
@@ -364,7 +378,7 @@ export class CodeSandbox {
             forcedMessage ?? forcedCode,
             startTime,
             this.truncate(stderr.toString('utf8')),
-            this.truncate(stdout.toString('utf8')),
+            '',
           ));
           return;
         }
