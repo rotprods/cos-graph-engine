@@ -89,6 +89,22 @@ async function main() {
     assert.doesNotMatch(receipt.dynamicImport.stdout, /imported/);
   });
 
+  await check('marker-looking user output cannot desynchronize result framing', async () => {
+    const marker = '__COS_SANDBOX_RESULT__';
+    const result = await runNode(`
+      const { CodeSandbox } = await import('./packages/execution/src/sandbox.ts');
+      const sandbox = new CodeSandbox({ timeout: 800, maxCpu: 800, maxMemory: 64 });
+      const receipt = await sandbox.execute("console.log('${marker}'); '${marker}'");
+      process.stdout.write(JSON.stringify(receipt));
+    `);
+    assert.equal(result.killed, false, 'marker-collision case hung');
+    assert.equal(result.code, 0, result.stderr);
+    const receipt = jsonFromStdout(result);
+    assert.equal(receipt.exitCode, 0, JSON.stringify(receipt));
+    assert.equal(receipt.error, null, JSON.stringify(receipt));
+    assert.match(receipt.stdout, /__COS_SANDBOX_RESULT__/);
+  });
+
   await check('CodeSandbox config API is defensive and updateable', async () => {
     const result = await runNode(`
       const { CodeSandbox } = await import('./packages/execution/src/sandbox.ts');
