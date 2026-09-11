@@ -9,6 +9,7 @@ on:
       - 'packages/execution/src/sandbox.ts'
       - 'packages/execution/src/tool-runtime.ts'
       - 'scripts/test-sandbox-security-w1c.cjs'
+      - 'scripts/test-sandbox-security-w1c-hardening.cjs'
       - 'scripts/check-w1c-coverage-ratchet.mjs'
       - '.github/workflows/sandbox-security-w1c.yml'
       - 'docs/hardening/sandbox-security/**'
@@ -58,6 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/test-sandbox-security-w1c.cjs 2>&1 | tee w1c-sandbox-security.log
+          node scripts/test-sandbox-security-w1c-hardening.cjs 2>&1 | tee w1c-sandbox-hardening.log
       - name: Full canonical test suite
         run: |
           set -euo pipefail
@@ -66,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           npm run asbuild
-          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node scripts/test-sandbox-security-w1c.cjs' 2>&1 | tee w1c-coverage.log
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node scripts/test-sandbox-security-w1c.cjs && node scripts/test-sandbox-security-w1c-hardening.cjs' 2>&1 | tee w1c-coverage.log
       - name: Ratchet against exact W1B coverage
         run: node scripts/check-w1c-coverage-ratchet.mjs
       - name: High-severity dependency audit
@@ -83,7 +85,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              packages/execution/src/sandbox.ts|packages/execution/src/tool-runtime.ts|scripts/test-sandbox-security-w1c.cjs|scripts/check-w1c-coverage-ratchet.mjs|.github/workflows/sandbox-security-w1c.yml|docs/hardening/sandbox-security/W1C_CLAIM.md|docs/hardening/sandbox-security/W1C_RED_EVIDENCE.md|docs/hardening/sandbox-security/W1C_GREEN_EVIDENCE.md)
+              packages/execution/src/sandbox.ts|packages/execution/src/tool-runtime.ts|scripts/test-sandbox-security-w1c.cjs|scripts/test-sandbox-security-w1c-hardening.cjs|scripts/check-w1c-coverage-ratchet.mjs|.github/workflows/sandbox-security-w1c.yml|docs/hardening/sandbox-security/W1C_CLAIM.md|docs/hardening/sandbox-security/W1C_RED_EVIDENCE.md|docs/hardening/sandbox-security/W1C_GREEN_EVIDENCE.md)
                 ;;
               *)
                 echo "Unexpected W1C scope mutation: $file" >&2
@@ -101,6 +103,7 @@ jobs:
             w1c-sandbox-image-pull.log
             w1c-sandbox-image-inspect.log
             w1c-sandbox-security.log
+            w1c-sandbox-hardening.log
             w1c-test-all.log
             w1c-coverage.log
             w1c-coverage-ratchet.json
