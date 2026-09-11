@@ -21,7 +21,7 @@ env:
 jobs:
   node22-authority-qualification:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -51,25 +51,35 @@ jobs:
           docker image inspect "$W1C_SANDBOX_IMAGE" --format '{{json .RepoDigests}}' | tee w1d5-node22-image-inspect.log
       - name: Strict TypeScript
         run: npx --no-install tsc --noEmit
-      - name: W1D registry contract
-        run: node --import tsx scripts/test-tool-capability-w1d.cjs 2>&1 | tee w1d5-node22-registry.log
-      - name: W1D5 cross-tool composition contract
-        run: node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs 2>&1 | tee w1d5-node22-e2e.log
-      - name: W1C sandbox contract on Node 22
+      - name: Registry and child authority regression contracts
         run: |
           set -euo pipefail
-          node scripts/test-sandbox-security-w1c.cjs 2>&1 | tee w1d5-node22-sandbox.log
-          node scripts/test-sandbox-security-w1c-hardening.cjs 2>&1 | tee w1d5-node22-sandbox-hardening.log
+          node --import tsx scripts/test-tool-capability-w1d.cjs 2>&1 | tee w1d5-node22-registry.log
+          node --import tsx scripts/test-filesystem-confinement-w1d2.cjs 2>&1 | tee w1d5-node22-filesystem.log
+          node --import tsx scripts/test-http-egress-w1d3.cjs 2>&1 | tee w1d5-node22-http.log
+          node --import tsx scripts/test-search-tool-w1d4.cjs 2>&1 | tee w1d5-node22-search.log
+      - name: W1D5 cross-tool composition contract
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs 2>&1 | tee w1d5-node22-e2e.log
+      - name: Portable W1C sandbox regression on Node 22
+        run: |
+          set -euo pipefail
+          node scripts/test-sandbox-security-w1d5.cjs 2>&1 | tee w1d5-node22-sandbox.log
       - name: Full canonical suite
-        run: npm run test:all 2>&1 | tee w1d5-node22-test-all.log
+        run: |
+          set -euo pipefail
+          npm run test:all 2>&1 | tee w1d5-node22-test-all.log
       - name: Integrated coverage + W1C ratchet
         run: |
           set -euo pipefail
           npm run asbuild
-          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node scripts/test-sandbox-security-w1c.cjs && node scripts/test-sandbox-security-w1c-hardening.cjs && node --import tsx scripts/test-tool-capability-w1d.cjs && node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs' 2>&1 | tee w1d5-node22-coverage.log
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node --import tsx scripts/test-tool-capability-w1d.cjs && node --import tsx scripts/test-filesystem-confinement-w1d2.cjs && node --import tsx scripts/test-http-egress-w1d3.cjs && node --import tsx scripts/test-search-tool-w1d4.cjs && node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs && node scripts/test-sandbox-security-w1d5.cjs' 2>&1 | tee w1d5-node22-coverage.log
           node scripts/check-w1c-coverage-ratchet.mjs
       - name: High-severity dependency audit
-        run: npm audit --audit-level=high 2>&1 | tee w1d5-node22-audit.log
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=high 2>&1 | tee w1d5-node22-audit.log
       - name: Scope and anti-bypass policy
         run: |
           set -euo pipefail
@@ -80,7 +90,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              packages/execution/src/tool-runtime.ts|scripts/test-tool-capability-e2e-w1d5.cjs|scripts/test-filesystem-confinement-w1d2.cjs|scripts/test-http-egress-w1d3.cjs|scripts/test-search-tool-w1d4.cjs|.github/workflows/tool-capability-e2e-w1d5.yml|docs/hardening/tool-capability-e2e/W1D5_RED_EVIDENCE.md|docs/hardening/tool-capability-e2e/W1D5_GREEN_EVIDENCE.md|docs/hardening/tool-capability-e2e/W1D5_COMPOSITION.md)
+              packages/execution/src/tool-runtime.ts|scripts/test-tool-capability-e2e-w1d5.cjs|scripts/test-filesystem-confinement-w1d2.cjs|scripts/test-http-egress-w1d3.cjs|scripts/test-search-tool-w1d4.cjs|scripts/test-sandbox-security-w1d5.cjs|.github/workflows/tool-capability-e2e-w1d5.yml|docs/hardening/tool-capability-e2e/W1D5_RED_EVIDENCE.md|docs/hardening/tool-capability-e2e/W1D5_GREEN_EVIDENCE.md|docs/hardening/tool-capability-e2e/W1D5_COMPOSITION.md)
                 ;;
               *)
                 echo "Unexpected W1D5 scope mutation: $file" >&2
@@ -102,7 +112,7 @@ jobs:
 
   node26-compatibility:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -125,15 +135,22 @@ jobs:
           docker pull "$W1C_SANDBOX_IMAGE" 2>&1 | tee w1d5-node26-image-pull.log
       - name: Strict TypeScript
         run: npx --no-install tsc --noEmit
-      - name: Authority contracts on Node 26
+      - name: Registry child and composition contracts on Node 26
         run: |
           set -euo pipefail
           node --import tsx scripts/test-tool-capability-w1d.cjs 2>&1 | tee w1d5-node26-registry.log
+          node --import tsx scripts/test-filesystem-confinement-w1d2.cjs 2>&1 | tee w1d5-node26-filesystem.log
+          node --import tsx scripts/test-http-egress-w1d3.cjs 2>&1 | tee w1d5-node26-http.log
+          node --import tsx scripts/test-search-tool-w1d4.cjs 2>&1 | tee w1d5-node26-search.log
           node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs 2>&1 | tee w1d5-node26-e2e.log
-          node scripts/test-sandbox-security-w1c.cjs 2>&1 | tee w1d5-node26-sandbox.log
-          node scripts/test-sandbox-security-w1c-hardening.cjs 2>&1 | tee w1d5-node26-sandbox-hardening.log
+      - name: Portable W1C sandbox regression on Node 26
+        run: |
+          set -euo pipefail
+          node scripts/test-sandbox-security-w1d5.cjs 2>&1 | tee w1d5-node26-sandbox.log
       - name: Full canonical suite on Node 26
-        run: npm run test:all 2>&1 | tee w1d5-node26-test-all.log
+        run: |
+          set -euo pipefail
+          npm run test:all 2>&1 | tee w1d5-node26-test-all.log
       - name: Preserve Node 26 compatibility evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
