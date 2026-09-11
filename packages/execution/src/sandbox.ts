@@ -4,11 +4,11 @@ import type { CellContext, CogError } from '@cos/core';
 import { generateId } from '@cos/core';
 
 export interface SandboxConfig {
-  maxMemory: number;      // hard Docker memory limit in MB
-  maxCpu: number;         // maximum execution budget in ms
-  maxOutput: number;      // maximum captured output size in bytes
+  maxMemory: number;
+  maxCpu: number;
+  maxOutput: number;
   allowedModules: string[];
-  timeout: number;        // hard execution timeout in ms
+  timeout: number;
   networkAccess: boolean;
   filesystemAccess: boolean;
 }
@@ -45,9 +45,9 @@ const DEFAULT_CONFIG: Readonly<SandboxConfig> = Object.freeze({
   filesystemAccess: false,
 });
 
-// Security note: node:vm and Node's Permission Model are deliberately NOT the
-// primary boundary. The Docker container is the authority boundary. The VM and
-// Permission Model exist only as defence in depth inside that container.
+// The Docker container is the W1C authority boundary. node:vm and Node's
+// Permission Model are defence-in-depth only and are never treated as a hostile
+// code security boundary.
 const CONTAINER_BOOTSTRAP = `
 const vm = require('node:vm');
 
@@ -116,9 +116,7 @@ const vm = require('node:vm');
   try {
     const script = new vm.Script(request.code, { filename: 'sandbox.js' });
     value = script.runInContext(context, { timeout: vmTimeout });
-    if (value !== null && value !== undefined && typeof value.then === 'function') {
-      value = await value;
-    }
+    if (value !== null && value !== undefined && typeof value.then === 'function') value = await value;
   } catch (error) {
     executionError = error;
   }
@@ -206,28 +204,15 @@ export class CodeSandbox {
     const startTime = Date.now();
 
     if (language !== 'javascript') {
-      return this.failure(
-        'UNSUPPORTED_LANGUAGE',
-        `Language '${language}' not supported`,
-        startTime,
-        `Language '${language}' not supported in sandbox`,
-      );
+      return this.failure('UNSUPPORTED_LANGUAGE', `Language '${language}' not supported`, startTime, `Language '${language}' not supported in sandbox`);
     }
 
-    const codeBytes = Buffer.byteLength(code, 'utf8');
-    if (codeBytes > this.config.maxOutput) {
-      return this.failure(
-        'SANDBOX_CODE_TOO_LARGE',
-        'Code exceeds configured maximum size',
-        startTime,
-        'Code exceeds maximum size',
-      );
+    if (Buffer.byteLength(code, 'utf8') > this.config.maxOutput) {
+      return this.failure('SANDBOX_CODE_TOO_LARGE', 'Code exceeds configured maximum size', startTime, 'Code exceeds maximum size');
     }
 
     const policyViolation = this.policyViolation();
-    if (policyViolation) {
-      return this.failure('SANDBOX_POLICY_DENIED', policyViolation, startTime, policyViolation);
-    }
+    if (policyViolation) return this.failure('SANDBOX_POLICY_DENIED', policyViolation, startTime, policyViolation);
 
     return this.executeInContainer(code, startTime);
   }
@@ -241,15 +226,9 @@ export class CodeSandbox {
   }
 
   private policyViolation(): string | null {
-    if (this.config.filesystemAccess) {
-      return 'Filesystem capability is not supported by the W1C sandbox profile';
-    }
-    if (this.config.networkAccess) {
-      return 'Network capability is not supported by the W1C sandbox profile';
-    }
-    if (this.config.allowedModules.length > 0) {
-      return 'Module capability is not supported by the W1C sandbox profile';
-    }
+    if (this.config.filesystemAccess) return 'Filesystem capability is not supported by the W1C sandbox profile';
+    if (this.config.networkAccess) return 'Network capability is not supported by the W1C sandbox profile';
+    if (this.config.allowedModules.length > 0) return 'Module capability is not supported by the W1C sandbox profile';
     return null;
   }
 
@@ -260,9 +239,7 @@ export class CodeSandbox {
     const rawLimit = this.config.maxOutput + protocolAllowance;
 
     const args = [
-      'run',
-      '--rm',
-      '--name', containerName,
+      'run', '--rm', '--name', containerName,
       '--network', 'none',
       '--read-only',
       '--user', '1000:1000',
@@ -282,15 +259,14 @@ export class CodeSandbox {
       '--permission',
       '--disable-proto=throw',
       `--max-old-space-size=${Math.max(16, Math.floor(this.config.maxMemory * 0.75))}`,
-      '-e',
-      CONTAINER_BOOTSTRAP,
+      '-e', CONTAINER_BOOTSTRAP,
     ];
 
     return new Promise<CodeExecutionResult>((resolve) => {
       let settled = false;
       let ready = false;
-      let stdout = Buffer.alloc(0);
-      let stderr = Buffer.alloc(0);
+      let stdout = '';
+      let stderr = '';
       let forcedCode: string | null = null;
       let forcedMessage: string | null = null;
       let executionTimer: NodeJS.Timeout | null = null;
@@ -303,9 +279,7 @@ export class CodeSandbox {
 
       const cleanupContainer = (): void => {
         const cleanup = spawn('docker', ['rm', '-f', containerName], {
-          stdio: 'ignore',
-          windowsHide: true,
-          env: this.dockerClientEnvironment(),
+          stdio: 'ignore', windowsHide: true, env: this.dockerClientEnvironment(),
         });
         cleanup.on('error', () => undefined);
       };
@@ -338,21 +312,21 @@ export class CodeSandbox {
         executionTimer.unref?.();
       };
 
-      const collect = (current: Buffer, chunk: Buffer): Buffer => {
-        const next = Buffer.concat([current, chunk]);
-        if (next.length > rawLimit) {
+      const collect = (current: string, chunk: string): string => {
+        const next = current + chunk;
+        if (Buffer.byteLength(next) > rawLimit) {
           forceStop('SANDBOX_OUTPUT_LIMIT', 'Sandbox protocol output exceeded configured maximum');
-          return next.subarray(0, rawLimit);
+          return Buffer.from(next).subarray(0, rawLimit).toString('utf8');
         }
         return next;
       };
 
-      child.stdout.on('data', (chunk: Buffer) => {
-        stdout = collect(stdout, chunk);
-        if (!ready && stdout.toString('utf8').includes(READY_PREFIX)) startExecutionTimer();
+      child.stdout.on('data', (chunk) => {
+        stdout = collect(stdout, chunk.toString());
+        if (!ready && stdout.includes(READY_PREFIX)) startExecutionTimer();
       });
-      child.stderr.on('data', (chunk: Buffer) => {
-        stderr = collect(stderr, chunk);
+      child.stderr.on('data', (chunk) => {
+        stderr = collect(stderr, chunk.toString());
       });
 
       child.once('error', (error: NodeJS.ErrnoException) => {
@@ -373,55 +347,31 @@ export class CodeSandbox {
         cleanupContainer();
 
         if (forcedCode) {
-          resolve(this.failure(
-            forcedCode,
-            forcedMessage ?? forcedCode,
-            startTime,
-            this.truncate(stderr.toString('utf8')),
-            '',
-          ));
+          resolve(this.failure(forcedCode, forcedMessage ?? forcedCode, startTime, this.truncate(stderr), ''));
           return;
         }
 
-        const rawStdout = stdout.toString('utf8');
-        const marker = rawStdout.lastIndexOf(RESULT_PREFIX);
+        const marker = stdout.lastIndexOf(RESULT_PREFIX);
         if (marker === -1) {
-          const dockerError = this.truncate(stderr.toString('utf8')) || `Sandbox container exited with code ${exitCode ?? 'unknown'}`;
+          const dockerError = this.truncate(stderr) || `Sandbox container exited with code ${exitCode ?? 'unknown'}`;
           const runtimeUnavailable = /docker|daemon|pull access|manifest|permission denied/i.test(dockerError);
-          resolve(this.failure(
-            runtimeUnavailable ? 'SANDBOX_RUNTIME_UNAVAILABLE' : 'SANDBOX_PROTOCOL_ERROR',
-            dockerError,
-            startTime,
-            dockerError,
-          ));
+          resolve(this.failure(runtimeUnavailable ? 'SANDBOX_RUNTIME_UNAVAILABLE' : 'SANDBOX_PROTOCOL_ERROR', dockerError, startTime, dockerError));
           return;
         }
 
-        const encoded = rawStdout.slice(marker + RESULT_PREFIX.length).trim();
+        const encoded = stdout.slice(marker + RESULT_PREFIX.length).trim();
         let wire: SandboxWireResult;
         try {
           wire = JSON.parse(encoded) as SandboxWireResult;
         } catch {
-          resolve(this.failure(
-            'SANDBOX_PROTOCOL_ERROR',
-            'Sandbox returned an invalid result envelope',
-            startTime,
-            this.truncate(stderr.toString('utf8')),
-          ));
+          resolve(this.failure('SANDBOX_PROTOCOL_ERROR', 'Sandbox returned an invalid result envelope', startTime, this.truncate(stderr)));
           return;
         }
 
         if (!wire.ok || exitCode !== 0) {
           const codeValue = wire.errorCode ?? 'SANDBOX_EXECUTION_ERROR';
           const message = wire.errorMessage ?? `Sandbox exited with code ${exitCode ?? 'unknown'}`;
-          resolve(this.failure(
-            codeValue,
-            message,
-            startTime,
-            this.truncate(wire.stderr || message),
-            this.truncate(wire.stdout),
-            wire.memoryUsed,
-          ));
+          resolve(this.failure(codeValue, message, startTime, this.truncate(wire.stderr || message), this.truncate(wire.stdout), wire.memoryUsed));
           return;
         }
 
@@ -436,11 +386,7 @@ export class CodeSandbox {
       });
 
       child.stdin.on('error', () => undefined);
-      child.stdin.end(JSON.stringify({
-        code,
-        maxOutput: this.config.maxOutput,
-        timeout: wallTimeout,
-      }));
+      child.stdin.end(JSON.stringify({ code, maxOutput: this.config.maxOutput, timeout: wallTimeout }));
     });
   }
 
@@ -454,8 +400,7 @@ export class CodeSandbox {
 
   private truncate(value: string): string {
     const bytes = Buffer.from(value);
-    if (bytes.length <= this.config.maxOutput) return value;
-    return bytes.subarray(0, this.config.maxOutput).toString('utf8');
+    return bytes.length <= this.config.maxOutput ? value : bytes.subarray(0, this.config.maxOutput).toString('utf8');
   }
 
   private failure(
@@ -477,32 +422,26 @@ export class CodeSandbox {
   }
 
   private makeError(code: string, message: string): CogError {
-    return {
-      id: generateId(),
-      code,
-      message,
-      severity: 'error',
-      timestamp: new Date().toISOString(),
-    };
+    return { id: generateId(), code, message, severity: 'error', timestamp: new Date().toISOString() };
   }
 
   private normalizeConfig(config: SandboxConfig): SandboxConfig {
-    const positiveInteger = (value: number, name: string, min: number, max: number): number => {
+    const integer = (value: number, name: string, min: number, max: number): number => {
       if (!Number.isInteger(value) || value < min || value > max) {
         throw new RangeError(`${name} must be an integer between ${min} and ${max}`);
       }
       return value;
     };
 
-    if (!Array.isArray(config.allowedModules) || config.allowedModules.some((moduleName) => typeof moduleName !== 'string')) {
+    if (!Array.isArray(config.allowedModules) || config.allowedModules.some((name) => typeof name !== 'string')) {
       throw new TypeError('allowedModules must be an array of strings');
     }
 
     return {
-      maxMemory: positiveInteger(config.maxMemory, 'maxMemory', 16, 4096),
-      maxCpu: positiveInteger(config.maxCpu, 'maxCpu', 10, 300_000),
-      maxOutput: positiveInteger(config.maxOutput, 'maxOutput', 256, 16 * 1024 * 1024),
-      timeout: positiveInteger(config.timeout, 'timeout', 10, 300_000),
+      maxMemory: integer(config.maxMemory, 'maxMemory', 16, 4096),
+      maxCpu: integer(config.maxCpu, 'maxCpu', 10, 300_000),
+      maxOutput: integer(config.maxOutput, 'maxOutput', 256, 16 * 1024 * 1024),
+      timeout: integer(config.timeout, 'timeout', 10, 300_000),
       allowedModules: [...config.allowedModules],
       networkAccess: Boolean(config.networkAccess),
       filesystemAccess: Boolean(config.filesystemAccess),
