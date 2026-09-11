@@ -34,19 +34,43 @@ async function main() {
 
   const allow = async () => ({ allowed: true, policyRef: 'policy:test-public-egress' });
 
-  // 2. Private resolution is denied even when policy hook says allow.
-  let privateTransportCalls = 0;
-  const privateTool = new HTTPTool({
-    resolve: async () => [{ address: '10.0.0.7', family: 4 }],
-    authorize: allow,
-    transport: async () => {
-      privateTransportCalls += 1;
-      return { statusCode: 200, headers: {}, body: 'should-not-run' };
-    },
-  });
-  const privateResult = await privateTool.execute({ method: 'GET', url: 'https://private.test/' }, context);
-  expectFailure(privateResult, 'HTTP_EGRESS_DENIED');
-  assert.equal(privateTransportCalls, 0);
+  // 2. Special/private/local address classes are non-overridable deny.
+  const deniedAddressMatrix = [
+    { address: '0.0.0.0', family: 4, label: 'unspecified-v4' },
+    { address: '10.0.0.7', family: 4, label: 'rfc1918-10' },
+    { address: '100.64.0.1', family: 4, label: 'cgnat' },
+    { address: '127.0.0.1', family: 4, label: 'loopback-v4' },
+    { address: '169.254.169.254', family: 4, label: 'linklocal-metadata-v4' },
+    { address: '172.16.0.1', family: 4, label: 'rfc1918-172' },
+    { address: '192.168.0.1', family: 4, label: 'rfc1918-192' },
+    { address: '198.18.0.1', family: 4, label: 'benchmark-v4' },
+    { address: '224.0.0.1', family: 4, label: 'multicast-v4' },
+    { address: '240.0.0.1', family: 4, label: 'reserved-v4' },
+    { address: '::', family: 6, label: 'unspecified-v6' },
+    { address: '::1', family: 6, label: 'loopback-v6' },
+    { address: 'fc00::1', family: 6, label: 'ula-fc' },
+    { address: 'fd12::1', family: 6, label: 'ula-fd' },
+    { address: 'fe80::1', family: 6, label: 'linklocal-v6' },
+    { address: 'ff02::1', family: 6, label: 'multicast-v6' },
+    { address: '2001:db8::1', family: 6, label: 'documentation-v6' },
+    { address: '::ffff:127.0.0.1', family: 6, label: 'mapped-loopback-v4' },
+    { address: '::ffff:169.254.169.254', family: 6, label: 'mapped-metadata-v4' },
+  ];
+
+  for (const entry of deniedAddressMatrix) {
+    let transportCalls = 0;
+    const tool = new HTTPTool({
+      resolve: async () => [{ address: entry.address, family: entry.family }],
+      authorize: allow,
+      transport: async () => {
+        transportCalls += 1;
+        return { statusCode: 200, headers: {}, body: 'should-not-run' };
+      },
+    });
+    const result = await tool.execute({ method: 'GET', url: `https://${entry.label}.test/` }, context);
+    expectFailure(result, 'HTTP_EGRESS_DENIED');
+    assert.equal(transportCalls, 0, `${entry.label} must deny before transport`);
+  }
 
   // 3. Explicit policy denial and policy backend failure both happen before transport.
   let deniedTransportCalls = 0;
@@ -160,7 +184,7 @@ async function main() {
   assert.equal(budgetRequest.timeout, 500);
   assert.equal(budgetRequest.maxResponseBytes, 32);
 
-  console.log('W1D.3 HTTP egress SSRF/pinning/redirect contract: 12/12 PASS');
+  console.log(`W1D.3 HTTP egress contract PASS — ${deniedAddressMatrix.length} special-address classes + policy/pinning/redirect/budget invariants`);
 }
 
 main().catch(error => {
