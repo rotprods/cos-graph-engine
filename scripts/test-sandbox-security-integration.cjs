@@ -92,7 +92,7 @@ async function main() {
       const before = console.log;
       const sandbox = new CodeSandbox({ timeout: 500, maxCpu: 500, maxMemory: 64 });
       const receipt = await sandbox.execute("console.log('captured'); throw new Error('boom')");
-      process.stdout.write(JSON.stringify({ receipt, restored: console.log === before }));`);
+      process.stdout.write(JSON.stringify({ receipt, restored: Object.is(console.log, before) }));`);
     const value = jsonFromStdout(result);
     assert.equal(value.restored, true);
     assert.notEqual(value.receipt.exitCode, 0);
