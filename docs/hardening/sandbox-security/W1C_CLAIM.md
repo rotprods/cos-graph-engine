@@ -23,23 +23,26 @@ Replace both in-process JavaScript execution paths with one fail-closed executio
 
 The first accepted profile is intentionally narrow and uses a real OS/container boundary:
 
-- JavaScript only.
+- JavaScript only;
 - one ephemeral Docker container per execution;
-- no host bind mounts;
-- empty/minimal container environment (no inherited application secrets);
+- no host bind mounts and no writable host-backed volumes;
+- no application environment variables forwarded into the container;
 - `--network=none`;
 - read-only container root filesystem;
+- non-root container user (`1000:1000`);
 - all Linux capabilities dropped;
 - `no-new-privileges` enabled;
 - bounded PID count;
-- Docker memory and CPU quotas derived from sandbox config;
-- bounded writable tmpfs only where runtime mechanics require it, with `nosuid`/`noexec` where compatible;
+- Docker hard memory limit derived from `maxMemory`, with swap capped to the same value;
+- container CPU throughput capped at one CPU via `--cpus=1.0`;
+- `maxCpu` and `timeout` combined into a parent-enforced hard wall execution budget; `maxCpu` is **not** claimed as kernel CPU-time accounting;
+- bounded open-file descriptors and private IPC namespace;
 - Node Permission Model enabled **inside the container as defence in depth**, not as the primary isolation claim;
 - no filesystem/network/child-process/worker/addon/WASI grants to the sandboxed Node process;
 - no arbitrary npm module imports/requires exposed to user code;
 - V8 string/wasm code generation disabled inside the execution context;
-- parent-enforced hard wall timeout plus forced container removal;
-- bounded protocol/stdout/stderr collection with forced termination on overflow;
+- parent-enforced hard timeout plus forced container removal;
+- byte-accurate bounded protocol/stdout/stderr collection, including multibyte UTF-8 output, with fail-closed termination on overflow;
 - no global console mutation in the COS host;
 - one canonical `CodeSandbox` implementation exported by `@cos/execution`.
 
@@ -49,7 +52,7 @@ Capability requests that this slice cannot safely enforce are rejected rather th
 
 W1C is **fail closed** when a compatible Docker engine is unavailable. It must never fall back to `new Function`, same-process `node:vm`, an unrestricted child process, or a weakened local execution mode.
 
-The container image/runtime is an explicit part of the security TCB and must be version-pinned in code/evidence. CI qualification runs against the same declared sandbox image contract.
+The container image/runtime is an explicit part of the security TCB and is version-pinned by digest in code and CI. CI qualification pulls and inspects that exact image contract before executing the security suite.
 
 ## Explicit non-claims
 
@@ -58,12 +61,13 @@ W1C does **not** claim:
 - VM/microVM-grade hostile multi-tenant isolation;
 - immunity to Docker/kernel/container-runtime vulnerabilities;
 - perfect seccomp/AppArmor/SELinux equivalence on every host OS;
+- exact kernel CPU-time metering from `maxCpu`;
 - safe arbitrary npm package loading;
 - safe host filesystem/network grants;
 - Python/Bash execution;
 - multi-tenant side-channel resistance.
 
-Docker quotas provide materially stronger resource enforcement than the parent implementation, but W1C still records wall-clock timeout separately from CPU quota and reports memory usage conservatively.
+Docker memory/PID/file-descriptor/CPU-throughput restrictions plus the parent wall-time kill provide materially stronger resource enforcement than the parent implementation. Reported `memoryUsed` remains a conservative in-container runtime observation rather than a cgroup peak-memory attestation.
 
 A future gVisor/Kata/Firecracker/rootless-worker backend can strengthen the same adapter contract without weakening the default-deny semantics.
 
@@ -76,15 +80,17 @@ The W1C gate must prove at least:
 - host console is not monkey-patched even when untrusted code throws;
 - synchronous infinite loops are terminated;
 - unresolved async execution is terminated;
-- output flooding is bounded and terminates execution;
-- `eval` / `Function` code generation is blocked;
-- `process`, `require`, module loading and inherited secrets are unavailable to user code;
-- container has no network;
-- container cannot see host filesystem through an implicit mount;
+- ASCII and multibyte output flooding are byte-bounded and fail closed;
+- `eval` / `Function` code generation and constructor-based string-code escape are blocked;
+- `process`, `require`, dynamic module loading and inherited application secrets are unavailable to user code;
+- the container runtime contract declares no network and no host bind mounts;
 - capability-enable requests fail closed;
 - unsupported languages fail closed;
-- Docker-unavailable path fails closed;
+- Docker-unavailable path fails closed with no local execution fallback;
 - simple deterministic JavaScript still executes and returns output/result;
-- all existing repository regressions and the W1B coverage floor remain green.
+- the historical public `CodeSandbox` and `ToolRegistry` compatibility surfaces remain usable;
+- all existing repository regressions and the exact W1B coverage floor remain green;
+- high-severity dependency audit remains green;
+- branch scope remains confined to the declared W1C allowlist and introduces no bypass primitives.
 
 No production/main mutation is authorized by this claim.
