@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { StringDecoder } from 'node:string_decoder';
 import type { CellContext, CogError } from '@cos/core';
 import { generateId } from '@cos/core';
 
@@ -50,6 +51,7 @@ const DEFAULT_CONFIG: Readonly<SandboxConfig> = Object.freeze({
 // code security boundary.
 const CONTAINER_BOOTSTRAP = `
 const vm = require('node:vm');
+const { StringDecoder } = require('node:string_decoder');
 
 (async () => {
   process.stdout.write('${READY_PREFIX}\\n');
@@ -73,6 +75,20 @@ const vm = require('node:vm');
     '  const stderr = [];',
     '  let used = 0;',
     '  let overflow = false;',
+    '  const byteLength = (value) => {',
+    '    let bytes = 0;',
+    '    for (let i = 0; i < value.length; i++) {',
+    '      const code = value.charCodeAt(i);',
+    '      if (code < 0x80) bytes += 1;',
+    '      else if (code < 0x800) bytes += 2;',
+    '      else if (code >= 0xD800 && code <= 0xDBFF && i + 1 < value.length) {',
+    '        const next = value.charCodeAt(i + 1);',
+    '        if (next >= 0xDC00 && next <= 0xDFFF) { bytes += 4; i += 1; }',
+    '        else bytes += 3;',
+    '      } else bytes += 3;',
+    '    }',
+    '    return bytes;',
+    '  };',
     '  const encode = (value) => {',
     "    if (typeof value === 'string') return value;",
     '    try {',
@@ -84,7 +100,7 @@ const vm = require('node:vm');
     '  };',
     '  const append = (target, args) => {',
     "    const line = args.map(encode).join(' ');",
-    '    used += line.length + (target.length === 0 ? 0 : 1);',
+    '    used += byteLength(line) + (target.length === 0 ? 0 : 1);',
     '    if (used > max) {',
     '      overflow = true;',
     "      throw new Error('SANDBOX_OUTPUT_LIMIT');",
@@ -131,7 +147,8 @@ const vm = require('node:vm');
   const truncate = (text) => {
     const bytes = Buffer.from(String(text));
     if (bytes.length <= maxOutput) return bytes.toString('utf8');
-    return bytes.subarray(0, maxOutput).toString('utf8');
+    const decoder = new StringDecoder('utf8');
+    return decoder.write(bytes.subarray(0, maxOutput));
   };
 
   let stdout = truncate(captured.stdout || '');
@@ -270,6 +287,8 @@ export class CodeSandbox {
       let forcedCode: string | null = null;
       let forcedMessage: string | null = null;
       let executionTimer: NodeJS.Timeout | null = null;
+      const stdoutDecoder = new StringDecoder('utf8');
+      const stderrDecoder = new StringDecoder('utf8');
 
       const child = spawn('docker', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -314,19 +333,19 @@ export class CodeSandbox {
 
       const collect = (current: string, chunk: string): string => {
         const next = current + chunk;
-        if (Buffer.byteLength(next) > rawLimit) {
+        if (Buffer.byteLength(next, 'utf8') > rawLimit) {
           forceStop('SANDBOX_OUTPUT_LIMIT', 'Sandbox protocol output exceeded configured maximum');
-          return Buffer.from(next).subarray(0, rawLimit).toString('utf8');
+          return this.truncateToBytes(next, rawLimit);
         }
         return next;
       };
 
       child.stdout.on('data', (chunk) => {
-        stdout = collect(stdout, chunk.toString());
+        stdout = collect(stdout, stdoutDecoder.write(chunk));
         if (!ready && stdout.includes(READY_PREFIX)) startExecutionTimer();
       });
       child.stderr.on('data', (chunk) => {
-        stderr = collect(stderr, chunk.toString());
+        stderr = collect(stderr, stderrDecoder.write(chunk));
       });
 
       child.once('error', (error: NodeJS.ErrnoException) => {
@@ -341,6 +360,8 @@ export class CodeSandbox {
       });
 
       child.once('close', (exitCode) => {
+        stdout = collect(stdout, stdoutDecoder.end());
+        stderr = collect(stderr, stderrDecoder.end());
         clearTimers();
         if (settled) return;
         settled = true;
@@ -399,8 +420,14 @@ export class CodeSandbox {
   }
 
   private truncate(value: string): string {
+    return this.truncateToBytes(value, this.config.maxOutput);
+  }
+
+  private truncateToBytes(value: string, maxBytes: number): string {
     const bytes = Buffer.from(value);
-    return bytes.length <= this.config.maxOutput ? value : bytes.subarray(0, this.config.maxOutput).toString('utf8');
+    if (bytes.length <= maxBytes) return value;
+    const decoder = new StringDecoder('utf8');
+    return decoder.write(bytes.subarray(0, maxBytes));
   }
 
   private failure(
