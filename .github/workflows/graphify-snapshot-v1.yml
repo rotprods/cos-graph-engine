@@ -24,11 +24,12 @@ concurrency:
 env:
   NODE_VERSION: '26.8.2'
   GRAPHIFY_PARENT_SHA: 'f85fe66bce8079c0e3ec481bbeb3a88bf2c8184c'
+  W1C_SANDBOX_IMAGE: 'node@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868'
 
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -45,6 +46,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Restore exact W1C coverage preconditions
+        run: |
+          set -euo pipefail
+          docker version 2>&1 | tee graphify-docker-version.log
+          docker pull "$W1C_SANDBOX_IMAGE" 2>&1 | tee graphify-w1c-image-pull.log
+          docker image inspect "$W1C_SANDBOX_IMAGE" --format '{{json .RepoDigests}}' | tee graphify-w1c-image-inspect.log
       - name: Strict TypeScript
         run: npx --no-install tsc --noEmit
       - name: Graphify snapshot contract
@@ -55,11 +62,11 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:all 2>&1 | tee graphify-test-all.log
-      - name: Integrated coverage corpus
+      - name: Exact W1C corpus plus Graphify V1 coverage
         run: |
           set -euo pipefail
           npm run asbuild
-          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node --import tsx scripts/test-graphify-snapshot-v1.cjs' 2>&1 | tee graphify-coverage.log
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node scripts/test-sandbox-security-w1c.cjs && node scripts/test-sandbox-security-w1c-hardening.cjs && node --import tsx scripts/test-graphify-snapshot-v1.cjs' 2>&1 | tee graphify-coverage.log
       - name: Coverage ratchet against exact W1C floor
         run: node scripts/check-graphify-v1-coverage-ratchet.mjs
       - name: High-severity dependency audit
@@ -90,6 +97,9 @@ jobs:
         with:
           name: graphify-snapshot-v1-${{ github.sha }}
           path: |
+            graphify-docker-version.log
+            graphify-w1c-image-pull.log
+            graphify-w1c-image-inspect.log
             graphify-v1.log
             graphify-test-all.log
             graphify-coverage.log
