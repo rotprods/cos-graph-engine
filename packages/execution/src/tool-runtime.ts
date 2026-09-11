@@ -6,12 +6,11 @@ import { generateId, CellError } from '@cos/core';
 import * as fsp from 'fs/promises';
 import * as https from 'https';
 import * as http from 'http';
-import * as vm from 'vm';
 import * as path from 'path';
 
 // ================================================================
 // REAL TOOL IMPLEMENTATIONS
-// Using Node.js built-in modules: fs, http/https, vm
+// Using Node.js built-in modules: fs, http/https
 // ================================================================
 
 export class FileSystemTool implements ITool {
@@ -268,65 +267,14 @@ export class SearchTool implements ITool {
 }
 
 // ================================================================
-// REAL CODE SANDBOX (using Node.js vm module)
+// CANONICAL CODE SANDBOX
 // ================================================================
 
-export class CodeSandbox {
-  private config = { maxMemory: 256, maxOutput: 1024 * 1024, timeout: 30000 };
-
-  async execute(code: string, language: string = 'javascript', context?: CellContext): Promise<{
-    stdout: string; stderr: string; exitCode: number; duration: number; memoryUsed: number; error: { code: string; message?: string } | null;
-  }> {
-    void context;
-    const startTime = Date.now();
-    const output: string[] = [];
-    const errors: string[] = [];
-
-    if (language !== 'javascript') {
-      return { stdout: '', stderr: `Language '${language}' not supported`, exitCode: 1, duration: 0, memoryUsed: 0, error: { code: 'UNSUPPORTED' } };
-    }
-
-    try {
-      const sandbox = {
-        console: {
-          log: (...args: unknown[]) => output.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
-          error: (...args: unknown[]) => errors.push(args.map(String).join(' ')),
-        },
-        Math, JSON, Date, Array, Object, String, Number, Boolean, RegExp, Map, Set, Error, parseInt, parseFloat, isNaN, isFinite,
-      };
-
-      const vmContext = vm.createContext(sandbox, {
-        name: 'cos-code-sandbox',
-        codeGeneration: { strings: false, wasm: false },
-      });
-      const script = new vm.Script(code, { filename: 'sandbox.js' });
-      // Timeout belongs to execution, not Script construction. Keeping it here
-      // ensures synchronous runaway code is interrupted by Node's VM runtime.
-      const result = script.runInContext(vmContext, { timeout: this.config.timeout });
-      const resultText = result !== undefined ? `\n=> ${JSON.stringify(result)}` : '';
-      const stdout = (output.join('\n') + resultText).slice(0, this.config.maxOutput);
-
-      return {
-        stdout,
-        stderr: errors.join('\n').slice(0, this.config.maxOutput),
-        exitCode: 0,
-        duration: Date.now() - startTime,
-        memoryUsed: 0,
-        error: null,
-      };
-    } catch (error) {
-      return {
-        stdout: output.join('\n').slice(0, this.config.maxOutput),
-        stderr: (error as Error).message,
-        exitCode: 1,
-        duration: Date.now() - startTime,
-        memoryUsed: 0,
-        error: { code: 'SANDBOX_ERROR', message: (error as Error).message },
-      };
-    }
-  }
-}
-
+// W1C deliberately owns exactly one sandbox implementation. Keeping the
+// re-export here preserves the historical public import path without retaining
+// a second same-process node:vm authority.
+export { CodeSandbox, W1C_SANDBOX_IMAGE } from './sandbox';
+export type { SandboxConfig, CodeExecutionResult } from './sandbox';
 
 // ================================================================
 // TOOL REGISTRY
