@@ -71,11 +71,11 @@ jobs:
           node --import tsx scripts/test-durable-memory-w1b.cjs 2>&1 | tee cgev11-node22-w1b.log
           node --import tsx scripts/test-durable-memory-w1b-adversarial.cjs 2>&1 | tee cgev11-node22-w1b-adversarial.log
           node --import tsx scripts/test-durable-memory-w1b-schema-matrix.cjs 2>&1 | tee cgev11-node22-w1b-schema.log
-      - name: W1C hostile-code boundary
+      - name: W1C semantics through portable current-runtime harness
         run: |
           set -euo pipefail
-          node scripts/test-sandbox-security-w1c.cjs 2>&1 | tee cgev11-node22-w1c.log
-          node scripts/test-sandbox-security-w1c-hardening.cjs 2>&1 | tee cgev11-node22-w1c-hardening.log
+          node scripts/test-sandbox-security-w1d5.cjs 2>&1 | tee cgev11-node22-w1c-portable-core.log
+          node scripts/test-sandbox-security-integration.cjs 2>&1 | tee cgev11-node22-w1c-carry-forward.log
       - name: W1D host capability boundary
         run: |
           set -euo pipefail
@@ -84,7 +84,6 @@ jobs:
           node --import tsx scripts/test-http-egress-w1d3.cjs 2>&1 | tee cgev11-node22-w1d-http.log
           node --import tsx scripts/test-search-tool-w1d4.cjs 2>&1 | tee cgev11-node22-w1d-search.log
           node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs 2>&1 | tee cgev11-node22-w1d-e2e.log
-          node scripts/test-sandbox-security-w1d5.cjs 2>&1 | tee cgev11-node22-sandbox-portable.log
       - name: Full canonical suite
         run: |
           set -euo pipefail
@@ -93,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           npm run asbuild
-          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node scripts/test-sandbox-security-w1c.cjs && node scripts/test-sandbox-security-w1c-hardening.cjs && node --import tsx scripts/test-tool-capability-w1d.cjs && node --import tsx scripts/test-filesystem-confinement-w1d2.cjs && node --import tsx scripts/test-http-egress-w1d3.cjs && node --import tsx scripts/test-search-tool-w1d4.cjs && node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs && node scripts/test-sandbox-security-w1d5.cjs' 2>&1 | tee cgev11-node22-coverage.log
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node scripts/test-sandbox-security-w1d5.cjs && node scripts/test-sandbox-security-integration.cjs && node --import tsx scripts/test-tool-capability-w1d.cjs && node --import tsx scripts/test-filesystem-confinement-w1d2.cjs && node --import tsx scripts/test-http-egress-w1d3.cjs && node --import tsx scripts/test-search-tool-w1d4.cjs && node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs' 2>&1 | tee cgev11-node22-coverage.log
           node scripts/check-cgev11-stack-coverage.mjs
       - name: High-severity dependency audit
         run: |
@@ -109,7 +108,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              .github/workflows/cgev11-stack-integration.yml|scripts/check-cgev11-stack-coverage.mjs|docs/hardening/integration/W3_1_INTEGRATION_EVIDENCE.md)
+              .github/workflows/cgev11-stack-integration.yml|scripts/check-cgev11-stack-coverage.mjs|scripts/test-sandbox-security-integration.cjs|docs/hardening/integration/W3_1_INTEGRATION_EVIDENCE.md)
                 ;;
               *)
                 echo "Unexpected mutation above qualified W1D tree: $file" >&2
@@ -178,11 +177,11 @@ jobs:
           node --import tsx scripts/test-durable-memory-w1b.cjs 2>&1 | tee cgev11-node26-w1b.log
           node --import tsx scripts/test-durable-memory-w1b-adversarial.cjs 2>&1 | tee cgev11-node26-w1b-adversarial.log
           node --import tsx scripts/test-durable-memory-w1b-schema-matrix.cjs 2>&1 | tee cgev11-node26-w1b-schema.log
-      - name: W1C hostile-code boundary compatibility
+      - name: W1C semantics through portable current-runtime harness
         run: |
           set -euo pipefail
-          node scripts/test-sandbox-security-w1c.cjs 2>&1 | tee cgev11-node26-w1c.log
-          node scripts/test-sandbox-security-w1c-hardening.cjs 2>&1 | tee cgev11-node26-w1c-hardening.log
+          node scripts/test-sandbox-security-w1d5.cjs 2>&1 | tee cgev11-node26-w1c-portable-core.log
+          node scripts/test-sandbox-security-integration.cjs 2>&1 | tee cgev11-node26-w1c-carry-forward.log
       - name: W1D host capability compatibility
         run: |
           set -euo pipefail
@@ -191,7 +190,6 @@ jobs:
           node --import tsx scripts/test-http-egress-w1d3.cjs 2>&1 | tee cgev11-node26-w1d-http.log
           node --import tsx scripts/test-search-tool-w1d4.cjs 2>&1 | tee cgev11-node26-w1d-search.log
           node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs 2>&1 | tee cgev11-node26-w1d-e2e.log
-          node scripts/test-sandbox-security-w1d5.cjs 2>&1 | tee cgev11-node26-sandbox-portable.log
       - name: Full canonical suite
         run: |
           set -euo pipefail
