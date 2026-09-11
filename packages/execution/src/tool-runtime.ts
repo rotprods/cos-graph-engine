@@ -4,21 +4,45 @@ import {
 } from '@cos/core';
 import { generateId, CellError } from '@cos/core';
 import * as fsp from 'fs/promises';
+import { constants as fsConstants } from 'fs';
+import { randomUUID } from 'crypto';
 import * as https from 'https';
 import * as http from 'http';
 import * as path from 'path';
 
 // ================================================================
-// REAL TOOL IMPLEMENTATIONS
-// Using Node.js built-in modules: fs, http/https
+// ROOT-CONFINED FILESYSTEM TOOL
 // ================================================================
+
+export interface FileSystemToolOptions {
+  /** Explicit workspace root. Missing root means zero filesystem authority. */
+  root?: string;
+  maxReadBytes?: number;
+  maxWriteBytes?: number;
+  maxListEntries?: number;
+}
+
+interface ResolvedFileTarget {
+  absolutePath: string;
+  relativePath: string;
+  exists: boolean;
+  isDirectory: boolean;
+  isFile: boolean;
+}
+
+class FileSystemBoundaryError extends Error {
+  constructor(readonly code: 'FS_SCOPE_VIOLATION' | 'FS_ERROR', message: string) {
+    super(message);
+    this.name = 'FileSystemBoundaryError';
+  }
+}
 
 export class FileSystemTool implements ITool {
   readonly definition: ToolDefinition = {
     id: 'tool:fs' as EntityId,
     name: 'filesystem',
-    description: 'Read, write, and manage files on the local filesystem',
-    version: { major: 2, minor: 0, patch: 0 },
+    description: 'Read, write, and manage files inside an explicitly bound workspace root',
+    version: { major: 3, minor: 0, patch: 0 },
     inputSchema: {
       type: 'object',
       properties: {
@@ -33,64 +57,359 @@ export class FileSystemTool implements ITool {
     cost: { units: 'credits', amount: 0.01 },
     timeout: 30000,
     rateLimit: { maxPerMinute: 60, maxPerHour: 1000 },
-    retryConfig: { maxRetries: 2, backoffMs: 1000 },
+    retryConfig: { maxRetries: 0, backoffMs: 0 },
   };
+
+  private readonly configuredRoot?: string;
+  private readonly maxReadBytes: number;
+  private readonly maxWriteBytes: number;
+  private readonly maxListEntries: number;
+  private canonicalRootPromise?: Promise<string>;
+
+  constructor(options: FileSystemToolOptions = {}) {
+    this.configuredRoot = options.root;
+    this.maxReadBytes = positiveFsBound(options.maxReadBytes, 100_000, 10_000_000, 'maxReadBytes');
+    this.maxWriteBytes = positiveFsBound(options.maxWriteBytes, 1_000_000, 10_000_000, 'maxWriteBytes');
+    this.maxListEntries = positiveFsBound(options.maxListEntries, 10_000, 100_000, 'maxListEntries');
+  }
 
   async execute(input: { operation: string; path: string; content?: string }, context: CellContext): Promise<ToolResult> {
     void context;
     const startTime = Date.now();
-    try {
-      const targetPath = path.resolve(input.path);
-      const stat = await fsp.stat(targetPath).catch(() => null);
+    if (!this.configuredRoot) {
+      return this.fail('FS_AUTHORITY_UNBOUND', 'Filesystem authority requires an explicit workspace root', startTime);
+    }
 
+    let relativePath: string;
+    let root: string;
+    try {
+      relativePath = normalizeFsRelativePath(input.path);
+      root = await this.canonicalRoot();
+    } catch (error) {
+      return this.boundaryFailure(error, startTime);
+    }
+
+    try {
       switch (input.operation) {
         case 'read': {
-          if (!stat) throw new Error(`File not found: ${input.path}`);
-          const content = await fsp.readFile(targetPath, 'utf-8');
-          return this.ok({ path: input.path, size: content.length, content: content.substring(0, 100000) }, startTime);
+          const target = await this.resolveExisting(root, relativePath);
+          if (!target.exists || !target.isFile) {
+            throw new FileSystemBoundaryError('FS_ERROR', `File not found: ${relativePath}`);
+          }
+          const handle = await fsp.open(
+            target.absolutePath,
+            fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+          ).catch(error => {
+            throw boundaryFromNodeError(error, relativePath);
+          });
+          try {
+            const stat = await handle.stat();
+            if (!stat.isFile()) throw new FileSystemBoundaryError('FS_ERROR', `Not a file: ${relativePath}`);
+            if (stat.size > this.maxReadBytes) {
+              throw new FileSystemBoundaryError('FS_ERROR', `File exceeds ${this.maxReadBytes} byte read limit`);
+            }
+            const content = await handle.readFile({ encoding: 'utf8' });
+            return this.ok({ path: relativePath, size: Buffer.byteLength(content, 'utf8'), content }, startTime);
+          } finally {
+            await handle.close();
+          }
         }
         case 'write': {
-          if (!input.content) throw new Error('Content required for write');
-          await fsp.mkdir(path.dirname(targetPath), { recursive: true });
-          await fsp.writeFile(targetPath, input.content, 'utf-8');
-          return this.ok({ path: input.path, size: input.content.length, written: true }, startTime);
+          if (typeof input.content !== 'string') {
+            throw new FileSystemBoundaryError('FS_ERROR', 'Content required for write');
+          }
+          const contentBytes = Buffer.byteLength(input.content, 'utf8');
+          if (contentBytes > this.maxWriteBytes) {
+            throw new FileSystemBoundaryError('FS_ERROR', `Write exceeds ${this.maxWriteBytes} byte limit`);
+          }
+          const segments = splitFsRelativePath(relativePath);
+          const fileName = segments.at(-1);
+          if (!fileName) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'A file path is required');
+          const parentSegments = segments.slice(0, -1);
+          const parent = await this.ensureDirectoryChain(root, parentSegments);
+          await assertCanonicalParent(root, parent);
+
+          const targetPath = path.join(parent, fileName);
+          const existing = await safeLstat(targetPath);
+          if (existing?.isSymbolicLink()) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', `Symlink target denied: ${relativePath}`);
+          if (existing?.isDirectory()) throw new FileSystemBoundaryError('FS_ERROR', `Cannot overwrite directory: ${relativePath}`);
+
+          const tempPath = path.join(parent, `.cos-write-${randomUUID()}`);
+          let tempExists = false;
+          try {
+            const handle = await fsp.open(
+              tempPath,
+              fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY | fsConstants.O_NOFOLLOW,
+              0o600,
+            );
+            tempExists = true;
+            try {
+              await handle.writeFile(input.content, { encoding: 'utf8' });
+              await handle.sync();
+            } finally {
+              await handle.close();
+            }
+            await assertCanonicalParent(root, parent);
+            const preRename = await safeLstat(targetPath);
+            if (preRename?.isSymbolicLink()) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', `Symlink target denied: ${relativePath}`);
+            await fsp.rename(tempPath, targetPath);
+            tempExists = false;
+            await assertCanonicalParent(root, parent);
+            const postWrite = await safeLstat(targetPath);
+            if (!postWrite || postWrite.isSymbolicLink() || !postWrite.isFile()) {
+              throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', `Write target changed unexpectedly: ${relativePath}`);
+            }
+          } finally {
+            if (tempExists) await fsp.rm(tempPath, { force: true }).catch(() => undefined);
+          }
+          return this.ok({ path: relativePath, size: contentBytes, written: true }, startTime);
         }
         case 'delete': {
-          if (!stat) throw new Error(`File not found: ${input.path}`);
-          await fsp.rm(targetPath, { recursive: true, force: true });
-          return this.ok({ path: input.path, deleted: true }, startTime);
+          const target = await this.resolveExisting(root, relativePath);
+          if (!target.exists) throw new FileSystemBoundaryError('FS_ERROR', `File not found: ${relativePath}`);
+          await this.revalidateNoSymlinks(root, relativePath);
+          const finalStat = await safeLstat(target.absolutePath);
+          if (!finalStat) throw new FileSystemBoundaryError('FS_ERROR', `File not found: ${relativePath}`);
+          if (finalStat.isSymbolicLink()) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', `Symlink delete denied: ${relativePath}`);
+          await fsp.rm(target.absolutePath, { recursive: finalStat.isDirectory(), force: false });
+          return this.ok({ path: relativePath, deleted: true }, startTime);
         }
         case 'list': {
-          if (!stat?.isDirectory()) throw new Error(`Not a directory: ${input.path}`);
-          const entries = await fsp.readdir(targetPath, { withFileTypes: true });
-          const files = entries.map(e => ({ name: e.name, isDirectory: e.isDirectory(), isFile: e.isFile() }));
-          return this.ok({ path: input.path, files, count: files.length }, startTime);
+          const target = await this.resolveExisting(root, relativePath);
+          if (!target.exists || !target.isDirectory) throw new FileSystemBoundaryError('FS_ERROR', `Not a directory: ${relativePath}`);
+          await this.revalidateNoSymlinks(root, relativePath);
+          const entries = await fsp.readdir(target.absolutePath, { withFileTypes: true });
+          if (entries.length > this.maxListEntries) {
+            throw new FileSystemBoundaryError('FS_ERROR', `Directory exceeds ${this.maxListEntries} entry limit`);
+          }
+          const files = entries.map(entry => ({
+            name: entry.name,
+            isDirectory: entry.isDirectory(),
+            isFile: entry.isFile(),
+            isSymbolicLink: entry.isSymbolicLink(),
+          }));
+          return this.ok({ path: relativePath, files, count: files.length }, startTime);
         }
         case 'exists': {
-          return this.ok({ path: input.path, exists: stat !== null, isDirectory: stat?.isDirectory() || false, isFile: stat?.isFile() || false }, startTime);
+          const target = await this.resolveExisting(root, relativePath, true);
+          return this.ok({
+            path: relativePath,
+            exists: target.exists,
+            isDirectory: target.isDirectory,
+            isFile: target.isFile,
+          }, startTime);
         }
         case 'mkdtemp': {
-          const dir = await fsp.mkdtemp(path.join(targetPath, 'cos-'));
-          return this.ok({ path: dir, created: true }, startTime);
+          const directory = await this.ensureDirectoryChain(root, splitFsRelativePath(relativePath));
+          await assertCanonicalParent(root, directory);
+          const created = await fsp.mkdtemp(path.join(directory, 'cos-'));
+          const createdReal = await fsp.realpath(created);
+          assertContainedPath(root, createdReal);
+          const outputPath = toPortableRelative(root, createdReal);
+          return this.ok({ path: outputPath, created: true }, startTime);
         }
         default:
-          throw new Error(`Unknown operation: ${input.operation}`);
+          throw new FileSystemBoundaryError('FS_ERROR', `Unknown operation: ${input.operation}`);
       }
     } catch (error) {
-      return {
-        success: false,
-        output: null,
-        cost: this.definition.cost,
-        latency: Date.now() - startTime,
-        error: { id: generateId(), code: 'FS_ERROR', message: (error as Error).message, severity: 'error' as const, timestamp: new Date().toISOString() },
-        metadata: {},
-      };
+      return this.boundaryFailure(error, startTime);
     }
+  }
+
+  private async canonicalRoot(): Promise<string> {
+    if (!this.configuredRoot) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Filesystem root is not configured');
+    if (!this.canonicalRootPromise) {
+      this.canonicalRootPromise = (async () => {
+        const configured = path.resolve(this.configuredRoot!);
+        const stat = await fsp.lstat(configured).catch(error => {
+          throw boundaryFromNodeError(error, configured);
+        });
+        if (stat.isSymbolicLink()) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Configured filesystem root must not be a symlink');
+        if (!stat.isDirectory()) throw new FileSystemBoundaryError('FS_ERROR', 'Configured filesystem root is not a directory');
+        const real = await fsp.realpath(configured);
+        const realStat = await fsp.lstat(real);
+        if (realStat.isSymbolicLink() || !realStat.isDirectory()) {
+          throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Configured filesystem root is not a stable directory');
+        }
+        return real;
+      })();
+    }
+    return this.canonicalRootPromise;
+  }
+
+  private async resolveExisting(root: string, relativePath: string, allowMissing = false): Promise<ResolvedFileTarget> {
+    const segments = splitFsRelativePath(relativePath);
+    let current = root;
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index]!;
+      const candidate = path.join(current, segment);
+      const stat = await safeLstat(candidate);
+      if (!stat) {
+        if (allowMissing) {
+          return { absolutePath: candidate, relativePath, exists: false, isDirectory: false, isFile: false };
+        }
+        throw new FileSystemBoundaryError('FS_ERROR', `Path not found: ${relativePath}`);
+      }
+      if (stat.isSymbolicLink()) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', `Symlink traversal denied: ${relativePath}`);
+      if (index < segments.length - 1 && !stat.isDirectory()) {
+        throw new FileSystemBoundaryError('FS_ERROR', `Non-directory path component: ${segment}`);
+      }
+      const real = await fsp.realpath(candidate);
+      assertContainedPath(root, real);
+      current = real;
+    }
+    const finalStat = await fsp.lstat(current);
+    return {
+      absolutePath: current,
+      relativePath,
+      exists: true,
+      isDirectory: finalStat.isDirectory(),
+      isFile: finalStat.isFile(),
+    };
+  }
+
+  private async ensureDirectoryChain(root: string, segments: string[]): Promise<string> {
+    let current = root;
+    for (const segment of segments) {
+      const candidate = path.join(current, segment);
+      let stat = await safeLstat(candidate);
+      if (!stat) {
+        await fsp.mkdir(candidate, { mode: 0o700 });
+        stat = await fsp.lstat(candidate);
+      }
+      if (stat.isSymbolicLink()) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', `Symlink directory denied: ${segment}`);
+      if (!stat.isDirectory()) throw new FileSystemBoundaryError('FS_ERROR', `Path component is not a directory: ${segment}`);
+      const real = await fsp.realpath(candidate);
+      assertContainedPath(root, real);
+      current = real;
+    }
+    return current;
+  }
+
+  private async revalidateNoSymlinks(root: string, relativePath: string): Promise<void> {
+    const segments = splitFsRelativePath(relativePath);
+    let current = root;
+    for (const segment of segments) {
+      const candidate = path.join(current, segment);
+      const stat = await safeLstat(candidate);
+      if (!stat) throw new FileSystemBoundaryError('FS_ERROR', `Path not found: ${relativePath}`);
+      if (stat.isSymbolicLink()) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', `Symlink traversal denied: ${relativePath}`);
+      const real = await fsp.realpath(candidate);
+      assertContainedPath(root, real);
+      current = real;
+    }
+  }
+
+  private boundaryFailure(error: unknown, startTime: number): ToolResult {
+    if (error instanceof FileSystemBoundaryError) return this.fail(error.code, error.message, startTime);
+    return this.fail('FS_ERROR', errorMessage(error), startTime);
+  }
+
+  private fail(code: string, message: string, startTime: number): ToolResult {
+    return {
+      success: false,
+      output: null,
+      cost: this.definition.cost,
+      latency: Date.now() - startTime,
+      error: { id: generateId(), code, message, severity: 'error' as const, timestamp: new Date().toISOString() },
+      metadata: {},
+    };
   }
 
   private ok(output: unknown, startTime: number): ToolResult {
     return { success: true, output, cost: this.definition.cost, latency: Date.now() - startTime, metadata: {} };
   }
+}
+
+async function safeLstat(targetPath: string): Promise<Awaited<ReturnType<typeof fsp.lstat>> | null> {
+  try {
+    return await fsp.lstat(targetPath);
+  } catch (error) {
+    if (isNodeErrorCode(error, 'ENOENT')) return null;
+    throw error;
+  }
+}
+
+function normalizeFsRelativePath(input: string): string {
+  if (typeof input !== 'string') throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Filesystem path must be a string');
+  const value = input.normalize('NFC');
+  if (!value || value.includes('\0')) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Filesystem path is empty or contains NUL');
+  if (value.includes('\\')) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Backslash path syntax is not authorized');
+  if (path.posix.isAbsolute(value) || /^[A-Za-z]:/.test(value) || value.startsWith('//') || value.toLowerCase().startsWith('file:')) {
+    throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Absolute filesystem paths are not authorized');
+  }
+  const rawSegments = value.split('/');
+  if (rawSegments.some(segment => segment.length === 0)) throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Empty path segments are not authorized');
+  for (const segment of rawSegments) {
+    const decoded = repeatedlyDecodeFsSegment(segment);
+    if (decoded === '.' || decoded === '..' || decoded.includes('/') || decoded.includes('\\') || decoded.includes('\0')) {
+      throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Filesystem traversal syntax is not authorized');
+    }
+  }
+  const normalized = path.posix.normalize(rawSegments.join('/'));
+  if (normalized === '..' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) {
+    throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Filesystem path escapes the workspace root');
+  }
+  return normalized;
+}
+
+function repeatedlyDecodeFsSegment(value: string): string {
+  let current = value;
+  for (let index = 0; index < 3; index += 1) {
+    let decoded: string;
+    try {
+      decoded = decodeURIComponent(current);
+    } catch {
+      throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Filesystem path encoding is invalid');
+    }
+    if (decoded === current) return decoded;
+    current = decoded;
+  }
+  return current;
+}
+
+function splitFsRelativePath(relativePath: string): string[] {
+  return relativePath.split('/');
+}
+
+function assertContainedPath(root: string, candidate: string): void {
+  const relative = path.relative(root, candidate);
+  if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) return;
+  throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Filesystem target escapes the configured workspace root');
+}
+
+async function assertCanonicalParent(root: string, parent: string): Promise<void> {
+  const real = await fsp.realpath(parent);
+  assertContainedPath(root, real);
+  const stat = await fsp.lstat(parent);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new FileSystemBoundaryError('FS_SCOPE_VIOLATION', 'Filesystem parent is not a stable directory');
+  }
+}
+
+function toPortableRelative(root: string, candidate: string): string {
+  assertContainedPath(root, candidate);
+  const relative = path.relative(root, candidate);
+  return relative.split(path.sep).join('/');
+}
+
+function boundaryFromNodeError(error: unknown, relativePath: string): FileSystemBoundaryError {
+  if (isNodeErrorCode(error, 'ELOOP')) {
+    return new FileSystemBoundaryError('FS_SCOPE_VIOLATION', `Symlink traversal denied: ${relativePath}`);
+  }
+  return new FileSystemBoundaryError('FS_ERROR', errorMessage(error));
+}
+
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return error instanceof Error && 'code' in error && error.code === code;
+}
+
+function positiveFsBound(value: number | undefined, fallback: number, maximum: number, name: string): number {
+  if (value === undefined) return fallback;
+  if (!Number.isInteger(value) || value <= 0 || value > maximum) {
+    throw new CellError('FS_CONFIG_INVALID', `${name} must be an integer between 1 and ${maximum}`);
+  }
+  return value;
 }
 
 // ================================================================
