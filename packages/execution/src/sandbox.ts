@@ -372,7 +372,11 @@ export class CodeSandbox {
           return;
         }
 
-        const marker = stdout.lastIndexOf(RESULT_PREFIX);
+        // The bootstrap is the only process that can write directly to container stdout.
+        // User code can only place marker-looking text inside the JSON envelope, so the
+        // first result marker is authoritative. Using lastIndexOf lets user output collide
+        // with protocol framing and self-DoS the parser.
+        const marker = stdout.indexOf(RESULT_PREFIX);
         if (marker === -1) {
           const dockerError = this.truncate(stderr) || `Sandbox container exited with code ${exitCode ?? 'unknown'}`;
           const runtimeUnavailable = /docker|daemon|pull access|manifest|permission denied/i.test(dockerError);
