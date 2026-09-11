@@ -1,0 +1,100 @@
+name: Sandbox Security W1C
+
+on:
+  push:
+    branches: [fix/sandbox-security-w1c]
+  pull_request:
+    branches: [fix/durable-memory-w1b]
+    paths:
+      - 'packages/execution/src/sandbox.ts'
+      - 'packages/execution/src/tool-runtime.ts'
+      - 'scripts/test-sandbox-security-w1c.cjs'
+      - 'scripts/check-w1c-coverage-ratchet.mjs'
+      - 'package.json'
+      - '.github/workflows/sandbox-security-w1c.yml'
+      - 'docs/hardening/sandbox-security/**'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sandbox-security-w1c-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '26.8.2'
+  W1C_PARENT_SHA: '08c90d11d850f7c4f0c95702a4d0a541a1cf5e02'
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact source SHA
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git cat-file -e "${W1C_PARENT_SHA}^{commit}"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Strict TypeScript
+        run: npx --no-install tsc --noEmit
+      - name: W1C sandbox security contract
+        run: |
+          set -euo pipefail
+          node scripts/test-sandbox-security-w1c.cjs 2>&1 | tee w1c-sandbox-security.log
+      - name: Full canonical test suite
+        run: |
+          set -euo pipefail
+          npm run test:all 2>&1 | tee w1c-test-all.log
+      - name: Unified coverage corpus
+        run: |
+          set -euo pipefail
+          npm run coverage 2>&1 | tee w1c-coverage.log
+      - name: Ratchet against exact W1B coverage
+        run: node scripts/check-w1c-coverage-ratchet.mjs
+      - name: High-severity dependency audit
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=high 2>&1 | tee w1c-npm-audit.log
+      - name: Scope and anti-bypass policy
+        run: |
+          set -euo pipefail
+          git diff --unified=0 "$W1C_PARENT_SHA"...HEAD -- '*.ts' > w1c-source.diff
+          if grep -E '^\+.*(as any|@ts-ignore|@ts-nocheck|continue-on-error|new Function\(|console\.log[[:space:]]*=)' w1c-source.diff; then
+            echo 'W1C introduced a forbidden bypass or host-process execution primitive' >&2
+            exit 1
+          fi
+          while IFS= read -r file; do
+            case "$file" in
+              packages/execution/src/sandbox.ts|packages/execution/src/tool-runtime.ts|scripts/test-sandbox-security-w1c.cjs|scripts/check-w1c-coverage-ratchet.mjs|.github/workflows/sandbox-security-w1c.yml|package.json|docs/hardening/sandbox-security/W1C_CLAIM.md|docs/hardening/sandbox-security/W1C_RED_EVIDENCE.md)
+                ;;
+              *)
+                echo "Unexpected W1C scope mutation: $file" >&2
+                exit 1
+                ;;
+            esac
+          done < <(git diff --name-only "$W1C_PARENT_SHA"...HEAD)
+      - name: Preserve W1C qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sandbox-security-w1c-${{ github.sha }}
+          path: |
+            w1c-sandbox-security.log
+            w1c-test-all.log
+            w1c-coverage.log
+            w1c-coverage-ratchet.json
+            w1c-npm-audit.log
+            w1c-source.diff
+            coverage/
+          if-no-files-found: warn
