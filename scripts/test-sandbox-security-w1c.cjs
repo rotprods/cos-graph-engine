@@ -176,6 +176,49 @@ async function main() {
     });
   }
 
+  await check('invalid numeric resource configuration is rejected before Docker execution', async () => {
+    const r = await runNode(`${directImport}
+      let receipt;
+      try { new CodeSandbox({ maxMemory: 8 }); receipt = { threw: false }; }
+      catch (error) { receipt = { threw: true, name: error.name, message: error.message }; }
+      process.stdout.write(JSON.stringify(receipt));`);
+    assert.equal(r.killed, false, 'configuration validation process was killed');
+    assert.equal(r.code, 0, r.stderr);
+    const out = jsonFromStdout(r);
+    assert.equal(out.threw, true, JSON.stringify(out));
+    assert.equal(out.name, 'RangeError');
+    assert.match(out.message, /maxMemory/i);
+  });
+
+  await check('malformed module capability configuration is rejected before Docker execution', async () => {
+    const r = await runNode(`${directImport}
+      let receipt;
+      try { new CodeSandbox({ allowedModules: ['node:fs', 42] }); receipt = { threw: false }; }
+      catch (error) { receipt = { threw: true, name: error.name, message: error.message }; }
+      process.stdout.write(JSON.stringify(receipt));`);
+    assert.equal(r.killed, false, 'configuration validation process was killed');
+    assert.equal(r.code, 0, r.stderr);
+    const out = jsonFromStdout(r);
+    assert.equal(out.threw, true, JSON.stringify(out));
+    assert.equal(out.name, 'TypeError');
+    assert.match(out.message, /allowedModules/i);
+  });
+
+  await check('missing Docker runtime fails closed without in-process fallback', async () => {
+    const r = await runNode(`${directImport}
+      const s = new CodeSandbox({ timeout: 300, maxCpu: 300, maxMemory: 64 });
+      const result = await s.execute("globalThis.__mustNeverReachHost = 'pwned'; 7");
+      process.stdout.write(JSON.stringify({ result, host: globalThis.__mustNeverReachHost ?? null }));`, {
+      env: { PATH: '/cos-w1c-intentionally-missing-runtime' },
+    });
+    assert.equal(r.killed, false, 'outer harness killed the process');
+    assert.equal(r.code, 0, r.stderr);
+    const out = jsonFromStdout(r);
+    assert.equal(out.host, null, 'missing Docker caused an unsafe host fallback');
+    assert.notEqual(out.result.exitCode, 0, JSON.stringify(out));
+    assert.equal(out.result.error?.code, 'SANDBOX_RUNTIME_UNAVAILABLE');
+  });
+
   await check('unsupported languages fail closed', async () => {
     const r = await runNode(`${directImport}
       const s = new CodeSandbox();
