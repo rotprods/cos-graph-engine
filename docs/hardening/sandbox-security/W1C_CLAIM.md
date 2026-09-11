@@ -1,8 +1,12 @@
 # W1C — Sandbox Security Claim
 
-**Status:** CLAIMED / implementation not yet certified  
+**Status:** QUALIFIED / implementation evidence bound; PR still draft and unmerged  
 **Parent:** `fix/durable-memory-w1b` @ `08c90d11d850f7c4f0c95702a4d0a541a1cf5e02`  
-**Branch:** `fix/sandbox-security-w1c`
+**Branch:** `fix/sandbox-security-w1c`  
+**Qualified source head:** `33d328d9bf268af8d7e1d42bae95c2d56d7cfeb4`  
+**Qualified PR merge checkout:** `be1ffd104f7e2f3db11f544a2ca891ddb3c4ee54`  
+**Qualification run/job:** `34601114145` / `103268383032`  
+**Evidence artifact:** `10263839679` / `sha256:357a0d4495c0c0d55e43f63d16e07bec9b5c2ee84dab3948b34f17a244d695cd`
 
 ## Objective
 
@@ -73,7 +77,7 @@ A future gVisor/Kata/Firecracker/rootless-worker backend can strengthen the same
 
 ## Required RED→GREEN evidence
 
-The W1C gate must prove at least:
+The W1C gate proves:
 
 - parent host globals remain unchanged;
 - parent host prototypes remain unchanged;
@@ -93,4 +97,25 @@ The W1C gate must prove at least:
 - high-severity dependency audit remains green;
 - branch scope remains confined to the declared W1C allowlist and introduces no bypass primitives.
 
-No production/main mutation is authorized by this claim.
+## Qualified evidence
+
+Final exact candidate: source head `33d328d9bf268af8d7e1d42bae95c2d56d7cfeb4`, synthetic PR merge checkout `be1ffd104f7e2f3db11f544a2ca891ddb3c4ee54`.
+
+Actions run `34601114145`, job `103268383032`, completed all gates successfully: pinned Docker TCB inspection/pre-pull, strict TypeScript, base and hardening sandbox adversarial suites, canonical full tests, integrated coverage, W1B coverage ratchet, high-severity dependency audit, scope/anti-bypass policy and artifact preservation.
+
+W1C-specific tests: 17/17 base + 4/4 hardening = 21/21 PASS.
+
+Coverage at the qualified candidate:
+
+- statements: **81.04%** (W1B floor 78.22%; +2.82 pp)
+- branches: **79.46%** (W1B floor 78.93%; +0.53 pp)
+- functions: **85.03%** (W1B floor 84.99%; +0.04 pp)
+- lines: **81.04%** (W1B floor 78.22%; +2.82 pp)
+
+`npm audit --audit-level=high` reported 0 known vulnerabilities for the tested lockfile at that run. This is dependency-audit evidence, not an application security certification.
+
+Artifact `sandbox-security-w1c-be1ffd104f7e2f3db11f544a2ca891ddb3c4ee54`, ID `10263839679`, size `12,876,366` bytes, digest `sha256:357a0d4495c0c0d55e43f63d16e07bec9b5c2ee84dab3948b34f17a244d695cd`.
+
+The qualification environment was Ubuntu 24.04.5, Node 26.8.2, npm 11.19.1 and Docker 28.0.4. Root `engines.node >=22.12.0` remains a separate minimum-version compatibility obligation; this W1C qualification does not prove Node 22.12.0 compatibility.
+
+No production/main mutation, PR merge, deployment, host credential grant or global CGEV11 seal is authorized or implied by this qualification.
