@@ -676,6 +676,23 @@ export class CompressedAdjacency {
    * Memory improvement vs Map<string, string[]>.
    */
   memoryImprovement(): number {
-    return this.csr.memoryImprovement();
+    const { nodes, edges } = this.csr.toJSON();
+    const strSize = (value: string): number => value.length * 2 + 8;
+
+    // Approximate the Map<string, string[]> representation this class replaces.
+    // Positive values mean estimated savings; negative values mean CSR is larger
+    // for the current (typically very small) graph.
+    const adjacency = new Map<string, string[]>();
+    for (const node of nodes) adjacency.set(node.id, []);
+    for (const edge of edges) adjacency.get(edge.source)?.push(edge.target);
+
+    let mapEstimate = 0;
+    for (const [source, targets] of adjacency) {
+      mapEstimate += strSize(source) + 48;
+      mapEstimate += targets.reduce((sum, target) => sum + strSize(target) + 8, 0);
+    }
+
+    if (mapEstimate === 0) return 0;
+    return (mapEstimate - this.csr.memoryEstimate().total) / mapEstimate;
   }
 }

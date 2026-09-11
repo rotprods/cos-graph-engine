@@ -4,15 +4,16 @@
 
 import { EventBus } from '@cos/runtime';
 import { MemoryManager, InMemoryStore } from '@cos/memory';
-import { EntityId } from '@cos/core';
+import { EntityId, IMemoryStore } from '@cos/core';
 
 export interface SMBConfig {
   maxHistory?: number;
-  memoryStore?: import('@cos/memory').IMemoryStore;
+  memoryStore?: IMemoryStore;
 }
 
 export interface SMBEvent {
   type: string;
+  /** Human-readable producer identity; normalized to EntityId at EventBus boundary. */
   source: string;
   payload: unknown;
   graphId?: EntityId;
@@ -44,16 +45,16 @@ export class SMB {
 
   /** Publish an event to the bus */
   async publish(event: SMBEvent): Promise<EntityId> {
+    const metadata: Record<string, string | number | boolean | null> = {};
+    if (event.graphId !== undefined) metadata.graphId = event.graphId;
+    if (event.nodeId !== undefined) metadata.nodeId = event.nodeId;
+
     return this.eventBus.publish({
       type: event.type,
-      source: event.source,
+      source: event.source as EntityId,
       payload: event.payload,
       severity: 'info',
-      metadata: {
-        graphId: event.graphId,
-        nodeId: event.nodeId,
-        ...(event.payload as Record<string, unknown> || {}),
-      },
+      metadata,
     });
   }
 
@@ -63,12 +64,14 @@ export class SMB {
     handler: (event: SMBEvent) => Promise<void> | void,
   ): Promise<string> {
     return this.eventBus.subscribe(type, async (evt) => {
+      const graphIdValue = evt.metadata?.graphId;
+      const nodeIdValue = evt.metadata?.nodeId;
       await handler({
         type: evt.type,
         source: evt.source,
         payload: evt.payload,
-        graphId: evt.metadata?.graphId as string | undefined,
-        nodeId: evt.metadata?.nodeId as string | undefined,
+        graphId: typeof graphIdValue === 'string' ? graphIdValue as EntityId : undefined,
+        nodeId: typeof nodeIdValue === 'string' ? nodeIdValue : undefined,
         timestamp: evt.timestamp,
       });
     });
@@ -87,7 +90,6 @@ export class SMB {
       metadata: { key, savedAt: new Date().toISOString() },
     });
 
-    // Index by key
     if (!this.graphIndex.has(key)) this.graphIndex.set(key, new Set());
     this.graphIndex.get(key)!.add(id);
 
@@ -99,7 +101,6 @@ export class SMB {
     const ids = this.graphIndex.get(key);
     if (!ids || ids.size === 0) return null;
 
-    // Get the most recent
     const idsArr = Array.from(ids);
     const lastId = idsArr[idsArr.length - 1];
     const entry = await this.memoryManager.retrieve(lastId);

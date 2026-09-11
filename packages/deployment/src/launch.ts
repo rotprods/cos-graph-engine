@@ -27,8 +27,16 @@ export async function launch(port: number = 8080) {
   config.setRuntime('server.port', port);
   console.log(`  ${color('🔧', 'blue')} Configuration: ${config.get('server.host')}:${config.get('server.port')}`);
 
-  // ========== COSSERVER ==========
-  const server = new COSServer(config);
+  // `Configuration` is the layered infrastructure config. `COSServer` owns a
+  // deliberately smaller runtime config contract, so adapt explicitly at the
+  // boundary instead of relying on structural casts.
+  const server = new COSServer({
+    host: config.get<string>('server.host') ?? '0.0.0.0',
+    port: config.get<number>('server.port') ?? port,
+    maxMemory: config.get<number>('server.maxMemory') ?? 1024,
+    logLevel: config.get<string>('log.level') ?? 'info',
+    plugins: [],
+  });
   console.log(`  ${color('🧩', 'blue')} Core: EventBus + Scheduler + State + CellHost`);
 
   // ========== REGISTER CELLS ==========
@@ -124,15 +132,15 @@ export async function launch(port: number = 8080) {
   console.log(`  ${color('🔗', 'blue')} Knowledge: 7 statements (architecture, components, relationships)`);
 
   // ========== DEMO DATA: ONTOLOGY ==========
-  await server.ontology.defineClass('CognitiveCell', 'A unit of cognitive computation', null, [
+  const cognitiveCellClassId = await server.ontology.defineClass('CognitiveCell', 'A unit of cognitive computation', undefined, [
     { name: 'id', type: 'string', required: true, description: 'Unique identifier' },
     { name: 'type', type: 'string', required: true, description: 'Cell type' },
     { name: 'memory', type: 'number', required: false, description: 'Memory capacity' },
   ]);
-  await server.ontology.defineClass('ReasoningEngine', 'A reasoning strategy', null, [
+  const reasoningEngineClassId = await server.ontology.defineClass('ReasoningEngine', 'A reasoning strategy', undefined, [
     { name: 'type', type: 'string', required: true, description: 'Engine type enum' },
   ]);
-  await server.ontology.defineRelation('uses', 'Cell uses a reasoning engine', ['CognitiveCell'], ['ReasoningEngine']);
+  await server.ontology.defineRelation('uses', 'Cell uses a reasoning engine', [cognitiveCellClassId], [reasoningEngineClassId]);
   console.log(`  ${color('📐', 'blue')} Ontology: 2 classes, 1 relation`);
 
   // ========== SELF-IMPROVEMENT ==========
@@ -168,8 +176,8 @@ export async function launch(port: number = 8080) {
   console.log(`  ${color('🔧', 'cyan')} Health:          ${color(`http://localhost:${port}/health`, 'cyan')}`);
   console.log(`  ${color('📈', 'cyan')} Stats:           ${color(`http://localhost:${port}/stats`, 'cyan')}`);
   console.log(`  ${color('🧩', 'cyan')} Cells:           ${stats.runtime.cells}`);
-  console.log(`  ${color('💾', 'cyan')} Memory:          ${(stats.memory as any).totalEntries} entries across ${Object.values((stats.memory as any).byLayer || {}).filter((c: any) => c > 0).length} layers`);
-  console.log(`  ${color('🔗', 'cyan')} Knowledge:       ${(stats.knowledge as any).nodeCount || 0} nodes`);
+  console.log(`  ${color('💾', 'cyan')} Memory:          ${stats.memory.totalEntries} entries across ${Object.values(stats.memory.byLayer).filter((count) => typeof count === 'number' && count > 0).length} layers`);
+  console.log(`  ${color('🔗', 'cyan')} Knowledge:       ${stats.knowledge.nodeCount || 0} nodes`);
   console.log(`  ${color('🧠', 'cyan')} Reasoning:       ${stats.reasoning} engines`);
   console.log(`  ${color('🔧', 'cyan')} Tools:           ${stats.tools}`);
   console.log(`  ${color('🤖', 'cyan')} Agents:          ${stats.agents}`);

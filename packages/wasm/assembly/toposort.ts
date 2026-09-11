@@ -1,61 +1,65 @@
 // Topological sort — AssemblyScript
-// Kahn's algorithm for DAG topological ordering
+// Kahn's algorithm using explicit linear-memory ABI.
 
 export function topologicalSort(
-  offsets: StaticArray<u32>,
-  edges: StaticArray<u32>,
-  numNodes: u32,
-  output: StaticArray<u32>
-): u32 {
-  const inDegree = new StaticArray<u32>(numNodes);
-  const queue = new StaticArray<u32>(numNodes);
-  let qHead: u32 = 0;
-  let qTail: u32 = 0;
-  let outIdx: u32 = 0;
+  offsetsPtr: usize,
+  offsetsLen: i32,
+  edgesPtr: usize,
+  edgesLen: i32,
+  outputPtr: usize
+): i32 {
+  const numNodes = offsetsLen - 1;
+  if (numNodes <= 0) return 0;
+  const inDegree = new StaticArray<i32>(numNodes);
+  const queue = new StaticArray<i32>(numNodes);
+  let qHead: i32 = 0;
+  let qTail: i32 = 0;
+  let outIdx: i32 = 0;
 
-  // Compute in-degree
-  for (let node: u32 = 0; node < numNodes; node++) {
-    const start = offsets[node];
-    const end = offsets[node + 1];
+  for (let node: i32 = 0; node < numNodes; node++) {
+    const start = load<i32>(offsetsPtr + node * 4);
+    const end = load<i32>(offsetsPtr + (node + 1) * 4);
     for (let i = start; i < end; i++) {
-      inDegree[edges[i]]++;
+      if (i < 0 || i >= edgesLen) continue;
+      const neighbor = load<i32>(edgesPtr + i * 4);
+      if (neighbor >= 0 && neighbor < numNodes) inDegree[neighbor]++;
     }
   }
 
-  // Enqueue nodes with in-degree 0
-  for (let i: u32 = 0; i < numNodes; i++) {
-    if (inDegree[i] == 0) {
-      queue[qTail++] = i;
-    }
+  for (let i: i32 = 0; i < numNodes; i++) {
+    if (inDegree[i] == 0) queue[qTail++] = i;
   }
 
-  // Process queue
   while (qHead < qTail) {
     const node = queue[qHead++];
-    output[outIdx++] = node;
+    store<i32>(outputPtr + outIdx * 4, node);
+    outIdx++;
 
-    const start = offsets[node];
-    const end = offsets[node + 1];
+    const start = load<i32>(offsetsPtr + node * 4);
+    const end = load<i32>(offsetsPtr + (node + 1) * 4);
     for (let i = start; i < end; i++) {
-      const neighbor = edges[i];
+      if (i < 0 || i >= edgesLen) continue;
+      const neighbor = load<i32>(edgesPtr + i * 4);
+      if (neighbor < 0 || neighbor >= numNodes) continue;
       inDegree[neighbor]--;
-      if (inDegree[neighbor] == 0) {
-        queue[qTail++] = neighbor;
-      }
+      if (inDegree[neighbor] == 0) queue[qTail++] = neighbor;
     }
   }
 
-  // If outIdx < numNodes, there's a cycle (return 0)
   if (outIdx < numNodes) return 0;
   return outIdx;
 }
 
 export function hasCycle(
-  offsets: StaticArray<u32>,
-  edges: StaticArray<u32>,
-  numNodes: u32
+  offsetsPtr: usize,
+  offsetsLen: i32,
+  edgesPtr: usize,
+  edgesLen: i32
 ): bool {
-  const temp = new StaticArray<u32>(numNodes);
-  const result = topologicalSort(offsets, edges, numNodes, temp);
+  const numNodes = offsetsLen - 1;
+  if (numNodes <= 0) return false;
+  const outputPtr = heap.alloc(numNodes * 4);
+  const result = topologicalSort(offsetsPtr, offsetsLen, edgesPtr, edgesLen, outputPtr);
+  heap.free(outputPtr);
   return result == 0;
 }

@@ -1,6 +1,6 @@
 import {
   CogEvent, EventHandler, IEventBus, SubscribeOptions,
-  SubscriptionId, EntityId, Severity,
+  SubscriptionId, EntityId,
 } from '@cos/core';
 import { generateId, generateTraceId, generateSpanId } from '@cos/core';
 
@@ -9,6 +9,14 @@ interface Subscription {
   type: string;
   handler: EventHandler;
   options: SubscribeOptions;
+}
+
+type PublishEventInput = Omit<CogEvent, 'id' | 'timestamp' | 'traceId' | 'spanId'> & {
+  traceId?: string;
+};
+
+function generateSubscriptionId(): SubscriptionId {
+  return `subscription:${generateId()}` as SubscriptionId;
 }
 
 export class EventBus implements IEventBus {
@@ -20,33 +28,25 @@ export class EventBus implements IEventBus {
     this.maxHistory = maxHistory;
   }
 
-  async publish(
-    event: Omit<CogEvent, 'id' | 'timestamp' | 'traceId' | 'spanId'>,
-  ): Promise<EntityId> {
+  async publish(event: PublishEventInput): Promise<EntityId> {
+    const { traceId, ...eventWithoutTrace } = event;
     const fullEvent: CogEvent = {
-      ...event,
+      ...eventWithoutTrace,
       id: generateId(),
       timestamp: new Date().toISOString(),
-      traceId: event.traceId || generateTraceId(),
+      traceId: traceId ?? generateTraceId(),
       spanId: generateSpanId(),
     };
 
-    // Store in history
     this.history.push(fullEvent);
-    if (this.history.length > this.maxHistory) {
-      this.history = this.history.slice(-this.maxHistory);
-    }
+    if (this.history.length > this.maxHistory) this.history = this.history.slice(-this.maxHistory);
 
-    // Dispatch to matching subscribers
     const subscribers = this.subscriptions.get(event.type) || [];
     const wildcardSubscribers = this.subscriptions.get('*') || [];
     const allSubscribers = [...subscribers, ...wildcardSubscribers];
-
-    // Sort by priority (higher first)
     allSubscribers.sort((a, b) => (b.options.priority || 0) - (a.options.priority || 0));
 
     const toRemove: SubscriptionId[] = [];
-
     for (const sub of allSubscribers) {
       try {
         if (sub.options.filter && !sub.options.filter(fullEvent)) continue;
@@ -57,11 +57,7 @@ export class EventBus implements IEventBus {
       }
     }
 
-    // Remove one-time subscriptions
-    for (const id of toRemove) {
-      await this.unsubscribe(id);
-    }
-
+    for (const id of toRemove) await this.unsubscribe(id);
     return fullEvent.id;
   }
 
@@ -70,14 +66,10 @@ export class EventBus implements IEventBus {
     handler: EventHandler,
     options: SubscribeOptions = {},
   ): Promise<SubscriptionId> {
-    const id = generateId() as SubscriptionId;
+    const id = generateSubscriptionId();
     const sub: Subscription = { id, type, handler, options };
-
-    if (!this.subscriptions.has(type)) {
-      this.subscriptions.set(type, []);
-    }
+    if (!this.subscriptions.has(type)) this.subscriptions.set(type, []);
     this.subscriptions.get(type)!.push(sub);
-
     return id;
   }
 
