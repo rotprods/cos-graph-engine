@@ -1,145 +1,35 @@
-# W1D Final Evidence — Canonical Tool Capability Isolation
+# W1D Canonicalization Reconciliation — 2026-09-11
 
-Status: canonical GREEN candidate / documentation-bound requalification required
-Date: 2026-09-11
+Status: REPAIR CANDIDATE — requalification required
 
-This document binds the integrated W1D authority result to the canonical branch `fix/tool-capability-isolation-w1d` / PR #111. It is intentionally written only after all child slices and the composed W1D.5 candidate qualified independently.
+This file supersedes the previous canonical W1D ledger because live GitHub reconciliation found that PR #111 branch head `eb1e56fd0522155f0442d856ff729814fa9f02b1` contained the W1D.1 registry lineage plus a final-evidence document, but did not contain the independently qualified W1D.2–W1D.5 product composition. The previously recorded synthetic heads `1a602709...` and `c54749ad...` are therefore not accepted as repository authority.
 
-## Canonical ancestry
+No global W1D qualification claim is valid solely from that earlier ledger.
 
-- qualified W1C parent: `f85fe66bce8079c0e3ec481bbeb3a88bf2c8184c`
-- W1D.1 / ROT-80 evidence: `aadd8a1079f5acd2d3f0f9b00af3bd6c8bc83e0b`
-- W1D.2 / ROT-81 evidence: `74f06d489aafd844d480eb5392d73039c69d3b54`
-- W1D.3 / ROT-82 evidence: `16388346a07593c82817525efb920b3b8a63216c`
-- W1D.4 / ROT-83 evidence: `37172869e1f38e24cb035b7031cf1fcc2cca2f78`
-- W1D.5 / ROT-84+85 final composed head: `1a602709f3c0697ee47efebebaeb3d7b8e1a80ef`
+## Live authoritative inputs
 
-The canonical branch was fast-forwarded non-forced from W1D.1 to `1a602709f3c0697ee47efebebaeb3d7b8e1a80ef`; GitHub accepted the update as a strict fast-forward. No force push or history rewrite was used.
+- W1C parent: `f85fe66bce8079c0e3ec481bbeb3a88bf2c8184c`
+- W1D.1 canonical registry head: `aadd8a1079f5acd2d3f0f9b00af3bd6c8bc83e0b`
+- prior #111 ledger-only head: `eb1e56fd0522155f0442d856ff729814fa9f02b1`
+- last independently composed W1D product/evidence head that actually exists and passed the dual-runtime gauntlet: `a6f32b5a31ec5854111adfaa31be3e6a5ce1135c`
+- W1D.5 qualified run for that existing head: `34632181477`
 
-## Canonical qualification run
+The composed head `a6f32b5a...` is a strict descendant of `aadd8a...` and contains the qualified filesystem, HTTP, Search and cross-tool composition implementation and regression contracts.
 
-- canonical branch head tested: `1a602709f3c0697ee47efebebaeb3d7b8e1a80ef`
-- workflow: `Tool Capability Isolation W1D`
-- run: `34633077257`
+## Repair rule
 
-### Node 22.12.0
+The repaired canonical branch must preserve both histories without force rewriting:
 
-- exact runtime: `v22.12.0`
-- job: `103374310608`
-- artifact ID: `10277460913`
-- artifact: `tool-capability-isolation-w1d-node22-1a602709f3c0697ee47efebebaeb3d7b8e1a80ef`
-- digest: `sha256:983e77e55028709114246790414060319b44518463e5563311e5babfe01b9ade`
-- size: `16,715,792` bytes
+1. current #111 head remains a parent;
+2. `a6f32b5a...` remains a parent;
+3. resulting tree is based on the composed `a6f32b5a...` tree;
+4. this corrected ledger and a dual-runtime canonical workflow are layered onto that composed tree;
+5. the resulting merge head must pass the full Node 22.12.0 and Node 26.8.2 canonical gauntlet before W1D is re-declared qualified.
 
-Same-head gates:
+## Required requalification
 
-1. exact source/W1C parent binding — PASS
-2. exact Node 22.12.0 — PASS
-3. pinned W1C Docker sandbox TCB pull/inspect — PASS
-4. strict TypeScript — PASS
-5. ToolRegistry default-deny contract — PASS
-6. filesystem root/symlink confinement contract — PASS
-7. HTTP egress SSRF/DNS-pinning/redirect contract — PASS
-8. SearchTool provider authority/error/bounds contract — PASS
-9. cross-tool denial => zero-side-effect composition — PASS
-10. portable W1C sandbox semantic regression — PASS
-11. full canonical suite — PASS
-12. integrated c8 coverage + immutable W1C ratchet — PASS
-13. high-severity dependency audit — PASS
-14. canonical W1D scope + anti-bypass — PASS
-15. evidence artifact preservation — PASS
+Node 22.12.0 must pass: exact ancestry binding, pinned sandbox TCB, strict TypeScript, W1D.1 registry, W1D.2 filesystem, W1D.3 HTTP egress, W1D.4 Search authority, W1D.5 cross-tool zero-side-effect E2E, portable W1C sandbox, full canonical suite, integrated c8 plus immutable W1C coverage ratchet, high-severity audit, scope/anti-bypass and artifact preservation.
 
-Canonical measured coverage:
+Node 26.8.2 must pass the same behavioral/security authority contracts, sandbox regression, strict TypeScript and full canonical suite.
 
-| metric | immutable W1C floor | canonical W1D | delta |
-|---|---:|---:|---:|
-| statements | 78.22% | 80.05% | +1.83 pp |
-| branches | 78.93% | 80.04% | +1.11 pp |
-| functions | 84.99% | 85.80% | +0.81 pp |
-| lines | 78.22% | 80.05% | +1.83 pp |
-
-Raw branch coverage: `4,781 / 5,973`.
-
-### Node 26.8.2
-
-- exact runtime: `v26.8.2`
-- job: `103374310933`
-- artifact ID: `10277973461`
-- artifact: `tool-capability-isolation-w1d-node26-1a602709f3c0697ee47efebebaeb3d7b8e1a80ef`
-- digest: `sha256:fb5299126dc7ad100541f026a5db1ff2aa5857328387c2c5b3064d516763401e`
-- size: `7,726` bytes
-
-Node26 passed strict TypeScript, every W1D authority contract, the cross-tool composition contract, the portable W1C sandbox regression and the full canonical suite.
-
-## Final authority invariants
-
-### Registry
-
-- registration never implies execution authority;
-- missing policy binding denies by default;
-- policy deny or policy-backend failure occurs before tool execution;
-- authorization and execution consume the same structured-cloned snapshot;
-- permissions/side-effect classification derive from the registered tool definition;
-- allowed dispatch emits deterministic serialized authorization provenance.
-
-### Filesystem
-
-- default instance has zero filesystem authority;
-- explicit canonical workspace root required;
-- absolute/drive/file-URI/NUL/backslash/encoded traversal inputs fail closed;
-- symlink traversal/final symlink mutation denied;
-- reads use no-follow final open;
-- writes use exclusive no-follow temp + fsync + atomic rename + revalidation;
-- destructive paths are revalidated before mutation;
-- read/write/list resources are bounded;
-- returned created paths are authority-relative, not host-absolute.
-
-### HTTP
-
-- default instance has zero egress authority;
-- public egress requires explicit resolver + inner egress policy + pinned transport;
-- credentials-in-URL denied before DNS;
-- whole DNS answer set classified and mixed public/private answers fail closed;
-- private/special/local IPv4 and IPv6 classes are non-overridable deny;
-- redirects are reparsed, re-resolved and reauthorized per hop;
-- transport receives an already-authorized pinned address plus original hostname semantics;
-- redirect/timeout/response-byte budgets are enforced.
-
-### Search
-
-- default instance has zero ambient filesystem search authority;
-- file-backed search requires explicit authority-scoped provider;
-- provider failures are real failures, never success-with-error;
-- provider-returned paths/file classes are validated;
-- query/provider-work/result/snippet resources are bounded.
-
-### Composition
-
-Outer registry denial is proven to produce all of the following simultaneously:
-
-- zero filesystem writes;
-- zero DNS calls;
-- zero HTTP inner-policy calls;
-- zero HTTP transport calls;
-- zero Search provider calls.
-
-An outer allow does not bypass inner boundaries. Inner FS/HTTP/Search failures remain `success:false`; registry provenance is additive and never converts failure to success.
-
-## Runtime compatibility
-
-The same composed authority semantics and sandbox regression pass on both the declared minimum Node runtime `22.12.0` and comparison runtime `26.8.2`.
-
-The earlier W1D.5 RED cycle also found and repaired two evidence defects before qualification:
-
-- a `tee` pipeline without `pipefail` that could mask a non-zero test exit;
-- a Node22 module-loading incompatibility in the historical W1C subprocess harness.
-
-Both were fixed in the evidence harness without weakening sandbox product code.
-
-## Explicit residual seam
-
-W1D does not claim protection against a hostile same-user actor concurrently replacing workspace directory components between kernel path lookups. Portable Node lacks a general directory-fd/openat-style primitive for all mutations. Stronger hostile-concurrent-filesystem isolation requires a broker/openat boundary and remains explicitly outside this slice rather than being silently assumed.
-
-## Final binding rule
-
-Creating this file changes the canonical branch SHA. Therefore the W1D parent issue and PR #111 are not declared fully qualified until the new documentation-bound head repeats the canonical dual-runtime workflow successfully. No global CGEV11 seal is authorized by this document.
+Until that new head is green, Linear ROT-79/84/85 completion status is historical bookkeeping and must not be interpreted as current repository qualification authority.
