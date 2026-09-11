@@ -177,15 +177,52 @@ export class HTTPTool implements ITool {
 }
 
 // ================================================================
-// REAL SEARCH TOOL (reads from knowledge graph + filesystem)
+// AUTHORITY-SCOPED SEARCH TOOL
 // ================================================================
+
+export type SearchSource = 'knowledge' | 'memory' | 'files';
+
+export interface SearchProviderAuthority {
+  /** Opaque authority scope identifier; path traversal is never inferred from host CWD. */
+  root: string;
+  /** File-backed providers must declare the file classes they are authorized to return. */
+  allowedExtensions: string[];
+}
+
+export interface SearchProviderMatch {
+  type: string;
+  path: string;
+  content: string;
+  score: number;
+}
+
+export interface SearchProviderRequest {
+  query: string;
+  limit: number;
+  maxSnippetChars: number;
+  context: CellContext;
+}
+
+export interface SearchProvider {
+  id: string;
+  source: SearchSource;
+  authority?: SearchProviderAuthority;
+  search(request: SearchProviderRequest): Promise<SearchProviderMatch[]>;
+}
+
+export interface SearchToolOptions {
+  providers?: SearchProvider[];
+  maxResults?: number;
+  maxSnippetChars?: number;
+  maxQueryChars?: number;
+}
 
 export class SearchTool implements ITool {
   readonly definition: ToolDefinition = {
     id: 'tool:search' as EntityId,
     name: 'search',
-    description: 'Search across knowledge graph, memory, and indexed content',
-    version: { major: 2, minor: 0, patch: 0 },
+    description: 'Search authority-scoped knowledge, memory, and file providers',
+    version: { major: 3, minor: 0, patch: 0 },
     inputSchema: {
       type: 'object',
       properties: {
@@ -203,67 +240,193 @@ export class SearchTool implements ITool {
     retryConfig: { maxRetries: 2, backoffMs: 500 },
   };
 
-  async execute(input: { query: string; source?: string; limit?: number }, context: CellContext): Promise<ToolResult> {
-    void context;
-    const startTime = Date.now();
-    const query = input.query.toLowerCase();
-    const limit = input.limit || 10;
-    const results: Array<{ type: string; path: string; content: string; score: number }> = [];
+  private readonly providers: SearchProvider[];
+  private readonly maxResults: number;
+  private readonly maxSnippetChars: number;
+  private readonly maxQueryChars: number;
 
+  constructor(options: SearchToolOptions = {}) {
+    this.providers = [...(options.providers ?? [])];
+    this.maxResults = boundedPositiveInteger(options.maxResults, 10, 100);
+    this.maxSnippetChars = boundedPositiveInteger(options.maxSnippetChars, 512, 10000);
+    this.maxQueryChars = boundedPositiveInteger(options.maxQueryChars, 4096, 32768);
+  }
+
+  async execute(input: { query: string; source?: string; limit?: number }, context: CellContext): Promise<ToolResult> {
+    const startTime = Date.now();
+    const query = typeof input.query === 'string' ? input.query.trim() : '';
+    if (!query || query.length > this.maxQueryChars) {
+      return this.fail('SEARCH_INPUT_INVALID', `Query must contain 1-${this.maxQueryChars} characters`, startTime, input.source);
+    }
+
+    const source = normalizeSearchSource(input.source);
+    if (!source) {
+      return this.fail('SEARCH_INPUT_INVALID', `Unsupported search source '${String(input.source)}'`, startTime, input.source);
+    }
+
+    if (input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit <= 0)) {
+      return this.fail('SEARCH_INPUT_INVALID', 'Search limit must be a positive integer', startTime, source);
+    }
+    const requestedLimit = input.limit ?? this.maxResults;
+    const limit = Math.min(requestedLimit, this.maxResults);
+    const selectedProviders = source === 'all'
+      ? [...this.providers]
+      : this.providers.filter(provider => provider.source === source);
+
+    if (selectedProviders.length === 0) {
+      return this.fail('SEARCH_AUTHORITY_UNBOUND', `No authority-scoped provider is bound for '${source}'`, startTime, source);
+    }
+
+    let providerContext: CellContext;
     try {
-      if (!input.source || input.source === 'files' || input.source === 'all') {
-        await this.searchDir(path.resolve('.'), query, results, 2);
+      providerContext = structuredClone(context);
+    } catch (error) {
+      return this.fail('SEARCH_INPUT_INVALID', `Search context could not be safely snapshotted: ${errorMessage(error)}`, startTime, source);
+    }
+
+    const results: SearchProviderMatch[] = [];
+    const authorityRoots: string[] = [];
+    const providerIds: string[] = [];
+
+    for (const provider of selectedProviders) {
+      const authorityCheck = validateSearchProviderAuthority(provider);
+      if (authorityCheck) {
+        return this.fail('SEARCH_AUTHORITY_UNBOUND', authorityCheck, startTime, source);
       }
 
-      results.sort((a, b) => b.score - a.score);
-      const topResults = results.slice(0, limit);
+      let matches: SearchProviderMatch[];
+      try {
+        matches = await provider.search({
+          query,
+          limit,
+          maxSnippetChars: this.maxSnippetChars,
+          context: structuredClone(providerContext),
+        });
+      } catch (error) {
+        return this.fail(
+          'SEARCH_PROVIDER_ERROR',
+          `Search provider '${provider.id}' failed closed: ${errorMessage(error)}`,
+          startTime,
+          source,
+        );
+      }
 
-      return {
-        success: true,
-        output: { results: topResults, total: results.length, query: input.query },
-        cost: this.definition.cost,
-        latency: Date.now() - startTime,
-        metadata: { source: input.source || 'all', resultCount: results.length },
-      };
-    } catch (error) {
-      return {
-        success: true,
-        output: { results: [], total: 0, query: input.query, error: (error as Error).message },
-        cost: this.definition.cost,
-        latency: Date.now() - startTime,
-        metadata: { source: input.source || 'all' },
-      };
+      if (!Array.isArray(matches)) {
+        return this.fail('SEARCH_PROVIDER_ERROR', `Search provider '${provider.id}' returned a non-array result`, startTime, source);
+      }
+
+      for (const match of matches.slice(0, limit)) {
+        const violation = validateSearchMatch(provider, match);
+        if (violation) {
+          return this.fail('SEARCH_SCOPE_VIOLATION', violation, startTime, source);
+        }
+        results.push({
+          type: match.type,
+          path: normalizeRelativeProviderPath(match.path),
+          content: match.content.slice(0, this.maxSnippetChars),
+          score: match.score,
+        });
+        if (results.length >= limit) break;
+      }
+
+      providerIds.push(provider.id);
+      if (provider.authority?.root) authorityRoots.push(provider.authority.root);
+      if (results.length >= limit) break;
+    }
+
+    results.sort((a, b) => b.score - a.score);
+    const topResults = results.slice(0, limit);
+    const uniqueRoots = Array.from(new Set(authorityRoots)).sort();
+
+    return {
+      success: true,
+      output: { results: topResults, total: topResults.length, query: input.query },
+      cost: this.definition.cost,
+      latency: Date.now() - startTime,
+      metadata: {
+        source,
+        resultCount: topResults.length,
+        providers: providerIds.join(','),
+        authority: uniqueRoots.join(','),
+      },
+    };
+  }
+
+  private fail(code: string, message: string, startTime: number, source?: string): ToolResult {
+    return {
+      success: false,
+      output: null,
+      cost: this.definition.cost,
+      latency: Date.now() - startTime,
+      error: {
+        id: generateId(),
+        code,
+        message,
+        severity: 'error' as const,
+        timestamp: new Date().toISOString(),
+      },
+      metadata: { source: source ?? 'all' },
+    };
+  }
+}
+
+function normalizeSearchSource(source: string | undefined): SearchSource | 'all' | null {
+  if (source === undefined || source === 'all') return 'all';
+  if (source === 'files' || source === 'knowledge' || source === 'memory') return source;
+  return null;
+}
+
+function boundedPositiveInteger(value: number | undefined, fallback: number, maximum: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isInteger(value) || value <= 0 || value > maximum) {
+    throw new CellError('SEARCH_CONFIG_INVALID', `Search bound must be an integer between 1 and ${maximum}`);
+  }
+  return value;
+}
+
+function validateSearchProviderAuthority(provider: SearchProvider): string | null {
+  if (!provider.id.trim()) return 'Search provider id is required';
+  if (provider.source !== 'files') return null;
+  const authority = provider.authority;
+  if (!authority?.root?.trim()) return `File search provider '${provider.id}' has no bound authority root`;
+  if (!Array.isArray(authority.allowedExtensions) || authority.allowedExtensions.length === 0) {
+    return `File search provider '${provider.id}' has no allowed file classes`;
+  }
+  return null;
+}
+
+function validateSearchMatch(provider: SearchProvider, match: SearchProviderMatch): string | null {
+  if (!match || typeof match.path !== 'string' || typeof match.content !== 'string' || !Number.isFinite(match.score)) {
+    return `Search provider '${provider.id}' returned an invalid match`;
+  }
+
+  const normalizedPath = normalizeRelativeProviderPath(match.path);
+  if (!normalizedPath || normalizedPath === '..' || normalizedPath.startsWith('../') || normalizedPath.startsWith('/') || match.path.includes('\0')) {
+    return `Search provider '${provider.id}' returned an out-of-scope path`;
+  }
+
+  if (provider.source === 'files') {
+    if (match.type !== 'file') return `File search provider '${provider.id}' returned non-file content`;
+    const allowed = new Set((provider.authority?.allowedExtensions ?? []).map(normalizeExtension));
+    const extension = path.posix.extname(normalizedPath).toLowerCase();
+    if (!allowed.has(extension)) {
+      return `Search provider '${provider.id}' returned disallowed file class '${extension || '<none>'}'`;
     }
   }
 
-  private async searchDir(dirPath: string, query: string, results: Array<{ type: string; path: string; content: string; score: number }>, depth: number): Promise<void> {
-    if (depth <= 0) return;
-    try {
-      const entries = await fsp.readdir(dirPath, { withFileTypes: true });
-      for (const entry of entries) {
-        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-        const fullPath = path.join(dirPath, entry.name);
-        if (entry.isDirectory()) {
-          await this.searchDir(fullPath, query, results, depth - 1);
-        } else if (entry.isFile() && entry.name.endsWith('.ts')) {
-          try {
-            const content = await fsp.readFile(fullPath, 'utf-8');
-            const lower = content.toLowerCase();
-            const idx = lower.indexOf(query);
-            if (idx !== -1) {
-              const score = Math.min(1, (query.length / content.length) * 1000);
-              results.push({
-                type: 'file',
-                path: fullPath,
-                content: content.substring(Math.max(0, idx - 100), idx + query.length + 100),
-                score,
-              });
-            }
-          } catch {}
-        }
-      }
-    } catch {}
-  }
+  return null;
+}
+
+function normalizeRelativeProviderPath(input: string): string {
+  const portable = input.replace(/\\/g, '/');
+  if (path.posix.isAbsolute(portable)) return portable;
+  return path.posix.normalize(portable);
+}
+
+function normalizeExtension(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return '';
+  return trimmed.startsWith('.') ? trimmed : `.${trimmed}`;
 }
 
 // ================================================================
