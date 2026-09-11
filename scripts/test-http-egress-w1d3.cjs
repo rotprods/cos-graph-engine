@@ -1,0 +1,169 @@
+const assert = require('node:assert/strict');
+const http = require('node:http');
+
+async function main() {
+  const { HTTPTool } = await import('../packages/execution/src/tool-runtime.ts');
+  const context = { traceId: 'w1d3-http-egress' };
+
+  function expectFailure(result, code) {
+    assert.equal(result.success, false, `expected ${code} to fail closed`);
+    assert.equal(result.error?.code, code, `expected ${code}, got ${result.error?.code}`);
+  }
+
+  // 1. Default HTTPTool has zero ambient egress authority.
+  let loopbackHits = 0;
+  const server = http.createServer((_req, res) => {
+    loopbackHits += 1;
+    res.statusCode = 200;
+    res.end('loopback reached');
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  try {
+    const address = server.address();
+    const port = typeof address === 'object' && address ? address.port : 0;
+    const unbound = new HTTPTool();
+    const result = await unbound.execute({ method: 'GET', url: `http://127.0.0.1:${port}/metadata` }, context);
+    expectFailure(result, 'HTTP_EGRESS_UNBOUND');
+    assert.equal(loopbackHits, 0, 'unbound HTTPTool must not emit a loopback request');
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+
+  const allow = async () => ({ allowed: true, policyRef: 'policy:test-public-egress' });
+
+  // 2. Private resolution is denied even when policy hook says allow.
+  let privateTransportCalls = 0;
+  const privateTool = new HTTPTool({
+    resolve: async () => [{ address: '10.0.0.7', family: 4 }],
+    authorize: allow,
+    transport: async () => {
+      privateTransportCalls += 1;
+      return { statusCode: 200, headers: {}, body: 'should-not-run' };
+    },
+  });
+  const privateResult = await privateTool.execute({ method: 'GET', url: 'https://private.test/' }, context);
+  expectFailure(privateResult, 'HTTP_EGRESS_DENIED');
+  assert.equal(privateTransportCalls, 0);
+
+  // 3. Explicit policy denial and policy backend failure both happen before transport.
+  let deniedTransportCalls = 0;
+  const denied = new HTTPTool({
+    resolve: async () => [{ address: '93.184.216.34', family: 4 }],
+    authorize: async () => ({ allowed: false, policyRef: 'policy:deny' }),
+    transport: async () => {
+      deniedTransportCalls += 1;
+      return { statusCode: 200, headers: {}, body: '' };
+    },
+  });
+  const deniedResult = await denied.execute({ method: 'GET', url: 'https://public.test/' }, context);
+  expectFailure(deniedResult, 'HTTP_EGRESS_DENIED');
+  assert.equal(deniedTransportCalls, 0);
+
+  const authFailure = new HTTPTool({
+    resolve: async () => [{ address: '93.184.216.34', family: 4 }],
+    authorize: async () => { throw new Error('policy backend unavailable'); },
+    transport: async () => {
+      deniedTransportCalls += 1;
+      return { statusCode: 200, headers: {}, body: '' };
+    },
+  });
+  const authFailureResult = await authFailure.execute({ method: 'GET', url: 'https://public.test/' }, context);
+  expectFailure(authFailureResult, 'HTTP_EGRESS_AUTHORIZATION_FAILED');
+  assert.equal(deniedTransportCalls, 0);
+
+  // 4. Public egress uses the resolver-authorized IP directly; transport must not re-resolve hostname.
+  let pinnedRequest;
+  const publicTool = new HTTPTool({
+    resolve: async hostname => {
+      assert.equal(hostname, 'public.test');
+      return [{ address: '93.184.216.34', family: 4 }];
+    },
+    authorize: allow,
+    transport: async request => {
+      pinnedRequest = request;
+      return { statusCode: 200, headers: { 'content-type': 'text/plain' }, body: 'public-ok' };
+    },
+  });
+  const publicResult = await publicTool.execute({ method: 'GET', url: 'https://public.test/path' }, context);
+  assert.equal(publicResult.success, true);
+  assert.equal(publicResult.output.body, 'public-ok');
+  assert.equal(pinnedRequest.hostname, 'public.test');
+  assert.equal(pinnedRequest.address, '93.184.216.34');
+  assert.equal(pinnedRequest.family, 4);
+
+  // 5. Redirects are never transport-followed implicitly: every hop must re-resolve and re-authorize.
+  let redirectTransportCalls = 0;
+  const redirectTool = new HTTPTool({
+    resolve: async hostname => hostname === 'public.test'
+      ? [{ address: '93.184.216.34', family: 4 }]
+      : [{ address: '127.0.0.1', family: 4 }],
+    authorize: allow,
+    transport: async request => {
+      redirectTransportCalls += 1;
+      if (request.hostname === 'public.test') {
+        return { statusCode: 302, headers: { location: 'http://internal.test/admin' }, body: '' };
+      }
+      throw new Error('redirect target transport must never execute');
+    },
+  });
+  const redirectResult = await redirectTool.execute({ method: 'GET', url: 'https://public.test/start' }, context);
+  expectFailure(redirectResult, 'HTTP_EGRESS_DENIED');
+  assert.equal(redirectTransportCalls, 1, 'private redirect must be denied before second-hop transport');
+
+  // 6. Credentials in URL and mixed public/private DNS answers are denied before transport.
+  let credentialResolveCalls = 0;
+  const credentialTool = new HTTPTool({
+    resolve: async () => {
+      credentialResolveCalls += 1;
+      return [{ address: '93.184.216.34', family: 4 }];
+    },
+    authorize: allow,
+    transport: async () => ({ statusCode: 200, headers: {}, body: '' }),
+  });
+  const credentialResult = await credentialTool.execute({ method: 'GET', url: 'https://user:pass@public.test/' }, context);
+  expectFailure(credentialResult, 'HTTP_EGRESS_DENIED');
+  assert.equal(credentialResolveCalls, 0);
+
+  let mixedTransportCalls = 0;
+  const mixedTool = new HTTPTool({
+    resolve: async () => [
+      { address: '93.184.216.34', family: 4 },
+      { address: '169.254.169.254', family: 4 },
+    ],
+    authorize: allow,
+    transport: async () => {
+      mixedTransportCalls += 1;
+      return { statusCode: 200, headers: {}, body: '' };
+    },
+  });
+  const mixedResult = await mixedTool.execute({ method: 'GET', url: 'https://mixed.test/' }, context);
+  expectFailure(mixedResult, 'HTTP_EGRESS_DENIED');
+  assert.equal(mixedTransportCalls, 0);
+
+  // 7. Response and timeout budgets are enforced by the tool contract.
+  let budgetRequest;
+  const budgetTool = new HTTPTool({
+    resolve: async () => [{ address: '93.184.216.34', family: 4 }],
+    authorize: allow,
+    maxResponseBytes: 32,
+    maxTimeoutMs: 500,
+    transport: async request => {
+      budgetRequest = request;
+      return { statusCode: 200, headers: {}, body: 'x'.repeat(33) };
+    },
+  });
+  const budgetResult = await budgetTool.execute({ method: 'GET', url: 'https://public.test/', timeout: 50000 }, context);
+  expectFailure(budgetResult, 'HTTP_RESPONSE_TOO_LARGE');
+  assert.equal(budgetRequest.timeout, 500);
+  assert.equal(budgetRequest.maxResponseBytes, 32);
+
+  console.log('W1D.3 HTTP egress SSRF/pinning/redirect contract: 12/12 PASS');
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});
