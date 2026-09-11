@@ -16,64 +16,75 @@ Replace both in-process JavaScript execution paths with one fail-closed executio
 4. `networkAccess`, `filesystemAccess`, `allowedModules`, `maxMemory` and `maxCpu` are declarative fields without an enforcement boundary.
 5. `packages/execution/src/tool-runtime.ts` contains a second `CodeSandbox` based on `node:vm`.
 6. Node documents `node:vm` as a context mechanism, not a security mechanism for untrusted code.
-7. The two implementations can drift and provide contradictory security semantics.
+7. Node 26 also documents its Permission Model as a defence-in-depth / accidental-access control, **not** a hostile-code security boundary. W1C therefore may not certify a child Node process merely because `--permission` is enabled.
+8. The two implementations can drift and provide contradictory security semantics.
 
 ## W1C security contract
 
-The first accepted profile is intentionally narrow:
+The first accepted profile is intentionally narrow and uses a real OS/container boundary:
 
 - JavaScript only.
-- dedicated child Node process per execution;
-- empty/minimal child environment (no inherited application secrets);
-- Node Permission Model enabled;
-- no filesystem capability;
-- no network capability;
-- no child-process capability;
-- no worker capability;
-- no addons/WASI capability;
-- no module imports/requires;
+- one ephemeral Docker container per execution;
+- no host bind mounts;
+- empty/minimal container environment (no inherited application secrets);
+- `--network=none`;
+- read-only container root filesystem;
+- all Linux capabilities dropped;
+- `no-new-privileges` enabled;
+- bounded PID count;
+- Docker memory and CPU quotas derived from sandbox config;
+- bounded writable tmpfs only where runtime mechanics require it, with `nosuid`/`noexec` where compatible;
+- Node Permission Model enabled **inside the container as defence in depth**, not as the primary isolation claim;
+- no filesystem/network/child-process/worker/addon/WASI grants to the sandboxed Node process;
+- no arbitrary npm module imports/requires exposed to user code;
 - V8 string/wasm code generation disabled inside the execution context;
-- parent-enforced hard wall timeout with process termination;
-- V8 old-space limit derived from `maxMemory`;
-- bounded protocol/stdout/stderr collection;
+- parent-enforced hard wall timeout plus forced container removal;
+- bounded protocol/stdout/stderr collection with forced termination on overflow;
 - no global console mutation in the COS host;
 - one canonical `CodeSandbox` implementation exported by `@cos/execution`.
 
 Capability requests that this slice cannot safely enforce are rejected rather than silently granted.
 
-## Runtime compatibility boundary
+## Runtime / host compatibility boundary
 
-Network denial was not part of the Node Permission Model in the repository's historical Node 22.12 baseline. W1C therefore must not claim secure network denial on a runtime that cannot enforce it. The sandbox runtime will fail closed when the running Node version is below the minimum permission-model version required by this implementation.
+W1C is **fail closed** when a compatible Docker engine is unavailable. It must never fall back to `new Function`, same-process `node:vm`, an unrestricted child process, or a weakened local execution mode.
 
-This is preferable to executing untrusted code under a false security claim.
+The container image/runtime is an explicit part of the security TCB and must be version-pinned in code/evidence. CI qualification runs against the same declared sandbox image contract.
 
 ## Explicit non-claims
 
 W1C does **not** claim:
 
-- kernel/container-grade hostile multi-tenant isolation;
-- seccomp/AppArmor/SELinux/macOS Sandbox parity;
-- precise kernel CPU quota accounting (`maxCpu` is a hard execution budget, not cgroup CPU accounting);
-- RSS-hard memory cgroups (V8 heap is bounded; parent/OS overhead is separate);
+- VM/microVM-grade hostile multi-tenant isolation;
+- immunity to Docker/kernel/container-runtime vulnerabilities;
+- perfect seccomp/AppArmor/SELinux equivalence on every host OS;
 - safe arbitrary npm package loading;
-- safe filesystem/network grants;
-- Python/Bash execution.
+- safe host filesystem/network grants;
+- Python/Bash execution;
+- multi-tenant side-channel resistance.
 
-A future container/namespace backend can strengthen these without weakening this default-deny contract.
+Docker quotas provide materially stronger resource enforcement than the parent implementation, but W1C still records wall-clock timeout separately from CPU quota and reports memory usage conservatively.
+
+A future gVisor/Kata/Firecracker/rootless-worker backend can strengthen the same adapter contract without weakening the default-deny semantics.
 
 ## Required RED→GREEN evidence
 
 The W1C gate must prove at least:
 
 - parent host globals remain unchanged;
+- parent host prototypes remain unchanged;
+- host console is not monkey-patched even when untrusted code throws;
 - synchronous infinite loops are terminated;
 - unresolved async execution is terminated;
 - output flooding is bounded and terminates execution;
 - `eval` / `Function` code generation is blocked;
-- `process`, `require`, module loading and inherited secrets are unavailable to sandbox code;
+- `process`, `require`, module loading and inherited secrets are unavailable to user code;
+- container has no network;
+- container cannot see host filesystem through an implicit mount;
 - capability-enable requests fail closed;
 - unsupported languages fail closed;
+- Docker-unavailable path fails closed;
 - simple deterministic JavaScript still executes and returns output/result;
-- all existing repository regressions and the W1B floor remain green.
+- all existing repository regressions and the W1B coverage floor remain green.
 
 No production/main mutation is authorized by this claim.
