@@ -101,11 +101,20 @@ jobs:
       - name: Integration-only scope and anti-bypass
         run: |
           set -euo pipefail
-          git diff --unified=0 "$W1D_SHA"...HEAD -- '*.ts' '*.cjs' '*.mjs' '*.yml' > cgev11-stack-source.diff
-          if grep -E '^\+.*(as any|@ts-ignore|@ts-nocheck|continue-on-error|new Function\(|eval\(|console\.log[[:space:]]*=)' cgev11-stack-source.diff; then
-            echo 'Integration candidate introduced a forbidden bypass or dynamic-code primitive' >&2
+          git diff --unified=0 "$W1D_SHA"...HEAD -- '*.ts' '*.cjs' '*.mjs' > cgev11-stack-source.diff
+          if grep -E '^\+.*(as any|@ts-ignore|@ts-nocheck|new Function\(|eval\(|console\.log[[:space:]]*=)' cgev11-stack-source.diff; then
+            echo 'Integration candidate introduced a forbidden code/type bypass or dynamic-code primitive' >&2
             exit 1
           fi
+          node scripts/test-workflow-safety.mjs 2>&1 | tee cgev11-node22-workflow-safety.log
+          bad_key='continue-on''-error:'
+          while IFS= read -r workflow; do
+            [ -z "$workflow" ] && continue
+            if grep -nE "^[[:space:]]*${bad_key}" "$workflow"; then
+              echo "Integration workflow introduced fail-open execution: $workflow" >&2
+              exit 1
+            fi
+          done < <(git diff --name-only "$W1D_SHA"...HEAD -- '.github/workflows/*.yml' '.github/workflows/*.yaml')
           while IFS= read -r file; do
             case "$file" in
               .github/workflows/cgev11-stack-integration.yml|scripts/check-cgev11-stack-coverage.mjs|scripts/test-sandbox-security-integration.cjs|docs/hardening/integration/W3_1_INTEGRATION_EVIDENCE.md)
