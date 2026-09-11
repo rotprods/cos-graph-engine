@@ -405,7 +405,7 @@ export class ToolRegistry {
       ...result,
       metadata: {
         ...result.metadata,
-        authorization: receipt,
+        authorization: JSON.stringify(receipt),
       },
     };
   }
