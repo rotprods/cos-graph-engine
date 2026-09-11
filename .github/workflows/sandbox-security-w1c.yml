@@ -10,7 +10,9 @@ on:
       - 'packages/execution/src/tool-runtime.ts'
       - 'scripts/test-sandbox-security-w1c.cjs'
       - 'scripts/test-sandbox-security-w1c-hardening.cjs'
+      - 'scripts/test-execution-public-boundary-w1c.cjs'
       - 'scripts/check-w1c-coverage-ratchet.mjs'
+      - 'package.json'
       - '.github/workflows/sandbox-security-w1c.yml'
       - 'docs/hardening/sandbox-security/**'
   workflow_dispatch: {}
@@ -85,7 +87,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              packages/execution/src/sandbox.ts|packages/execution/src/tool-runtime.ts|scripts/test-sandbox-security-w1c.cjs|scripts/test-sandbox-security-w1c-hardening.cjs|scripts/check-w1c-coverage-ratchet.mjs|.github/workflows/sandbox-security-w1c.yml|docs/hardening/sandbox-security/W1C_CLAIM.md|docs/hardening/sandbox-security/W1C_RED_EVIDENCE.md|docs/hardening/sandbox-security/W1C_GREEN_EVIDENCE.md)
+              packages/execution/src/sandbox.ts|packages/execution/src/tool-runtime.ts|scripts/test-sandbox-security-w1c.cjs|scripts/test-sandbox-security-w1c-hardening.cjs|scripts/test-execution-public-boundary-w1c.cjs|scripts/check-w1c-coverage-ratchet.mjs|package.json|.github/workflows/sandbox-security-w1c.yml|docs/hardening/sandbox-security/W1C_CLAIM.md|docs/hardening/sandbox-security/W1C_RED_EVIDENCE.md|docs/hardening/sandbox-security/W1C_GREEN_EVIDENCE.md)
                 ;;
               *)
                 echo "Unexpected W1C scope mutation: $file" >&2
