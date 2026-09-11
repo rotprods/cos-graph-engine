@@ -1,0 +1,100 @@
+name: Graphify Snapshot V1
+
+on:
+  push:
+    branches: [feat/graphify-snapshot-v1]
+  pull_request:
+    branches: [fix/sandbox-security-w1c]
+    paths:
+      - 'packages/graph/src/graphify-snapshot.ts'
+      - 'packages/graph/src/index.ts'
+      - 'scripts/test-graphify-snapshot-v1.cjs'
+      - 'scripts/check-graphify-v1-coverage-ratchet.mjs'
+      - '.github/workflows/graphify-snapshot-v1.yml'
+      - 'docs/graphify/**'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: graphify-snapshot-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '26.8.2'
+  GRAPHIFY_PARENT_SHA: 'f85fe66bce8079c0e3ec481bbeb3a88bf2c8184c'
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact source SHA
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git cat-file -e "${GRAPHIFY_PARENT_SHA}^{commit}"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Strict TypeScript
+        run: npx --no-install tsc --noEmit
+      - name: Graphify snapshot contract
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-graphify-snapshot-v1.cjs 2>&1 | tee graphify-v1.log
+      - name: Full canonical test suite
+        run: |
+          set -euo pipefail
+          npm run test:all 2>&1 | tee graphify-test-all.log
+      - name: Integrated coverage corpus
+        run: |
+          set -euo pipefail
+          npm run asbuild
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node --import tsx scripts/test-graphify-snapshot-v1.cjs' 2>&1 | tee graphify-coverage.log
+      - name: Coverage ratchet against exact W1C floor
+        run: node scripts/check-graphify-v1-coverage-ratchet.mjs
+      - name: High-severity dependency audit
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=high 2>&1 | tee graphify-npm-audit.log
+      - name: Scope and anti-bypass policy
+        run: |
+          set -euo pipefail
+          git diff --unified=0 "$GRAPHIFY_PARENT_SHA"...HEAD -- '*.ts' > graphify-source.diff
+          if grep -E '^\+.*(as any|@ts-ignore|@ts-nocheck|continue-on-error)' graphify-source.diff; then
+            echo 'Graphify V1 introduced a forbidden bypass' >&2
+            exit 1
+          fi
+          while IFS= read -r file; do
+            case "$file" in
+              packages/graph/src/graphify-snapshot.ts|packages/graph/src/index.ts|scripts/test-graphify-snapshot-v1.cjs|scripts/check-graphify-v1-coverage-ratchet.mjs|.github/workflows/graphify-snapshot-v1.yml|docs/graphify/GRAPHIFY_SNAPSHOT_V1_CLAIM.md|docs/graphify/GRAPHIFY_SNAPSHOT_V1_RED_EVIDENCE.md|docs/graphify/GRAPHIFY_SNAPSHOT_V1_GREEN_EVIDENCE.md)
+                ;;
+              *)
+                echo "Unexpected Graphify V1 scope mutation: $file" >&2
+                exit 1
+                ;;
+            esac
+          done < <(git diff --name-only "$GRAPHIFY_PARENT_SHA"...HEAD)
+      - name: Preserve Graphify V1 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: graphify-snapshot-v1-${{ github.sha }}
+          path: |
+            graphify-v1.log
+            graphify-test-all.log
+            graphify-coverage.log
+            graphify-v1-coverage-ratchet.json
+            graphify-npm-audit.log
+            graphify-source.diff
+            coverage/
+          if-no-files-found: warn
