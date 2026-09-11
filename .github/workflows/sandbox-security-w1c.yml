@@ -10,7 +10,6 @@ on:
       - 'packages/execution/src/tool-runtime.ts'
       - 'scripts/test-sandbox-security-w1c.cjs'
       - 'scripts/check-w1c-coverage-ratchet.mjs'
-      - 'package.json'
       - '.github/workflows/sandbox-security-w1c.yml'
       - 'docs/hardening/sandbox-security/**'
   workflow_dispatch: {}
@@ -25,11 +24,12 @@ concurrency:
 env:
   NODE_VERSION: '26.8.2'
   W1C_PARENT_SHA: '08c90d11d850f7c4f0c95702a4d0a541a1cf5e02'
+  W1C_SANDBOX_IMAGE: 'node@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868'
 
 jobs:
   qualify:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -46,6 +46,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify and pre-pull sandbox TCB
+        run: |
+          set -euo pipefail
+          docker version 2>&1 | tee w1c-docker-version.log
+          docker pull "$W1C_SANDBOX_IMAGE" 2>&1 | tee w1c-sandbox-image-pull.log
+          docker image inspect "$W1C_SANDBOX_IMAGE" --format '{{json .RepoDigests}}' | tee w1c-sandbox-image-inspect.log
       - name: Strict TypeScript
         run: npx --no-install tsc --noEmit
       - name: W1C sandbox security contract
@@ -56,10 +62,11 @@ jobs:
         run: |
           set -euo pipefail
           npm run test:all 2>&1 | tee w1c-test-all.log
-      - name: Unified coverage corpus
+      - name: Integrated canonical + W1C coverage corpus
         run: |
           set -euo pipefail
-          npm run coverage 2>&1 | tee w1c-coverage.log
+          npm run asbuild
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node scripts/test-sandbox-security-w1c.cjs' 2>&1 | tee w1c-coverage.log
       - name: Ratchet against exact W1B coverage
         run: node scripts/check-w1c-coverage-ratchet.mjs
       - name: High-severity dependency audit
@@ -76,7 +83,7 @@ jobs:
           fi
           while IFS= read -r file; do
             case "$file" in
-              packages/execution/src/sandbox.ts|packages/execution/src/tool-runtime.ts|scripts/test-sandbox-security-w1c.cjs|scripts/check-w1c-coverage-ratchet.mjs|.github/workflows/sandbox-security-w1c.yml|package.json|docs/hardening/sandbox-security/W1C_CLAIM.md|docs/hardening/sandbox-security/W1C_RED_EVIDENCE.md)
+              packages/execution/src/sandbox.ts|packages/execution/src/tool-runtime.ts|scripts/test-sandbox-security-w1c.cjs|scripts/check-w1c-coverage-ratchet.mjs|.github/workflows/sandbox-security-w1c.yml|docs/hardening/sandbox-security/W1C_CLAIM.md|docs/hardening/sandbox-security/W1C_RED_EVIDENCE.md|docs/hardening/sandbox-security/W1C_GREEN_EVIDENCE.md)
                 ;;
               *)
                 echo "Unexpected W1C scope mutation: $file" >&2
@@ -90,6 +97,9 @@ jobs:
         with:
           name: sandbox-security-w1c-${{ github.sha }}
           path: |
+            w1c-docker-version.log
+            w1c-sandbox-image-pull.log
+            w1c-sandbox-image-inspect.log
             w1c-sandbox-security.log
             w1c-test-all.log
             w1c-coverage.log
