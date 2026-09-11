@@ -1,6 +1,6 @@
 # W3.1 Clean-room Integration Evidence
 
-Status: FIRST WHOLE-STACK GREEN — documentation-bound successor must requalify
+Status: RECOVERY CONTROL UPDATED — final documentation-bound successor must requalify
 
 Date: 2026-09-11
 
@@ -19,7 +19,7 @@ Parent W3 remains blocked by W2. This ledger is integration evidence only; it is
 - #110 W1C sandbox: `f85fe66bce8079c0e3ec481bbeb3a88bf2c8184c`
 - #111 final live W1D: `5a0b4b2a0b97794ac8cf7feb7ca9ed26bde15c25`
 - first fully GREEN integration-control head: `6e1ecc3179d17f791dedf630d578ba2852d4eadc`
-- PR #116 synthetic merge checkout: `3ba1ad1cb29c942f639fd2141abfe5496d2f0896`
+- first GREEN PR #116 synthetic merge checkout: `3ba1ad1cb29c942f639fd2141abfe5496d2f0896`
 
 Verified ancestry before integration was strictly linear: #103→#109 = +12/0 behind; #109→#110 = +27/0; #110→#111 = +21/0. The integration branch was created from exact final W1D and contains no qualified product-code mutation.
 
@@ -30,6 +30,7 @@ Above final W1D, W3.1 adds only integration control/evidence:
 - `.github/workflows/cgev11-stack-integration.yml`
 - `scripts/check-cgev11-stack-coverage.mjs`
 - `scripts/test-sandbox-security-integration.cjs`
+- `scripts/test-sandbox-coverage-integration.cjs`
 - this evidence ledger
 
 The original #103 `.github/workflows/ci.yml` is not forked or weakened. Because PR #116 targets `main`, the original `COS Main Convergence Gate` runs unchanged on the same PR synthetic merge checkout.
@@ -71,6 +72,14 @@ Repair: the integration harness now uses the repository-standard `node --import 
 Once coverage and audit were green, the strict code regex interpreted `console.log === before` as an assignment to `console.log`.
 
 Repair: the identity assertion now uses `Object.is(console.log, before)`. The anti-bypass detector was not weakened.
+
+### RED 6 — coverage instrumentation perturbed strict sandbox timing
+
+After the first complete GREEN was bound into this ledger, documentation-bound requalification reproduced a coverage-only failure while Node26 and every non-instrumented Node22 security/functional contract remained green.
+
+Inside the c8 corpus, `test-sandbox-security-w1d5.cjs` reached the protocol-framing check with the original strict 500ms sandbox wall-clock budget. c8/tsx instrumentation overhead pushed Docker startup/execution past that budget and returned `SANDBOX_TIMEOUT`. Because the corpus is fail-closed and chained with `&&`, later W1D authority tests were correctly not executed, which caused the coverage report to lose roughly 820 covered `tool-runtime.ts` lines and 447 branches. This was not treated as a product or threshold failure.
+
+Repair: strict W1D5 timing/security semantics remain unchanged and mandatory outside c8. Instrumented coverage now uses `scripts/test-sandbox-coverage-integration.cjs`, which exercises the sandbox authority and failure families with deliberately larger wall-clock budgets suitable for instrumented execution. The regular portable security harness continues to own the real strict timing claim. `sandbox.ts`, the coverage floor and executable-code inclusion remain unchanged.
 
 ## First complete GREEN — original #103 convergence gate
 
@@ -126,9 +135,7 @@ Node22 passed exact lineage binding, Node `22.12.0`, pinned W1C Docker TCB, stri
 
 Node26 passed the corresponding durability/security/authority compatibility matrix plus strict TypeScript and full canonical suite.
 
-## Integrated coverage
-
-The first fully GREEN Node22 stack artifact reports:
+## Integrated coverage from first complete GREEN
 
 | Metric | Final W1D floor | W3.1 measured | Delta |
 | --- | ---: | ---: | ---: |
@@ -143,7 +150,7 @@ No threshold lowering, source exclusion, compiler relaxation, `continue-on-error
 
 ## Candidate properties proven
 
-The same PR synthetic merge checkout has now demonstrated, as one unit:
+The first complete GREEN PR synthetic merge checkout demonstrated, as one unit:
 
 1. #103 workflow/contract safety;
 2. auth/config/memory quality-core;
@@ -159,10 +166,10 @@ The same PR synthetic merge checkout has now demonstrated, as one unit:
 
 PR #116 is mergeable at the Git level, but that fact is not an authorization to merge.
 
-## Evidence-binding rule
+## Final evidence-binding rule
 
-This ledger is committed only after the product/control head `6e1ecc31...` passed both workflows. The documentation commit necessarily creates a new branch SHA and therefore is not automatically qualified by the runs above.
+The integration branch now includes the full RED 1–6 record plus the coverage-instrumentation split. The successor containing this updated ledger, workflow and coverage harness must repeat both the unchanged #103 convergence gate and the recovery-stack gate completely.
 
-The documentation-bound successor must repeat both the unchanged #103 convergence gate and the recovery-stack gate completely. Only after both aggregates are GREEN on that successor may ROT-86 be marked Done as a prequalified integration candidate.
+Only after both aggregates are GREEN on that final successor may ROT-86 be marked Done as a prequalified integration candidate. Final successor SHA, final workflow runs/jobs, artifacts/digests and measured coverage are recorded in PR #116 and Linear after requalification, avoiding an infinite evidence-document commit loop.
 
 Even after W3.1 qualification, PR #116 remains draft and unmerged while parent W3 is blocked by W2. No `main` merge, production certification or global CGEV11 verification seal is implied.
