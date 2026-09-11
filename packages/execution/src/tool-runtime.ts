@@ -280,13 +280,56 @@ export type { SandboxConfig, CodeExecutionResult } from './sandbox';
 // TOOL REGISTRY
 // ================================================================
 
+export interface ToolAuthorizationRequest {
+  name: string;
+  definition: ToolDefinition;
+  input: unknown;
+  context: CellContext;
+  permissions: ToolDefinition['permissions'];
+  sideEffecting: boolean;
+}
+
+export interface ToolAuthorizationDecision {
+  allowed: boolean;
+  reason?: string;
+  policyRefs?: string[];
+}
+
+export type ToolAuthorizationHook = (
+  request: ToolAuthorizationRequest,
+) => ToolAuthorizationDecision | Promise<ToolAuthorizationDecision>;
+
+export interface ToolRegistryOptions {
+  /** Built-ins remain discoverable by default; registration is not execution authority. */
+  registerBuiltins?: boolean;
+  /** Missing authorization is intentionally fail-closed. */
+  authorize?: ToolAuthorizationHook;
+}
+
+export interface ToolAuthorizationReceipt {
+  schemaVersion: 1;
+  capability: string;
+  toolId: EntityId;
+  toolVersion: ToolDefinition['version'];
+  traceId: string;
+  permissions: ToolDefinition['permissions'];
+  sideEffecting: boolean;
+  decision: 'allow';
+  reason: string | null;
+  policyRefs: string[];
+}
+
 export class ToolRegistry {
   private tools: Map<string, ITool> = new Map();
+  private readonly authorize?: ToolAuthorizationHook;
 
-  constructor() {
-    this.register(new FileSystemTool());
-    this.register(new HTTPTool());
-    this.register(new SearchTool());
+  constructor(options: ToolRegistryOptions = {}) {
+    this.authorize = options.authorize;
+    if (options.registerBuiltins ?? true) {
+      this.register(new FileSystemTool());
+      this.register(new HTTPTool());
+      this.register(new SearchTool());
+    }
   }
 
   register(tool: ITool): void { this.tools.set(tool.definition.name, tool); }
@@ -296,8 +339,86 @@ export class ToolRegistry {
   async execute(name: string, input: unknown, context: CellContext): Promise<ToolResult> {
     const tool = this.tools.get(name);
     if (!tool) throw new CellError('TOOL_NOT_FOUND', `Tool '${name}' not registered`);
-    return tool.execute(input, context);
+    if (!this.authorize) {
+      throw new CellError(
+        'TOOL_CAPABILITY_DENIED',
+        `Tool '${name}' has no bound authorization policy`,
+      );
+    }
+
+    let boundInput: unknown;
+    let boundContext: CellContext;
+    let definition: ToolDefinition;
+    try {
+      boundInput = structuredClone(input);
+      boundContext = structuredClone(context);
+      definition = structuredClone(tool.definition);
+    } catch (error) {
+      throw new CellError(
+        'TOOL_CAPABILITY_INPUT_INVALID',
+        `Tool '${name}' authorization input could not be safely snapshotted: ${errorMessage(error)}`,
+      );
+    }
+
+    const permissions = [...definition.permissions];
+    const sideEffecting = permissions.some(permission =>
+      permission === 'write' || permission === 'execute' || permission === 'admin');
+
+    let decision: ToolAuthorizationDecision;
+    try {
+      decision = await this.authorize({
+        name,
+        definition,
+        input: boundInput,
+        context: boundContext,
+        permissions,
+        sideEffecting,
+      });
+    } catch (error) {
+      throw new CellError(
+        'TOOL_CAPABILITY_AUTHORIZATION_FAILED',
+        `Tool '${name}' authorization failed closed: ${errorMessage(error)}`,
+      );
+    }
+
+    if (!decision || decision.allowed !== true) {
+      const reason = decision?.reason?.trim() || 'authorization denied';
+      throw new CellError('TOOL_CAPABILITY_DENIED', `Tool '${name}' denied: ${reason}`);
+    }
+
+    const policyRefs = normalizePolicyRefs(decision.policyRefs);
+    const receipt: ToolAuthorizationReceipt = {
+      schemaVersion: 1,
+      capability: name,
+      toolId: definition.id,
+      toolVersion: structuredClone(definition.version),
+      traceId: boundContext.traceId,
+      permissions: [...permissions],
+      sideEffecting,
+      decision: 'allow',
+      reason: decision.reason?.trim() || null,
+      policyRefs,
+    };
+
+    const result = await tool.execute(boundInput, boundContext);
+    return {
+      ...result,
+      metadata: {
+        ...result.metadata,
+        authorization: receipt,
+      },
+    };
   }
 
   getDefinitions(): ToolDefinition[] { return this.getAll().map(t => t.definition); }
+}
+
+function normalizePolicyRefs(input: string[] | undefined): string[] {
+  if (!input) return [];
+  const refs = input.map(value => value.trim()).filter(Boolean);
+  return Array.from(new Set(refs)).sort();
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
