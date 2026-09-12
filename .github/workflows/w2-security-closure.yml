@@ -87,18 +87,11 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/test-workflow-safety.mjs 2>&1 | tee w2-node22-workflow-safety.log
+          node scripts/check-w2-production-security.mjs 2>&1 | tee w2-node22-production-security.log
           git diff --unified=0 "$W3_1_BASE_SHA"...HEAD -- 'packages/**/*.ts' 'packages/**/*.js' > w2-production.diff
-          if grep -E '^\+.*(as any|@ts-ignore|@ts-nocheck|new Function\(|eval\(|console\.log[[:space:]]*=)' w2-production.diff; then
-            echo 'W2 production candidate introduced a forbidden type/dynamic-code/logging bypass' >&2
-            exit 1
-          fi
-          if grep -E '^\+.*(localStorage\.|sessionStorage\.|document\.cookie[[:space:]]*=|URLSearchParams.*(token|credential)|location\.(search|href).*(token|credential))' w2-production.diff; then
-            echo 'W2 production candidate introduced persistent/query-string browser credential handling' >&2
-            exit 1
-          fi
           while IFS= read -r file; do
             case "$file" in
-              .github/workflows/w2-security-closure.yml|docs/security/W2_HTTP_OPERATOR_AUTHORITY.md|docs/security/W2_SECURITY_CLOSURE_EVIDENCE.md|packages/api/src/http-server.ts|packages/api/src/operator-ui.ts|packages/api/src/chat.html|packages/api/src/research.html|packages/api/src/dashboard.html|packages/deployment/src/api-client.ts|packages/deployment/src/operator-auth.ts|packages/deployment/src/cli.ts|scripts/test-operator-auth-rollout.cjs|scripts/test-http-trust-boundary-w2.cjs)
+              .github/workflows/w2-security-closure.yml|docs/security/W2_HTTP_OPERATOR_AUTHORITY.md|docs/security/W2_SECURITY_CLOSURE_EVIDENCE.md|packages/api/src/http-server.ts|packages/api/src/operator-ui.ts|packages/api/src/chat.html|packages/api/src/research.html|packages/api/src/dashboard.html|packages/deployment/src/api-client.ts|packages/deployment/src/operator-auth.ts|packages/deployment/src/cli.ts|scripts/check-w2-production-security.mjs|scripts/test-operator-auth-rollout.cjs|scripts/test-http-trust-boundary-w2.cjs)
                 ;;
               *) echo "Unexpected W2 mutation: $file" >&2; exit 1 ;;
             esac
@@ -196,6 +189,7 @@ jobs:
             candidateSha: process.env.EXPECTED_SHA,
             result: 'PASS',
             supportedAuthority: 'single-operator-single-authority-domain',
+            browserApiOriginBoundary: 'same-origin-default',
             multiTenantCertified: false,
             productionSecretsInventoried: false,
             mainMergeAuthorized: false,
