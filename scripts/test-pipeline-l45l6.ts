@@ -148,6 +148,38 @@ console.log('\n=== Test 7: End-to-end traceToDataFlow ===');
   }
 }
 
+// ===== Test 7b: Structured timing dominates converter wall clock =====
+console.log('\n=== Test 7b: Structured timing precedence ===');
+{
+  const originalNow = Date.now;
+  let syntheticNow = 1_000_000;
+  Date.now = () => {
+    syntheticNow += 17;
+    return syntheticNow;
+  };
+
+  try {
+    const pipeline = new PipelineL4L5L6();
+    const df = pipeline.traceToDataFlow(simpleTrace, { propagateTiming: true, autoThroughput: true });
+    const mainNode = df.nodes.find(n => n.name.includes('main'));
+    const graph = pipeline.getCallGraphBuilder().getGraph(pipeline.callGraphId!);
+    assert(mainNode !== undefined, 'P7b: main node exists under advancing wall clock');
+    assert(mainNode!.latency === 100, `P7b: recorded 100ms remains 100 (got ${mainNode!.latency})`);
+    assert(mainNode!.throughput === 10, `P7b: throughput remains derived from recorded timing (got ${mainNode!.throughput})`);
+    assert(graph?.totalTime === 100, `P7b: trace totalDuration remains authoritative (got ${graph?.totalTime})`);
+
+    const noDurationPipeline = new PipelineL4L5L6();
+    const noDuration = noDurationPipeline.traceToDataFlow(
+      { name: 'no-duration', entries: [{ name: 'instant', type: 'function' }] },
+      { propagateTiming: true, defaultLatencyMs: 10 },
+    );
+    const instant = noDuration.nodes.find(n => n.name.includes('instant'));
+    assert(instant?.latency === 10, `P7b: missing recorded duration uses default latency, not converter time (got ${instant?.latency})`);
+  } finally {
+    Date.now = originalNow;
+  }
+}
+
 // ===== Test 8: Nested end-to-end =====
 console.log('\n=== Test 8: Nested trace end-to-end ===');
 {
@@ -181,6 +213,16 @@ console.log('\n=== Test 9: Timing options ===');
   const main2 = df2.nodes.find(n => n.name.includes('main'));
   assert(main2 !== undefined, 'P9: main exists for custom');
   assert(main2!.latency === 50, `P9: custom latency = 50 (got ${main2!.latency})`);
+
+  // Zero is a legitimate recorded duration and must not be replaced by defaults.
+  const pipeline3 = new PipelineL4L5L6();
+  const df3 = pipeline3.traceToDataFlow(
+    { name: 'zero-duration', entries: [{ name: 'zero', type: 'function', duration: 0 }], totalDuration: 0 },
+    { propagateTiming: true, autoThroughput: true },
+  );
+  const zero = df3.nodes.find(n => n.name.includes('zero'));
+  assert(zero?.latency === 0, `P9: recorded zero latency is preserved (got ${zero?.latency})`);
+  assert(zero?.throughput === 0, `P9: zero latency maps to bounded zero throughput (got ${zero?.throughput})`);
 }
 
 // ===== Test 10: Empty trace end-to-end =====
