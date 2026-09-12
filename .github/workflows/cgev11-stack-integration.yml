@@ -92,6 +92,10 @@ jobs:
           node --import tsx scripts/test-operator-auth-rollout.cjs 2>&1 | tee cgev11-node22-w2-operator.log
           node --import tsx scripts/test-http-trust-boundary-w2.cjs 2>&1 | tee cgev11-node22-w2-http.log
           node scripts/check-w2-production-security.mjs 2>&1 | tee cgev11-node22-w2-production-security.log
+      - name: W3.2 structured trace timing precedence regression
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-pipeline-l45l6.ts 2>&1 | tee cgev11-node22-w32-trace-timing.log
       - name: Full canonical suite
         run: |
           set -euo pipefail
@@ -106,7 +110,7 @@ jobs:
         run: |
           set -euo pipefail
           npm audit --audit-level=high 2>&1 | tee cgev11-node22-audit.log
-      - name: Qualified recovery plus W2 scope and anti-bypass
+      - name: Qualified recovery plus W2/W3.2 scope and anti-bypass
         run: |
           set -euo pipefail
           git diff --unified=0 "$W1D_SHA"...HEAD -- '*.ts' '*.cjs' '*.mjs' > cgev11-stack-source.diff
@@ -126,7 +130,7 @@ jobs:
           done < <(git diff --name-only "$W1D_SHA"...HEAD -- '.github/workflows/*.yml' '.github/workflows/*.yaml')
           while IFS= read -r file; do
             case "$file" in
-              .github/workflows/cgev11-stack-integration.yml|scripts/check-cgev11-stack-coverage.mjs|scripts/test-sandbox-security-integration.cjs|scripts/test-sandbox-coverage-integration.cjs|docs/hardening/integration/W3_1_INTEGRATION_EVIDENCE.md|.github/workflows/w2-security-closure.yml|docs/security/W2_HTTP_OPERATOR_AUTHORITY.md|packages/api/src/chat.html|packages/api/src/dashboard.html|packages/api/src/http-server.ts|packages/api/src/operator-ui.ts|packages/api/src/research.html|packages/deployment/src/api-client.ts|packages/deployment/src/cli.ts|packages/deployment/src/operator-auth.ts|scripts/check-w2-production-security.mjs|scripts/test-http-trust-boundary-w2.cjs|scripts/test-operator-auth-rollout.cjs|docs/hardening/integration/W3_2_PROMOTION_EVIDENCE.md)
+              .github/workflows/cgev11-stack-integration.yml|scripts/check-cgev11-stack-coverage.mjs|scripts/test-sandbox-security-integration.cjs|scripts/test-sandbox-coverage-integration.cjs|docs/hardening/integration/W3_1_INTEGRATION_EVIDENCE.md|.github/workflows/w2-security-closure.yml|docs/security/W2_HTTP_OPERATOR_AUTHORITY.md|packages/api/src/chat.html|packages/api/src/dashboard.html|packages/api/src/http-server.ts|packages/api/src/operator-ui.ts|packages/api/src/research.html|packages/deployment/src/api-client.ts|packages/deployment/src/cli.ts|packages/deployment/src/operator-auth.ts|scripts/check-w2-production-security.mjs|scripts/test-http-trust-boundary-w2.cjs|scripts/test-operator-auth-rollout.cjs|packages/graph/src/pipeline-l4l5l6.ts|scripts/test-pipeline-l45l6.ts|docs/hardening/integration/W3_2_PROMOTION_EVIDENCE.md)
                 ;;
               *)
                 echo "Unexpected mutation above qualified W1D/W2 tree: $file" >&2
@@ -214,6 +218,10 @@ jobs:
           node --import tsx scripts/test-operator-auth-rollout.cjs 2>&1 | tee cgev11-node26-w2-operator.log
           node --import tsx scripts/test-http-trust-boundary-w2.cjs 2>&1 | tee cgev11-node26-w2-http.log
           node scripts/check-w2-production-security.mjs 2>&1 | tee cgev11-node26-w2-production-security.log
+      - name: W3.2 structured trace timing precedence regression
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-pipeline-l45l6.ts 2>&1 | tee cgev11-node26-w32-trace-timing.log
       - name: Full canonical suite
         run: |
           set -euo pipefail
