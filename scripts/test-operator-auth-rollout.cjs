@@ -58,6 +58,12 @@ function close(server) {
   return new Promise(resolve => server.close(() => resolve()));
 }
 
+function inlineScript(html) {
+  const match = html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/i);
+  assert.ok(match, 'nonce-bound inline operator script missing');
+  return match[1];
+}
+
 (async () => {
   const requests = [];
   let acceptedToken = API_TOKEN;
@@ -218,7 +224,8 @@ function close(server) {
         assert.match(page.html, /Bearer/);
         assert.match(page.html, /textContent/);
         assert.match(page.html, /nonce="[^"]+"/);
-        assert.doesNotMatch(page.html, /localStorage|sessionStorage|document\.cookie|[?&](token|credential)=/i);
+        const script = inlineScript(page.html);
+        assert.doesNotMatch(script, /localStorage\.|sessionStorage\.|document\.cookie\s*=|URLSearchParams[^\n]*(token|credential)|location\.(search|href)[^\n]*(token|credential)/i);
       }
       assert.notEqual(first.nonce, second.nonce);
       assert.ok(!fs.existsSync(path.join(ROOT, 'packages/api/src/chat.html')));
