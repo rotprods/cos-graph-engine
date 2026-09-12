@@ -54,9 +54,9 @@ export class HttpApiServer {
   }
 
   private setSecurityHeaders(res: http.ServerResponse): void {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // The supported browser console is same-origin. Do not grant wildcard
+    // cross-origin bearer access by default; explicit CORS policy requires
+    // a separate reviewed deployment boundary.
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'DENY');
