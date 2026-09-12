@@ -1,0 +1,202 @@
+name: CGEV11 W2 Security Closure
+
+on:
+  push:
+    branches: [hardening/w2-http-operator-closure-20260912]
+  pull_request:
+    branches: [integration/cgev11-w1b-w1d-20260911]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cgev11-w2-security-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  W3_1_BASE_SHA: '04e6222a7541d14ffed66eef16de5bd8f59720e6'
+  W1C_SANDBOX_IMAGE: 'node@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868'
+
+jobs:
+  node22-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    outputs:
+      tested_sha: ${{ steps.identity.outputs.tested_sha }}
+      completed: ${{ steps.seal.outputs.completed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact W2 candidate ancestry
+        id: identity
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$GITHUB_SHA"
+          git cat-file -e "${W3_1_BASE_SHA}^{commit}"
+          git merge-base --is-ancestor "$W3_1_BASE_SHA" HEAD
+          echo "tested_sha=$actual" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$actual" | tee w2-node22-tested-sha.log
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Bind minimum runtime and Docker TCB
+        run: |
+          set -euo pipefail
+          test "$(node --version)" = 'v22.12.0'
+          node --version | tee w2-node22-version.log
+          docker pull "$W1C_SANDBOX_IMAGE" 2>&1 | tee w2-node22-sandbox-image.log
+      - name: Strict TypeScript
+        run: npx --no-install tsc --noEmit
+      - name: Canonical configuration and authentication boundary
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-config-bindings.cjs 2>&1 | tee w2-node22-config.log
+          node --import tsx scripts/test-auth-boundary.cjs 2>&1 | tee w2-node22-auth.log
+      - name: Operator bootstrap and HTTP trust boundary
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-operator-auth-rollout.cjs 2>&1 | tee w2-node22-operator.log
+          node --import tsx scripts/test-http-trust-boundary-w2.cjs 2>&1 | tee w2-node22-http.log
+      - name: Preserve hostile-code and host-authority security contracts
+        run: |
+          set -euo pipefail
+          node scripts/test-sandbox-security-w1d5.cjs 2>&1 | tee w2-node22-sandbox.log
+          node --import tsx scripts/test-tool-capability-w1d.cjs 2>&1 | tee w2-node22-registry.log
+          node --import tsx scripts/test-filesystem-confinement-w1d2.cjs 2>&1 | tee w2-node22-filesystem.log
+          node --import tsx scripts/test-http-egress-w1d3.cjs 2>&1 | tee w2-node22-egress.log
+          node --import tsx scripts/test-search-tool-w1d4.cjs 2>&1 | tee w2-node22-search.log
+          node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs 2>&1 | tee w2-node22-capability-e2e.log
+      - name: Full canonical suite
+        run: npm run test:all 2>&1 | tee w2-node22-test-all.log
+      - name: Integrated coverage ratchet
+        run: |
+          set -euo pipefail
+          npm run asbuild
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node --import tsx scripts/test-sandbox-coverage-integration.cjs && node --import tsx scripts/test-sandbox-security-integration.cjs && node --import tsx scripts/test-tool-capability-w1d.cjs && node --import tsx scripts/test-filesystem-confinement-w1d2.cjs && node --import tsx scripts/test-http-egress-w1d3.cjs && node --import tsx scripts/test-search-tool-w1d4.cjs && node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs && node --import tsx scripts/test-operator-auth-rollout.cjs && node --import tsx scripts/test-http-trust-boundary-w2.cjs' 2>&1 | tee w2-node22-coverage.log
+          node scripts/check-cgev11-stack-coverage.mjs | tee w2-node22-coverage-ratchet.log
+      - name: High-severity dependency audit
+        run: npm audit --audit-level=high 2>&1 | tee w2-node22-audit.log
+      - name: W2 scope, workflow safety and anti-bypass
+        run: |
+          set -euo pipefail
+          node scripts/test-workflow-safety.mjs 2>&1 | tee w2-node22-workflow-safety.log
+          node scripts/check-w2-production-security.mjs 2>&1 | tee w2-node22-production-security.log
+          git diff --unified=0 "$W3_1_BASE_SHA"...HEAD -- 'packages/**/*.ts' 'packages/**/*.js' > w2-production.diff
+          while IFS= read -r file; do
+            case "$file" in
+              .github/workflows/w2-security-closure.yml|docs/security/W2_HTTP_OPERATOR_AUTHORITY.md|docs/security/W2_SECURITY_CLOSURE_EVIDENCE.md|packages/api/src/http-server.ts|packages/api/src/operator-ui.ts|packages/api/src/chat.html|packages/api/src/research.html|packages/api/src/dashboard.html|packages/deployment/src/api-client.ts|packages/deployment/src/operator-auth.ts|packages/deployment/src/cli.ts|scripts/check-w2-production-security.mjs|scripts/test-operator-auth-rollout.cjs|scripts/test-http-trust-boundary-w2.cjs)
+                ;;
+              *) echo "Unexpected W2 mutation: $file" >&2; exit 1 ;;
+            esac
+          done < <(git diff --name-only "$W3_1_BASE_SHA"...HEAD)
+      - name: Preserve Node22 W2 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cgev11-w2-node22-${{ github.sha }}
+          path: |
+            w2-node22-*.log
+            w2-production.diff
+            cgev11-stack-coverage.json
+            coverage/
+          if-no-files-found: warn
+      - id: seal
+        run: echo 'completed=true' >> "$GITHUB_OUTPUT"
+
+  node26-compat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    outputs:
+      tested_sha: ${{ steps.identity.outputs.tested_sha }}
+      completed: ${{ steps.seal.outputs.completed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact W2 candidate ancestry
+        id: identity
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$W3_1_BASE_SHA" HEAD
+          echo "tested_sha=$actual" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$actual" | tee w2-node26-tested-sha.log
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '26.8.2'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Bind comparison runtime and Docker TCB
+        run: |
+          set -euo pipefail
+          test "$(node --version)" = 'v26.8.2'
+          node --version | tee w2-node26-version.log
+          docker pull "$W1C_SANDBOX_IMAGE" 2>&1 | tee w2-node26-sandbox-image.log
+      - name: Strict TypeScript
+        run: npx --no-install tsc --noEmit
+      - name: W2 security compatibility matrix
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-config-bindings.cjs 2>&1 | tee w2-node26-config.log
+          node --import tsx scripts/test-auth-boundary.cjs 2>&1 | tee w2-node26-auth.log
+          node --import tsx scripts/test-operator-auth-rollout.cjs 2>&1 | tee w2-node26-operator.log
+          node --import tsx scripts/test-http-trust-boundary-w2.cjs 2>&1 | tee w2-node26-http.log
+          node scripts/test-sandbox-security-w1d5.cjs 2>&1 | tee w2-node26-sandbox.log
+          node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs 2>&1 | tee w2-node26-capability-e2e.log
+          npm run test:all 2>&1 | tee w2-node26-test-all.log
+      - name: Preserve Node26 W2 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cgev11-w2-node26-${{ github.sha }}
+          path: w2-node26-*.log
+          if-no-files-found: warn
+      - id: seal
+        run: echo 'completed=true' >> "$GITHUB_OUTPUT"
+
+  security-complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ always() }}
+    needs: [node22-security, node26-compat]
+    steps:
+      - name: Verify exact-SHA W2 receipts
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          node <<'NODE' | tee w2-security-receipt.json
+          const results = JSON.parse(process.env.RESULTS);
+          for (const id of ['node22-security', 'node26-compat']) {
+            const job = results[id];
+            if (!job || job.result !== 'success') throw new Error(`${id} did not succeed`);
+            if (job.outputs?.tested_sha !== process.env.EXPECTED_SHA) throw new Error(`${id} tested stale SHA`);
+            if (job.outputs?.completed !== 'true') throw new Error(`${id} lacks completion receipt`);
+          }
+          process.stdout.write(`${JSON.stringify({
+            schema: 'cgev11.w2-security/receipt/v1',
+            candidateSha: process.env.EXPECTED_SHA,
+            result: 'PASS',
+            supportedAuthority: 'single-operator-single-authority-domain',
+            browserApiOriginBoundary: 'same-origin-default',
+            multiTenantCertified: false,
+            productionSecretsInventoried: false,
+            mainMergeAuthorized: false,
+          }, null, 2)}\n`);
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cgev11-w2-security-receipt-${{ github.sha }}
+          path: w2-security-receipt.json
+          if-no-files-found: error

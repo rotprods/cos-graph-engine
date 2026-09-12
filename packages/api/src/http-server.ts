@@ -3,6 +3,7 @@ import { EntityId } from '@cos/core';
 import { COSServer } from './server';
 import { AuthMiddleware } from './auth';
 import { Configuration } from '@cos/infrastructure';
+import { createOperatorActionPage, createOperatorDashboardPage } from './operator-ui';
 
 class HttpRequestError extends Error {
   constructor(readonly status: number, message: string) {
@@ -53,12 +54,13 @@ export class HttpApiServer {
   }
 
   private setSecurityHeaders(res: http.ServerResponse): void {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // The supported browser console is same-origin. Do not grant wildcard
+    // cross-origin bearer access by default; explicit CORS policy requires
+    // a separate reviewed deployment boundary.
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   }
 
   private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -86,15 +88,18 @@ export class HttpApiServer {
       const body = this.methodMayHaveBody(method) ? await this.readBody(req) : {};
 
       if ((path === '/' || path === '/dashboard') && method === 'GET') {
-        this.sendHtml(res, safeDashboardHtml());
+        const page = createOperatorDashboardPage();
+        this.sendHtml(res, page.html, page.nonce);
         return;
       }
       if (path === '/chat' && method === 'GET') {
-        this.sendHtml(res, safeClientNoticeHtml('COS Chat', '/chat'));
+        const page = createOperatorActionPage('COS Chat', '/chat', 'message');
+        this.sendHtml(res, page.html, page.nonce);
         return;
       }
       if (path === '/research' && method === 'GET') {
-        this.sendHtml(res, safeClientNoticeHtml('COS Research Assistant', '/research'));
+        const page = createOperatorActionPage('COS Research Assistant', '/research', 'question');
+        this.sendHtml(res, page.html, page.nonce);
         return;
       }
 
@@ -376,45 +381,13 @@ export class HttpApiServer {
     res.end(JSON.stringify(data, null, 2));
   }
 
-  private sendHtml(res: http.ServerResponse, html: string): void {
+  private sendHtml(res: http.ServerResponse, html: string, scriptNonce: string): void {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+      `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${scriptNonce}'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'`,
     );
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(html);
   }
-}
-
-function pageShell(title: string, body: string): string {
-  return [
-    '<!doctype html>',
-    '<html lang="en"><head><meta charset="utf-8">',
-    '<meta name="viewport" content="width=device-width,initial-scale=1">',
-    `<title>${title}</title>`,
-    '<style>body{margin:0;background:#0d1117;color:#c9d1d9;font-family:system-ui,sans-serif;padding:32px}',
-    '.card{max-width:760px;margin:auto;background:#161b22;border:1px solid #30363d;border-radius:12px;padding:24px}',
-    'h1{color:#58a6ff;font-size:22px}code{color:#7ee787;background:#0d1117;padding:2px 6px;border-radius:4px}',
-    'p{line-height:1.6;color:#b1bac4}</style></head><body><main class="card">',
-    `<h1>${title}</h1>`,
-    body,
-    '</main></body></html>',
-  ].join('');
-}
-
-function safeDashboardHtml(): string {
-  return pageShell(
-    'COS Graph Engine',
-    '<p>The API is running. <code>/health</code> is public; operational endpoints require an authenticated client.</p>' +
-      '<p>Interactive privileged controls are intentionally disabled until an authenticated browser session flow is reviewed.</p>',
-  );
-}
-
-function safeClientNoticeHtml(title: string, endpoint: string): string {
-  return pageShell(
-    title,
-    `<p>This API surface is available at <code>${endpoint}</code> to authorized clients.</p>` +
-      '<p>The former inline client was removed because it injected untrusted data into HTML and did not carry authenticated credentials.</p>',
-  );
 }

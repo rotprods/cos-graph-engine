@@ -1,62 +1,70 @@
 #!/usr/bin/env node
 
 // ================================================================
-// Phase 5: COS CLI — Command-Line Interface
+// COS CLI — authenticated operator interface
 // ================================================================
 
-import * as http from 'http';
+import { ApiRequestError, apiRequest } from './api-client';
+import {
+  DEFAULT_OPERATOR_TOKEN_FILE,
+  bootstrapAdminToken,
+  defaultNamedTokenFile,
+  removeOperatorToken,
+  writeOperatorToken,
+} from './operator-auth';
 
 const API_URL = process.env.COS_API_URL || 'http://localhost:8080';
 
-function apiRequest(method: string, path: string, body?: any): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const url = new URL(path, API_URL);
-    const options: http.RequestOptions = {
-      hostname: url.hostname,
-      port: url.port,
-      path: url.pathname,
-      method,
-      headers: { 'Content-Type': 'application/json' },
-    };
+function option(args: string[], name: string): string | undefined {
+  const index = args.indexOf(name);
+  if (index < 0) return undefined;
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) throw new Error(`${name} requires a value`);
+  return value;
+}
 
-    const req = http.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk: string) => data += chunk);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); }
-        catch { resolve(data); }
-      });
-    });
+function positional(args: string[], index: number, fallback: string): string {
+  const value = args[index];
+  return value && !value.startsWith('--') ? value : fallback;
+}
 
-    req.on('error', (error) => reject(error));
-    if (body) req.write(JSON.stringify(body));
-    req.end();
-  });
+function printHelp(): void {
+  console.log(`
+  COS — Cognitive Operating System CLI
+
+  Usage:
+    cos <command> [options]
+
+  Authentication:
+    COS_API_TOKEN=<bearer>           ephemeral credential from environment
+    COS_API_TOKEN_FILE=/secure/file  owner-only credential file (chmod 600)
+
+  Commands:
+    start                         Start the COS server
+    status                        Check public system health
+    process <input>               Process input through the COS (auth required)
+    memory [--stats]              View memory stats or retrieve by ID (auth required)
+    knowledge <query>             Query the knowledge graph (auth required)
+    improve                       Run self-improvement meta-cognition (auth required)
+    config                        View redacted configuration (admin required)
+    bootstrap-admin [user]        Provision an admin JWT locally from COS_JWT_SECRET
+      [--output <file>]            Default: ~/.cos/operator.jwt, written mode 0600
+    token [user] [user|admin]     Mint a token through the authenticated API
+      [--output <file>]            Writes token to an owner-only file; never prints it
+    logout [--file <file>]        Delete a local credential file
+    help                          Show this help
+
+  A fresh deployment must set a strong COS_JWT_SECRET locally before bootstrap-admin.
+  No unauthenticated network bootstrap exists.
+  `);
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
-  if (!command || command === '--help' || command === '-h') {
-    console.log(`
-  COS — Cognitive Operating System CLI
-
-  Usage:
-    cos <command> [options]
-
-  Commands:
-    start             Start the COS server
-    stop              Stop the COS server
-    status            Check system health
-    process <input>   Process input through the COS
-    memory [--stats]  View memory stats or retrieve by ID
-    knowledge <query> Query the knowledge graph
-    improve           Run self-improvement meta-cognition
-    config            View current configuration
-    token <userId>    Generate an auth token for testing
-    help              Show this help
-    `);
+  if (!command || command === '--help' || command === '-h' || command === 'help') {
+    printHelp();
     return;
   }
 
@@ -81,18 +89,12 @@ async function main() {
       }
 
       case 'memory': {
-        if (args[1] === '--stats') {
+        if (args[1] === '--stats' || !args[1]) {
           const stats = await apiRequest('GET', '/memory');
           console.log('Memory Stats:', JSON.stringify(stats, null, 2));
-        } else if (args[1]) {
-          const entry = await apiRequest('GET', `/memory/${args[1]}`);
-          console.log('Entry:', JSON.stringify(entry, null, 2));
         } else {
-          const stats = await apiRequest('GET', '/memory');
-          console.log('Total entries:', stats.totalEntries);
-          for (const [layer, count] of Object.entries(stats.byLayer || {})) {
-            if (typeof count === 'number' && count > 0) console.log(`  ${layer}: ${count}`);
-          }
+          const entry = await apiRequest('GET', `/memory/${encodeURIComponent(args[1])}`);
+          console.log('Entry:', JSON.stringify(entry, null, 2));
         }
         break;
       }
@@ -101,8 +103,8 @@ async function main() {
         const query = args.slice(1).join(' ') || 'COS';
         const results = await apiRequest('GET', `/knowledge/${encodeURIComponent(query)}`);
         console.log(`Knowledge Graph results for "${query}":`);
-        for (const r of results) {
-          console.log(`  ${r.subject} → ${r.predicate} → ${r.object} (conf: ${(r.confidence*100).toFixed(0)}%)`);
+        for (const result of results) {
+          console.log(`  ${result.subject} → ${result.predicate} → ${result.object} (conf: ${(result.confidence * 100).toFixed(0)}%)`);
         }
         break;
       }
@@ -110,11 +112,11 @@ async function main() {
       case 'improve': {
         const report = await apiRequest('GET', '/self-improve');
         console.log('Self-Improvement Report:');
-        console.log(`  Score: ${(report.averageScore*100).toFixed(0)}/100`);
+        console.log(`  Score: ${(report.averageScore * 100).toFixed(0)}/100`);
         console.log(`  Trend: ${report.scoreTrend}`);
         console.log(`  Evaluations: ${report.totalEvaluations}`);
         console.log(`  Patterns: ${report.topPatterns.length}`);
-        for (const s of report.suggestions) console.log(`  • ${s}`);
+        for (const suggestion of report.suggestions) console.log(`  • ${suggestion}`);
         break;
       }
 
@@ -127,34 +129,56 @@ async function main() {
         break;
       }
 
+      case 'bootstrap-admin': {
+        const userId = positional(args, 1, 'operator');
+        const output = option(args, '--output') || DEFAULT_OPERATOR_TOKEN_FILE;
+        const token = bootstrapAdminToken(userId);
+        const written = writeOperatorToken(token, output);
+        console.log(`Local admin credential written securely to ${written}`);
+        console.log(`Use it with: COS_API_TOKEN_FILE=${written} cos <protected-command>`);
+        break;
+      }
+
       case 'token': {
-        const userId = args[1] || 'test-user';
-        const role = args[2] || 'admin';
-        const result = await apiRequest('POST', '/auth/token', { userId, role });
-        console.log(`Token for ${userId} (${role}):`);
-        console.log(result.token);
+        const userId = positional(args, 1, 'operator-user');
+        const roleValue = positional(args, 2, 'user');
+        if (roleValue !== 'user' && roleValue !== 'admin') throw new Error('role must be user or admin');
+        const result = await apiRequest('POST', '/auth/token', { userId, role: roleValue });
+        if (!result || typeof result.token !== 'string') throw new Error('COS API did not return a token');
+        const output = option(args, '--output') || defaultNamedTokenFile(`${userId}-${roleValue}`);
+        const written = writeOperatorToken(result.token, output);
+        console.log(`Credential for ${userId} (${roleValue}) written securely to ${written}`);
+        break;
+      }
+
+      case 'logout': {
+        const tokenFile = option(args, '--file') || process.env.COS_API_TOKEN_FILE || DEFAULT_OPERATOR_TOKEN_FILE;
+        const removed = removeOperatorToken(tokenFile);
+        console.log(removed ? `Removed local credential ${tokenFile}` : `No local credential found at ${tokenFile}`);
         break;
       }
 
       case 'start': {
         console.log('Starting COS server...');
-        const { main } = require('./bootstrap');
-        await main();
+        const { main: bootstrap } = require('./bootstrap');
+        await bootstrap();
         console.log('COS running. API at', API_URL);
         break;
       }
 
       default:
-        console.log(`Unknown command: ${command}. Run 'cos help' for usage.`);
+        throw new Error(`Unknown command: ${command}. Run 'cos help' for usage.`);
     }
   } catch (error: any) {
-    if (error.code === 'ECONNREFUSED') {
-      console.error('Error: COS server is not running. Start it with `cos start`');
+    if (error?.code === 'ECONNREFUSED') {
+      console.error('Error: COS server is not running. Start it with `cos start`.');
+    } else if (error instanceof ApiRequestError) {
+      console.error(`Error: ${error.message}`);
     } else {
-      console.error('Error:', error.message);
+      console.error('Error:', error?.message || String(error));
     }
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
-main();
+void main();
