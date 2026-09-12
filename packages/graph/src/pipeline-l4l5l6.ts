@@ -45,6 +45,8 @@ export class PipelineL4L5L6 {
   private builder: CallGraphBuilder;
   private cfgBuilder: CFGBuilder;
   private dataFlow: DataFlowGraph;
+  /** Recorded structured-trace durations are authoritative over converter wall-clock time. */
+  private recordedDurationByNode: Map<EntityId, number> = new Map();
 
   callGraphId: EntityId | null = null;
   cfgId: EntityId | null = null;
@@ -68,14 +70,13 @@ export class PipelineL4L5L6 {
         entry.module,
       );
 
-      // Record timing if available
-      if (entry.duration && entry.duration > 0) {
-        const node = this.builder.getNode(graphId, nodeId);
-        if (node) {
-          node.selfTime = entry.duration;
-          node.totalTime = entry.duration;
-        }
-      }
+      const nodeBefore = this.builder.getNode(graphId, nodeId);
+      const priorSelfTime = nodeBefore?.selfTime ?? 0;
+      const priorTotalTime = nodeBefore?.totalTime ?? 0;
+      const recordedDuration =
+        typeof entry.duration === 'number' && Number.isFinite(entry.duration) && entry.duration >= 0
+          ? entry.duration
+          : undefined;
 
       // Process children. CallGraphBuilder tracks the active span internally;
       // parentId is retained here as explicit traversal context for clarity.
@@ -85,13 +86,48 @@ export class PipelineL4L5L6 {
         }
       }
 
+      // CallGraphBuilder uses wall-clock timing for dynamic profiling. That timing is
+      // converter overhead here, not source data, so structured-trace timing wins.
+      const graphBeforeExit = this.builder.getGraph(graphId);
+      const totalBeforeExit = graphBeforeExit?.totalTime ?? 0;
       this.builder.exitCall(graphId, nodeId);
+
+      const nodeAfter = this.builder.getNode(graphId, nodeId);
+      if (nodeAfter) {
+        if (recordedDuration !== undefined) {
+          const cumulativeRecorded = (this.recordedDurationByNode.get(nodeId) ?? 0) + recordedDuration;
+          this.recordedDurationByNode.set(nodeId, cumulativeRecorded);
+          nodeAfter.selfTime = cumulativeRecorded;
+          nodeAfter.totalTime = cumulativeRecorded;
+        } else {
+          // No timing was supplied by the structured trace: discard conversion
+          // overhead so downstream defaultLatencyMs remains the authority.
+          nodeAfter.selfTime = priorSelfTime;
+          nodeAfter.totalTime = priorTotalTime;
+        }
+      }
+
+      const graphAfterExit = this.builder.getGraph(graphId);
+      if (graphAfterExit) {
+        graphAfterExit.totalTime = totalBeforeExit + (recordedDuration ?? 0);
+      }
+
       void parentId;
       void options;
     };
 
     for (const entry of trace.entries) {
       processEntry(entry, null);
+    }
+
+    const graph = this.builder.getGraph(graphId);
+    if (
+      graph &&
+      typeof trace.totalDuration === 'number' &&
+      Number.isFinite(trace.totalDuration) &&
+      trace.totalDuration >= 0
+    ) {
+      graph.totalTime = trace.totalDuration;
     }
 
     return graphId;
@@ -125,7 +161,12 @@ export class PipelineL4L5L6 {
       nodeToBlock.set(node.id, blockId);
 
       const block = this.cfgBuilder.getBlock(cfgId, blockId);
-      if (block && node.selfTime) {
+      const recordedDuration = this.recordedDurationByNode.get(node.id);
+      if (block && recordedDuration !== undefined) {
+        block.instructions = [`selfTime: ${recordedDuration}ms`, `calls: ${node.callCount || 1}`];
+      } else if (block && node.selfTime && node.selfTime > 0) {
+        // Preserve dynamic CallGraphBuilder timing when callers explicitly feed a
+        // dynamically-profiled graph into this conversion stage.
         block.instructions = [`selfTime: ${node.selfTime}ms`, `calls: ${node.callCount || 1}`];
       }
     }
