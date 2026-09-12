@@ -19,6 +19,7 @@ env:
   W1B_SHA: '08c90d11d850f7c4f0c95702a4d0a541a1cf5e02'
   W1C_SHA: 'f85fe66bce8079c0e3ec481bbeb3a88bf2c8184c'
   W1D_SHA: '5a0b4b2a0b97794ac8cf7feb7ca9ed26bde15c25'
+  W2_SHA: '3ff1609cf7270e393f9fa0f7e89da97fbf0a6651'
   W1C_SANDBOX_IMAGE: 'node@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868'
 
 jobs:
@@ -39,7 +40,7 @@ jobs:
           set -euo pipefail
           actual="$(git rev-parse HEAD)"
           test "$actual" = "$GITHUB_SHA"
-          for sha in "$BASELINE_SHA" "$W1B_SHA" "$W1C_SHA" "$W1D_SHA"; do
+          for sha in "$BASELINE_SHA" "$W1B_SHA" "$W1C_SHA" "$W1D_SHA" "$W2_SHA"; do
             git cat-file -e "${sha}^{commit}"
             git merge-base --is-ancestor "$sha" HEAD
           done
@@ -84,6 +85,12 @@ jobs:
           node --import tsx scripts/test-http-egress-w1d3.cjs 2>&1 | tee cgev11-node22-w1d-http.log
           node --import tsx scripts/test-search-tool-w1d4.cjs 2>&1 | tee cgev11-node22-w1d-search.log
           node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs 2>&1 | tee cgev11-node22-w1d-e2e.log
+      - name: W2 operator and HTTP security compatibility
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-operator-auth-rollout.cjs 2>&1 | tee cgev11-node22-w2-operator.log
+          node --import tsx scripts/test-http-trust-boundary-w2.cjs 2>&1 | tee cgev11-node22-w2-http.log
+          node scripts/check-w2-production-security.mjs 2>&1 | tee cgev11-node22-w2-production-security.log
       - name: Full canonical suite
         run: |
           set -euo pipefail
@@ -92,13 +99,13 @@ jobs:
         run: |
           set -euo pipefail
           npm run asbuild
-          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node --import tsx scripts/test-sandbox-coverage-integration.cjs && node --import tsx scripts/test-sandbox-security-integration.cjs && node --import tsx scripts/test-tool-capability-w1d.cjs && node --import tsx scripts/test-filesystem-confinement-w1d2.cjs && node --import tsx scripts/test-http-egress-w1d3.cjs && node --import tsx scripts/test-search-tool-w1d4.cjs && node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs' 2>&1 | tee cgev11-node22-coverage.log
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node --import tsx scripts/test-sandbox-coverage-integration.cjs && node --import tsx scripts/test-sandbox-security-integration.cjs && node --import tsx scripts/test-tool-capability-w1d.cjs && node --import tsx scripts/test-filesystem-confinement-w1d2.cjs && node --import tsx scripts/test-http-egress-w1d3.cjs && node --import tsx scripts/test-search-tool-w1d4.cjs && node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs && node --import tsx scripts/test-operator-auth-rollout.cjs && node --import tsx scripts/test-http-trust-boundary-w2.cjs' 2>&1 | tee cgev11-node22-coverage.log
           node scripts/check-cgev11-stack-coverage.mjs
       - name: High-severity dependency audit
         run: |
           set -euo pipefail
           npm audit --audit-level=high 2>&1 | tee cgev11-node22-audit.log
-      - name: Integration-only scope and anti-bypass
+      - name: Qualified recovery plus W2 scope and anti-bypass
         run: |
           set -euo pipefail
           git diff --unified=0 "$W1D_SHA"...HEAD -- '*.ts' '*.cjs' '*.mjs' > cgev11-stack-source.diff
@@ -107,6 +114,7 @@ jobs:
             exit 1
           fi
           node scripts/test-workflow-safety.mjs 2>&1 | tee cgev11-node22-workflow-safety.log
+          node scripts/check-w2-production-security.mjs 2>&1 | tee cgev11-node22-w2-production-security-scope.log
           bad_key='continue-on''-error:'
           while IFS= read -r workflow; do
             [ -z "$workflow" ] && continue
@@ -117,10 +125,10 @@ jobs:
           done < <(git diff --name-only "$W1D_SHA"...HEAD -- '.github/workflows/*.yml' '.github/workflows/*.yaml')
           while IFS= read -r file; do
             case "$file" in
-              .github/workflows/cgev11-stack-integration.yml|scripts/check-cgev11-stack-coverage.mjs|scripts/test-sandbox-security-integration.cjs|scripts/test-sandbox-coverage-integration.cjs|docs/hardening/integration/W3_1_INTEGRATION_EVIDENCE.md)
+              .github/workflows/cgev11-stack-integration.yml|scripts/check-cgev11-stack-coverage.mjs|scripts/test-sandbox-security-integration.cjs|scripts/test-sandbox-coverage-integration.cjs|docs/hardening/integration/W3_1_INTEGRATION_EVIDENCE.md|.github/workflows/w2-security-closure.yml|docs/security/W2_HTTP_OPERATOR_AUTHORITY.md|packages/api/src/chat.html|packages/api/src/dashboard.html|packages/api/src/http-server.ts|packages/api/src/operator-ui.ts|packages/api/src/research.html|packages/deployment/src/api-client.ts|packages/deployment/src/cli.ts|packages/deployment/src/operator-auth.ts|scripts/check-w2-production-security.mjs|scripts/test-http-trust-boundary-w2.cjs|scripts/test-operator-auth-rollout.cjs|docs/hardening/integration/W3_2_PROMOTION_EVIDENCE.md)
                 ;;
               *)
-                echo "Unexpected mutation above qualified W1D tree: $file" >&2
+                echo "Unexpected mutation above qualified W1D/W2 tree: $file" >&2
                 exit 1
                 ;;
             esac
@@ -156,7 +164,7 @@ jobs:
           set -euo pipefail
           actual="$(git rev-parse HEAD)"
           test "$actual" = "$GITHUB_SHA"
-          for sha in "$BASELINE_SHA" "$W1B_SHA" "$W1C_SHA" "$W1D_SHA"; do
+          for sha in "$BASELINE_SHA" "$W1B_SHA" "$W1C_SHA" "$W1D_SHA" "$W2_SHA"; do
             git cat-file -e "${sha}^{commit}"
             git merge-base --is-ancestor "$sha" HEAD
           done
@@ -199,6 +207,12 @@ jobs:
           node --import tsx scripts/test-http-egress-w1d3.cjs 2>&1 | tee cgev11-node26-w1d-http.log
           node --import tsx scripts/test-search-tool-w1d4.cjs 2>&1 | tee cgev11-node26-w1d-search.log
           node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs 2>&1 | tee cgev11-node26-w1d-e2e.log
+      - name: W2 operator and HTTP security compatibility
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-operator-auth-rollout.cjs 2>&1 | tee cgev11-node26-w2-operator.log
+          node --import tsx scripts/test-http-trust-boundary-w2.cjs 2>&1 | tee cgev11-node26-w2-http.log
+          node scripts/check-w2-production-security.mjs 2>&1 | tee cgev11-node26-w2-production-security.log
       - name: Full canonical suite
         run: |
           set -euo pipefail
@@ -235,8 +249,9 @@ jobs:
             if (job.outputs?.completed !== 'true') throw new Error(`${id} lacks completion receipt`);
           }
           process.stdout.write(`${JSON.stringify({
-            schema: 'cgev11.stack-integration/receipt/v1',
+            schema: 'cgev11.stack-integration/receipt/v2',
             candidateSha: process.env.EXPECTED_SHA,
+            w2AuthoritySha: process.env.W2_SHA || null,
             checkedJobs: expected,
             result: 'PASS',
             productionCertified: false,
