@@ -39,6 +39,24 @@ function rawRequest(chunks, headers = {}) {
   config.loadPresets();
   const server = createBoundary(config);
 
+  await test('browser API boundary is same-origin by default and keeps defensive response headers', async () => {
+    const headers = new Map();
+    const response = {
+      setHeader(name, value) { headers.set(String(name).toLowerCase(), value); },
+    };
+    server.setSecurityHeaders(response);
+    assert.equal(headers.has('access-control-allow-origin'), false);
+    assert.equal(headers.has('access-control-allow-methods'), false);
+    assert.equal(headers.has('access-control-allow-headers'), false);
+    assert.equal(headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(headers.get('referrer-policy'), 'no-referrer');
+    assert.equal(headers.get('x-frame-options'), 'DENY');
+    assert.equal(headers.get('permissions-policy'), 'camera=(), microphone=(), geolocation=()');
+
+    const source = fs.readFileSync(path.join(process.cwd(), 'packages/api/src/http-server.ts'), 'utf8');
+    assert.doesNotMatch(source, /Access-Control-Allow-Origin/i);
+  });
+
   await test('default request body boundary is 1 MiB', async () => {
     assert.equal(server.maxBodyBytes(), 1024 * 1024);
   });
@@ -130,6 +148,8 @@ function rawRequest(chunks, headers = {}) {
     assert.match(doc, /no per-token.*revocation|no per-token `jti` denylist/i);
     assert.match(doc, /signing-key rotation/i);
     assert.match(doc, /production exposure remains \*\*UNKNOWN\*\*/i);
+    assert.match(doc, /same-origin/i);
+    assert.match(doc, /wildcard.*CORS|CORS.*wildcard/is);
   });
 
   process.stdout.write(`${JSON.stringify({ suite: 'http-trust-boundary-w2', passed, failed }, null, 2)}\n`);
