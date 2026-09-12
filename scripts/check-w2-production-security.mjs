@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import ts from 'typescript';
+import * as ts from 'typescript';
 
 const base = process.env.W3_1_BASE_SHA;
 if (!base || !/^[0-9a-f]{40}$/i.test(base)) {
@@ -66,12 +66,6 @@ for (const file of changed) {
     file.endsWith('.js') ? ts.ScriptKind.JS : ts.ScriptKind.TS,
   );
 
-  for (const range of ts.getLeadingCommentRanges(text, 0) || []) {
-    const comment = text.slice(range.pos, range.end);
-    if (/@ts-(?:ignore|nocheck)/.test(comment)) {
-      findings.push({ file, line: 1, rule: 'typescript-bypass', detail: '@ts-ignore/@ts-nocheck is forbidden' });
-    }
-  }
   const commentDirective = /\/\*[\s\S]*?@ts-(?:ignore|nocheck)[\s\S]*?\*\/|\/\/[^\n]*@ts-(?:ignore|nocheck)/g;
   for (const match of text.matchAll(commentDirective)) {
     const prefix = text.slice(0, match.index);
