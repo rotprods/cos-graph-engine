@@ -54,6 +54,18 @@ The built-in `/`, `/dashboard`, `/chat` and `/research` operator pages are same-
 - each page gets a fresh CSP nonce; `connect-src 'self'` constrains API calls to the serving origin;
 - the superseded legacy inline HTML clients were removed from the source tree.
 
+## Browser/API origin boundary
+
+The built-in browser console and the HTTP API are **same-origin by default**.
+
+- the API server does not emit `Access-Control-Allow-Origin: *`;
+- wildcard CORS is not enabled for bearer-authenticated endpoints;
+- the CLI is not browser CORS-bound and continues to use direct HTTP(S) with the Authorization header;
+- an origin other than the API server's own origin is not part of the supported browser operator contract;
+- enabling cross-origin browser callers requires a separate reviewed deployment boundary with an explicit origin allowlist, preflight semantics, credential-leak analysis and regression tests. It must not be introduced by restoring wildcard CORS.
+
+The server still answers `OPTIONS` without granting an allow-origin header; therefore a browser does not receive permission to use the protected API cross-origin by default.
+
 ## JWT lifetime and revocation
 
 JWT guarantees in the current model:
