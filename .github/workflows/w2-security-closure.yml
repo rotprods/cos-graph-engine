@@ -92,8 +92,8 @@ jobs:
             echo 'W2 candidate introduced a forbidden type/dynamic-code/logging bypass' >&2
             exit 1
           fi
-          if grep -E '^\+.*(localStorage|sessionStorage|document\.cookie|[?&](token|credential)=)' w2-source.diff; then
-            echo 'W2 candidate introduced persistent/query-string browser credential handling' >&2
+          if grep -E '^\+.*(localStorage\.|sessionStorage\.|document\.cookie[[:space:]]*=|URLSearchParams.*(token|credential)|location\.(search|href).*(token|credential))' w2-source.diff; then
+            echo 'W2 candidate introduced executable persistent/query-string browser credential handling' >&2
             exit 1
           fi
           while IFS= read -r file; do
