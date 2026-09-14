@@ -4,10 +4,10 @@
 // Fase 8: Integracion Cruzada
 // ================================================================
 
-import { CallGraphBuilder, CallNode, CallEdge } from './level4-call';
-import { CFGBuilder, BasicBlock, CFEdge } from './level5-cfg';
+import { CallGraphBuilder } from './level4-call';
+import { CFGBuilder } from './level5-cfg';
 import { DataFlowGraph, DataFlowNode, DataFlowEdge } from './level6-dataflow';
-import { generateId } from '@cos/core';
+import { EntityId, generateId } from '@cos/core';
 
 // ===== Trace Entry Types =====
 
@@ -45,9 +45,11 @@ export class PipelineL4L5L6 {
   private builder: CallGraphBuilder;
   private cfgBuilder: CFGBuilder;
   private dataFlow: DataFlowGraph;
+  /** Recorded structured-trace durations are authoritative over converter wall-clock time. */
+  private recordedDurationByNode: Map<EntityId, number> = new Map();
 
-  callGraphId: string | null = null;
-  cfgId: string | null = null;
+  callGraphId: EntityId | null = null;
+  cfgId: EntityId | null = null;
 
   constructor() {
     this.builder = new CallGraphBuilder();
@@ -56,54 +58,88 @@ export class PipelineL4L5L6 {
   }
 
   /** Step 1: Build a CallGraph from a structured program trace */
-  traceToCallGraph(trace: ProgramTrace, options?: PipelineOptions): string {
+  traceToCallGraph(trace: ProgramTrace, options?: PipelineOptions): EntityId {
     const graphId = this.builder.createGraph(trace.name);
     this.callGraphId = graphId;
 
-    const stack: Array<{ parentId: string | null }> = [];
-
-    const processEntry = (entry: TraceEntry, parentId: string | null): void => {
+    const processEntry = (entry: TraceEntry, parentId: EntityId | null): void => {
       const nodeId = this.builder.enterCall(
         graphId,
         entry.name,
         entry.type || 'function',
-        entry.module
+        entry.module,
       );
 
-      // Record timing if available
-      if (entry.duration && entry.duration > 0) {
-        const node = this.builder.getNode(graphId, nodeId);
-        if (node) {
-          node.selfTime = entry.duration;
-          node.totalTime = entry.duration;
-        }
-      }
+      const nodeBefore = this.builder.getNode(graphId, nodeId);
+      const priorSelfTime = nodeBefore?.selfTime ?? 0;
+      const priorTotalTime = nodeBefore?.totalTime ?? 0;
+      const recordedDuration =
+        typeof entry.duration === 'number' && Number.isFinite(entry.duration) && entry.duration >= 0
+          ? entry.duration
+          : undefined;
 
-      // Process children
+      // Process children. CallGraphBuilder tracks the active span internally;
+      // parentId is retained here as explicit traversal context for clarity.
       if (entry.children) {
         for (const child of entry.children) {
           processEntry(child, nodeId);
         }
       }
 
-      // Exit the call
+      // CallGraphBuilder uses wall-clock timing for dynamic profiling. That timing is
+      // converter overhead here, not source data, so structured-trace timing wins.
+      const graphBeforeExit = this.builder.getGraph(graphId);
+      const totalBeforeExit = graphBeforeExit?.totalTime ?? 0;
       this.builder.exitCall(graphId, nodeId);
+
+      const nodeAfter = this.builder.getNode(graphId, nodeId);
+      if (nodeAfter) {
+        if (recordedDuration !== undefined) {
+          const cumulativeRecorded = (this.recordedDurationByNode.get(nodeId) ?? 0) + recordedDuration;
+          this.recordedDurationByNode.set(nodeId, cumulativeRecorded);
+          nodeAfter.selfTime = cumulativeRecorded;
+          nodeAfter.totalTime = cumulativeRecorded;
+        } else {
+          // No timing was supplied by the structured trace: discard conversion
+          // overhead so downstream defaultLatencyMs remains the authority.
+          nodeAfter.selfTime = priorSelfTime;
+          nodeAfter.totalTime = priorTotalTime;
+        }
+      }
+
+      const graphAfterExit = this.builder.getGraph(graphId);
+      if (graphAfterExit) {
+        graphAfterExit.totalTime = totalBeforeExit + (recordedDuration ?? 0);
+      }
+
+      void parentId;
+      void options;
     };
 
     for (const entry of trace.entries) {
       processEntry(entry, null);
     }
 
+    const graph = this.builder.getGraph(graphId);
+    if (
+      graph &&
+      typeof trace.totalDuration === 'number' &&
+      Number.isFinite(trace.totalDuration) &&
+      trace.totalDuration >= 0
+    ) {
+      graph.totalTime = trace.totalDuration;
+    }
+
     return graphId;
   }
 
   /** Step 2: Analyze a stack trace string into the CallGraph */
-  analyzeStackTrace(graphId: string, stackLines: string[]): void {
+  analyzeStackTrace(graphId: EntityId, stackLines: string[]): void {
     this.builder.analyzeStackTrace(graphId, stackLines);
   }
 
   /** Step 3: Convert a CallGraph into a CFG */
-  callGraphToCFG(graphId: string, options?: PipelineOptions): string {
+  callGraphToCFG(graphId: EntityId, options?: PipelineOptions): EntityId {
     const graph = this.builder.getGraph(graphId);
     if (!graph) throw new Error(`CallGraph ${graphId} not found`);
 
@@ -111,24 +147,30 @@ export class PipelineL4L5L6 {
     this.cfgId = cfgId;
 
     // Map: callNodeId -> cfgBlockId
-    const nodeToBlock = new Map<string, string>();
+    const nodeToBlock = new Map<EntityId, EntityId>();
 
-    // Create a basic block for each CallNode, sorted by depth for topological order
     const sortedNodes = [...graph.nodes].sort((a, b) => (a.depth || 0) - (b.depth || 0));
 
     for (const node of sortedNodes) {
       const blockType = node.type === 'root' ? 'entry' : 'basic';
-      const blockId = this.cfgBuilder.addBlock(cfgId, `${node.name}${node.module ? ` [${node.module}]` : ''}`, blockType as any);
+      const blockId = this.cfgBuilder.addBlock(
+        cfgId,
+        `${node.name}${node.module ? ` [${node.module}]` : ''}`,
+        blockType,
+      );
       nodeToBlock.set(node.id, blockId);
 
-      // Add timing info as instructions
       const block = this.cfgBuilder.getBlock(cfgId, blockId);
-      if (block && node.selfTime) {
+      const recordedDuration = this.recordedDurationByNode.get(node.id);
+      if (block && recordedDuration !== undefined) {
+        block.instructions = [`selfTime: ${recordedDuration}ms`, `calls: ${node.callCount || 1}`];
+      } else if (block && node.selfTime && node.selfTime > 0) {
+        // Preserve dynamic CallGraphBuilder timing when callers explicitly feed a
+        // dynamically-profiled graph into this conversion stage.
         block.instructions = [`selfTime: ${node.selfTime}ms`, `calls: ${node.callCount || 1}`];
       }
     }
 
-    // Create CFG edges from call edges
     for (const edge of graph.edges) {
       const sourceBlock = nodeToBlock.get(edge.source);
       const targetBlock = nodeToBlock.get(edge.target);
@@ -137,11 +179,12 @@ export class PipelineL4L5L6 {
       }
     }
 
+    void options;
     return cfgId;
   }
 
   /** Step 4: Convert a CFG into a DataFlow graph */
-  cfgToDataFlow(cfgId: string, options?: PipelineOptions): DataFlowGraph {
+  cfgToDataFlow(cfgId: EntityId, options?: PipelineOptions): DataFlowGraph {
     const cfg = this.cfgBuilder.getCFG(cfgId);
     if (!cfg) throw new Error(`CFG ${cfgId} not found`);
 
@@ -150,19 +193,16 @@ export class PipelineL4L5L6 {
     const defaultLatency = options?.defaultLatencyMs ?? 10;
     const propagateTiming = options?.propagateTiming ?? true;
 
-    // Map: cfgBlockId -> dataFlowNodeId
-    const blockToNode = new Map<string, string>();
+    const blockToNode = new Map<EntityId, EntityId>();
 
-    // Create a DataFlow node for each CFG block
     for (const block of cfg.blocks) {
       const nodeType = this.blockTypeToDataFlowType(block.type);
       let latency = defaultLatency;
 
-      // Extract timing from instructions if available
       if (propagateTiming && block.instructions) {
         for (const instr of block.instructions) {
           const match = instr.match(/selfTime:\s*(\d+)/);
-          if (match) latency = parseInt(match[1]);
+          if (match) latency = parseInt(match[1], 10);
         }
       }
 
@@ -182,7 +222,6 @@ export class PipelineL4L5L6 {
       blockToNode.set(block.id, block.id);
     }
 
-    // Create DataFlow edges from CFG edges
     for (const edge of cfg.edges) {
       const source = blockToNode.get(edge.source);
       const target = blockToNode.get(edge.target);
@@ -207,12 +246,10 @@ export class PipelineL4L5L6 {
     return this.cfgToDataFlow(cfgId, options);
   }
 
-  /** Access underlying builders */
   getCallGraphBuilder(): CallGraphBuilder { return this.builder; }
   getCFGBuilder(): CFGBuilder { return this.cfgBuilder; }
   getDataFlowGraph(): DataFlowGraph { return this.dataFlow; }
 
-  /** Validate all three graphs */
   validate(): { l4: string[]; l5: string[]; l6: string[] } {
     return {
       l4: this.callGraphId ? this.builder.validate(this.callGraphId) : ['No CallGraph'],
@@ -221,7 +258,6 @@ export class PipelineL4L5L6 {
     };
   }
 
-  /** Metrics for all three graphs */
   metrics(): { l4: any; l5: any; l6: any } {
     return {
       l4: this.callGraphId ? this.builder.metrics(this.callGraphId) : null,
@@ -234,8 +270,10 @@ export class PipelineL4L5L6 {
     switch (blockType) {
       case 'entry': return 'source';
       case 'exit': return 'sink';
-      case 'loop_header': case 'loop_body': return 'transform';
-      case 'condition': case 'branch': return 'filter';
+      case 'loop_header':
+      case 'loop_body': return 'transform';
+      case 'condition':
+      case 'branch': return 'filter';
       case 'merge': return 'join';
       default: return 'transform';
     }

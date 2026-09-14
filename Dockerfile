@@ -1,20 +1,13 @@
-# COS Graph Engine — Dockerfile
-# Multi-stage build: builder → runner
-# Zero external dependencies, full monorepo
+# COS Graph Engine — production container
+# Reproducible multi-stage build with compiled workspace packages only at runtime.
 
-# ============================================================
-# Stage 1: Builder
-# ============================================================
-FROM node:22-alpine AS builder
+ARG NODE_IMAGE=node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32
 
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /build
 
-# Copy monorepo root
-COPY package.json ./
-COPY tsconfig.json ./
-COPY tsconfig.build.json ./
+COPY package.json package-lock.json tsconfig.json tsconfig.build.json ./
 
-# Copy all package.json for dependency resolution
 COPY packages/core/package.json packages/core/
 COPY packages/runtime/package.json packages/runtime/
 COPY packages/memory/package.json packages/memory/
@@ -28,14 +21,10 @@ COPY packages/infrastructure/package.json packages/infrastructure/
 COPY packages/deployment/package.json packages/deployment/
 COPY packages/graph/package.json packages/graph/
 COPY packages/visualization/package.json packages/visualization/
-
-# Copy WASM build config
 COPY packages/wasm/ packages/wasm/
 
-# Install ALL dependencies (including devDependencies for build)
-RUN npm install --include=dev
+RUN npm ci --include=dev --ignore-scripts --no-audit --no-fund
 
-# Copy source code
 COPY packages/core/src/ packages/core/src/
 COPY packages/runtime/src/ packages/runtime/src/
 COPY packages/memory/src/ packages/memory/src/
@@ -50,39 +39,58 @@ COPY packages/deployment/src/ packages/deployment/src/
 COPY packages/graph/src/ packages/graph/src/
 COPY packages/visualization/src/ packages/visualization/src/
 
-# Build WASM modules
-RUN npm run asbuild 2>/dev/null || echo "WASM build skipped"
+# Required native artifact and fail-closed TypeScript production build.
+RUN npm run asbuild
+RUN npx --no-install tsc -p tsconfig.build.json --outDir /dist
 
-# Build TypeScript
-RUN npx tsc -p tsconfig.build.json --outDir /dist
+# Materialize workspace-local dist directories so npm workspace links remain valid
+# after the builder filesystem is gone. Version-2 packages historically pointed
+# `main` at TypeScript source; the container consumes the compiled entrypoint.
+RUN node <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const packages = [
+  'core', 'runtime', 'memory', 'knowledge', 'cognition', 'execution',
+  'orchestration', 'observability', 'api', 'infrastructure', 'deployment',
+  'graph', 'visualization', 'wasm',
+];
+for (const name of packages) {
+  const from = path.join('/dist/packages', name, 'src');
+  const to = path.join('/build/packages', name, 'dist');
+  fs.mkdirSync(to, { recursive: true });
+  fs.cpSync(from, to, { recursive: true });
+}
+for (const name of ['observability', 'graph', 'visualization', 'wasm']) {
+  const manifestPath = path.join('/build/packages', name, 'package.json');
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  manifest.main = 'dist/index.js';
+  manifest.types = 'dist/index.d.ts';
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+NODE
 
-# ============================================================
-# Stage 2: Runner
-# ============================================================
-FROM node:22-alpine
+# Runtime dependency graph only. Workspace links are intentionally retained and
+# now target copied package directories containing compiled dist output.
+RUN npm prune --omit=dev --ignore-scripts --no-audit --no-fund
 
-RUN apk add --no-cache tini
-
+FROM ${NODE_IMAGE} AS runner
+RUN apk add --no-cache tini=0.19.0-r3
 WORKDIR /cos
 
-# Copy compiled output
-COPY --from=builder /dist /cos/dist
-COPY --from=builder /build/node_modules /cos/node_modules
-COPY --from=builder /build/package.json /cos/package.json
-COPY --from=builder /build/packages/wasm/build/ /cos/packages/wasm/build/ 2>/dev/null || true
+COPY --from=builder --chown=node:node /build/node_modules ./node_modules
+COPY --from=builder --chown=node:node /build/packages ./packages
+COPY --from=builder --chown=node:node /build/package.json ./package.json
 
-# Environment
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV COS_GRAPH_ENGINE_VERSION=2.1.0
 
-# Expose HTTP API + Dashboard + Telemetry
 EXPOSE 8080
-EXPOSE 9090
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:8080/health || exit 1
+# Public health is deliberately unauthenticated; protected routes remain gated.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
+USER node
 ENTRYPOINT ["/sbin/tini", "--"]
-CMD ["node", "dist/packages/deployment/src/bootstrap.js"]
+CMD ["node", "packages/deployment/dist/serve.js"]

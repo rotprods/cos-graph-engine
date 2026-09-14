@@ -15,6 +15,29 @@ export interface COSConfig {
   plugins: string[];
 }
 
+export interface COSServerDependencies {
+  memory?: MemoryManager;
+}
+
+export interface COSServerStats {
+  runtime: {
+    subscribers: number;
+    events: number;
+    cells: number;
+    scheduler: Awaited<ReturnType<CellHost['scheduler']['stats']>>;
+  };
+  memory: Awaited<ReturnType<MemoryManager['stats']>>;
+  knowledge: GraphStats;
+  reasoning: number;
+  tools: number;
+  agents: number;
+  workflows: number;
+  telemetry: {
+    events: number;
+    metrics: number;
+  };
+}
+
 export class COSServer {
   public readonly cellHost: CellHost;
   public readonly memory: MemoryManager;
@@ -37,7 +60,7 @@ export class COSServer {
   public readonly config: COSConfig;
   private started = false;
 
-  constructor(config?: Partial<COSConfig>) {
+  constructor(config?: Partial<COSConfig>, dependencies: COSServerDependencies = {}) {
     this.config = {
       host: config?.host || 'localhost',
       port: config?.port || 8080,
@@ -46,9 +69,10 @@ export class COSServer {
       plugins: config?.plugins || [],
     };
 
-    // Initialize all subsystems
+    // Initialize all subsystems. Memory is constructor-injected so every
+    // downstream consumer, including AutonomousLoop, shares one authority.
     this.cellHost = new CellHost();
-    this.memory = new MemoryManager();
+    this.memory = dependencies.memory ?? new MemoryManager();
     this.knowledge = new KnowledgeGraph();
     this.embeddings = new EmbeddingSystem();
     this.ontology = new OntologySystem();
@@ -156,7 +180,7 @@ export class COSServer {
   }
 
   // System stats
-  async getStats(): Promise<Record<string, unknown>> {
+  async getStats(): Promise<COSServerStats> {
     return {
       runtime: {
         subscribers: this.cellHost.eventBus.subscriberCount,

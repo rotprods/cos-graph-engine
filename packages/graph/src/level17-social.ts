@@ -38,7 +38,7 @@ export class SocialGraphEngine {
     }
   }
 
-  addNode(n: Omit<SocialNode, 'id' | 'joinedAt'>): EntityId {
+  addNode(n: Omit<SocialNode, 'id' | 'createdAt'>): EntityId {
     const id = generateId();
     this.graph.nodes.push({ ...n, id, createdAt: new Date().toISOString() });
     this.buildAdjacency(); return id;

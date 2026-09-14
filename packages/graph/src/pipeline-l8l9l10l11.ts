@@ -4,9 +4,9 @@
 // Fase 8: Integracion Cruzada
 // ================================================================
 
-import { KnowledgeGraphEngine, KGEntity, KGRelation, RelationType } from './level8-knowledge';
+import { KnowledgeGraphEngine, KGEntity, KGRelation } from './level8-knowledge';
 import { SemanticGraph, SemanticNode, SemanticEdge } from './level9-semantic';
-import { EmbeddingGraph, EmbeddingNode, EmbeddingEdge } from './level10-embedding';
+import { EmbeddingGraph } from './level10-embedding';
 import { GraphRAGEngine, Chunk, GraphRAGConfig } from './level11-graphrag';
 import { generateId } from '@cos/core';
 
@@ -25,6 +25,7 @@ export interface PipelineKGtoRAGResult {
   knowledgeGraph: KnowledgeGraphEngine;
   semanticGraph: SemanticGraph;
   embeddingGraph: EmbeddingGraph;
+  graphRAG: GraphRAGEngine;
   ragResult: {
     chunks: Chunk[];
     entities: string[];
@@ -45,13 +46,9 @@ export interface PipelineKGtoRAGResult {
 // ===== Pipeline Options =====
 
 export interface PipelineKGtoRAGOptions {
-  /** Embedding dimension for vector conversion */
   embeddingDim?: number;
-  /** KNN parameter for embedding graph */
   knnK?: number;
-  /** Default GraphRAG config */
   graphRAGConfig?: Partial<GraphRAGConfig>;
-  /** Auto-build demo data if empty */
   autoBuildDemo?: boolean;
 }
 
@@ -79,19 +76,14 @@ export class PipelineL8L9L10L11 {
 
   /** Step 1: Build Knowledge Graph from entity/relation seed data */
   buildKnowledgeGraph(entities: KGEntity[], relations: KGRelation[]): void {
-    for (const e of entities) {
-      this.knowledgeGraph.addEntity(e);
-    }
-    for (const r of relations) {
-      this.knowledgeGraph.addRelation(r);
-    }
+    for (const e of entities) this.knowledgeGraph.addEntity(e);
+    for (const r of relations) this.knowledgeGraph.addRelation(r);
   }
 
   /** Step 2: Convert KG entities into a Semantic taxonomy */
   knowledgeToSemantic(): SemanticGraph {
     this.semanticGraph = new SemanticGraph();
 
-    // Map entity types to semantic classes
     const typeMap: Record<string, string> = {
       system: 'class',
       concept: 'class',
@@ -103,7 +95,6 @@ export class PipelineL8L9L10L11 {
       place: 'entity',
     };
 
-    // Create semantic nodes from KG entities
     for (const e of this.knowledgeGraph.entities) {
       const semType = typeMap[e.type] || 'entity';
       this.semanticGraph.addNode({
@@ -114,14 +105,12 @@ export class PipelineL8L9L10L11 {
       });
     }
 
-    // Create semantic edges from KG relations
     for (const r of this.knowledgeGraph.relations) {
-      const semRelation = this.mapRelationType(r.type);
       this.semanticGraph.addEdge({
         id: generateId(),
         source: `sem_${r.source}`,
         target: `sem_${r.target}`,
-        relation: semRelation,
+        relation: this.mapRelationType(r.type),
         strength: r.confidence ?? 0.8,
       });
     }
@@ -135,7 +124,6 @@ export class PipelineL8L9L10L11 {
     const dim = this.options.embeddingDim;
 
     for (const n of this.semanticGraph.nodes) {
-      // Generate a deterministic embedding from the concept name
       const vector = this.nameToVector(n.concept, dim);
       this.embeddingGraph.addNode({
         id: `emb_${n.id}`,
@@ -145,7 +133,6 @@ export class PipelineL8L9L10L11 {
       });
     }
 
-    // Build KNN graph
     if (this.embeddingGraph.nodes.length > 1) {
       this.embeddingGraph.buildKNN(this.options.knnK);
     }
@@ -157,22 +144,17 @@ export class PipelineL8L9L10L11 {
   embeddingToGraphRAG(queryIntent?: QueryIntent): PipelineKGtoRAGResult['ragResult'] {
     this.graphRAG = new GraphRAGEngine(this.options.graphRAGConfig);
 
-    // Add KG entities to GraphRAG
-    const entityIdMap = new Map<string, string>();
     for (const e of this.knowledgeGraph.entities) {
       this.graphRAG.addEntity(e.id, e.name, e.type);
-      entityIdMap.set(e.id, e.id);
     }
 
-    // Add KG relations to GraphRAG
     for (const r of this.knowledgeGraph.relations) {
       this.graphRAG.addRelation(r.source, r.target, r.type);
     }
 
-    // Create chunks from embedding nodes
     for (const emb of this.embeddingGraph.nodes) {
-      const semId = (emb.metadata?.semanticId as string) || '';
-      const semNode = this.semanticGraph.getNode(semId.replace('sem_', ''));
+      const semId = typeof emb.metadata?.semanticId === 'string' ? emb.metadata.semanticId : '';
+      const semNode = this.semanticGraph.getNode(semId);
       const relatedEntities = this.findRelatedEntities(semNode?.concept || emb.label);
 
       this.graphRAG.addChunk({
@@ -184,7 +166,6 @@ export class PipelineL8L9L10L11 {
       });
     }
 
-    // If we have a query, run retrieval
     if (queryIntent) {
       const qEmbedding = queryIntent.embedding || this.nameToVector(queryIntent.text, this.options.embeddingDim);
       const qEntities = queryIntent.entities || this.findRelatedEntities(queryIntent.text);
@@ -193,14 +174,16 @@ export class PipelineL8L9L10L11 {
         chunks: retrieved.chunks || [],
         entities: retrieved.entities || [],
         relations: retrieved.relations || [],
-        context: retrieved.chunks ? retrieved.chunks.map((c: any) => c.text).join('\n') : '',
+        context: retrieved.chunks ? retrieved.chunks.map((chunk: any) => chunk.text).join('\n') : '',
         answer: `Retrieved ${retrieved.chunks?.length || 0} chunks from ${retrieved.entities?.length || 0} entities.`,
         confidence: (retrieved.chunks?.length || 0) > 0 ? Math.min(1, (retrieved.entities?.length || 0) / 10) : 0,
-        trace: [`Vector similarity: top ${this.options.graphRAGConfig.topK || 5}`, `KG traversal: depth ${this.options.graphRAGConfig.walkDepth || 2}`],
+        trace: [
+          `Vector similarity: top ${queryIntent.topK ?? this.options.graphRAGConfig.topK ?? 5}`,
+          `KG traversal: depth ${queryIntent.walkDepth ?? this.options.graphRAGConfig.walkDepth ?? 2}`,
+        ],
       };
     }
 
-    // Return empty result
     return {
       chunks: [],
       entities: [],
@@ -216,7 +199,7 @@ export class PipelineL8L9L10L11 {
   runPipeline(
     entities: KGEntity[],
     relations: KGRelation[],
-    query?: QueryIntent
+    query?: QueryIntent,
   ): PipelineKGtoRAGResult {
     this.buildKnowledgeGraph(entities, relations);
     this.knowledgeToSemantic();
@@ -244,8 +227,8 @@ export class PipelineL8L9L10L11 {
     this.knowledgeGraph.buildAIEcosystem();
     this.knowledgeToSemantic();
     this.semanticToEmbedding();
+    this.graphRAG = new GraphRAGEngine(this.options.graphRAGConfig);
 
-    // Set up GraphRAG with the KG data
     for (const e of this.knowledgeGraph.entities) {
       this.graphRAG.addEntity(e.id, e.name, e.type);
     }
@@ -253,10 +236,9 @@ export class PipelineL8L9L10L11 {
       this.graphRAG.addRelation(r.source, r.target, r.type);
     }
 
-    // Create chunks from embedding nodes
     for (const emb of this.embeddingGraph.nodes) {
-      const semId = (emb.metadata?.semanticId as string) || '';
-      const semNode = this.semanticGraph.getNode(semId.replace('sem_', ''));
+      const semId = typeof emb.metadata?.semanticId === 'string' ? emb.metadata.semanticId : '';
+      const semNode = this.semanticGraph.getNode(semId);
       this.graphRAG.addChunk({
         id: `chunk_${emb.id}`,
         text: `${emb.label}: ${semNode?.definition || 'AI concept'}`,
@@ -266,7 +248,6 @@ export class PipelineL8L9L10L11 {
       });
     }
 
-    // Run a default query
     return {
       query: 'Tell me about AI models',
       knowledgeGraph: this.knowledgeGraph,
@@ -277,7 +258,7 @@ export class PipelineL8L9L10L11 {
         chunks: this.graphRAG.chunks,
         entities: this.graphRAG.entities.map(e => e.name),
         relations: this.graphRAG.relations.map(r => ({ source: r.source, target: r.target, relation: r.type })),
-        context: this.graphRAG.chunks.map(c => c.text).join('\n'),
+        context: this.graphRAG.chunks.map(chunk => chunk.text).join('\n'),
         answer: `Pipeline built with ${this.knowledgeGraph.entities.length} entities, ${this.semanticGraph.nodes.length} semantic nodes, ${this.embeddingGraph.nodes.length} embeddings, ${this.graphRAG.chunks.length} chunks.`,
         confidence: 0.9,
         trace: [
@@ -313,13 +294,11 @@ export class PipelineL8L9L10L11 {
     };
   }
 
-  /** Access underlying engines */
   getKnowledgeGraph(): KnowledgeGraphEngine { return this.knowledgeGraph; }
   getSemanticGraph(): SemanticGraph { return this.semanticGraph; }
   getEmbeddingGraph(): EmbeddingGraph { return this.embeddingGraph; }
   getGraphRAG(): GraphRAGEngine { return this.graphRAG; }
 
-  /** Validate all four graphs */
   validate(): { l8: string[]; l9: string[]; l10: string[]; l11: string[] } {
     return {
       l8: this.knowledgeGraph.validate(),
@@ -329,7 +308,6 @@ export class PipelineL8L9L10L11 {
     };
   }
 
-  /** Metrics for all four graphs */
   metrics() {
     return {
       l8: this.knowledgeGraph.metrics(),
@@ -342,14 +320,12 @@ export class PipelineL8L9L10L11 {
   // ===== Private Helpers =====
 
   private nameToVector(name: string, dim: number): number[] {
-    // Deterministic hash-based embedding from name
     const vector: number[] = new Array(dim).fill(0);
     for (let i = 0; i < name.length; i++) {
       const code = name.charCodeAt(i);
       vector[i % dim] += (code % 100) / 100;
     }
-    // Normalize
-    const mag = Math.sqrt(vector.reduce((s, v) => s + v * v, 0));
+    const mag = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
     if (mag > 0) {
       for (let i = 0; i < dim; i++) vector[i] /= mag;
     }
@@ -380,8 +356,8 @@ export class PipelineL8L9L10L11 {
   private getEntityDescriptions(entityIds: string[]): string {
     return entityIds
       .map(id => {
-        const e = this.knowledgeGraph.getEntity(id);
-        return e ? `${e.name} (${e.type})` : '';
+        const entity = this.knowledgeGraph.getEntity(id);
+        return entity ? `${entity.name} (${entity.type})` : '';
       })
       .filter(Boolean)
       .join(', ');

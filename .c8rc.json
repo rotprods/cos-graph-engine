@@ -2,10 +2,10 @@
   "all": true,
   "include": ["packages/**"],
   "exclude": ["node_modules", "scripts", "**/*.test.ts", "**/*.spec.ts"],
-  "reporter": ["text", "html", "lcov"],
+  "reporter": ["text", "html", "lcov", "json-summary"],
   "check-coverage": true,
-  "branches": 55,
-  "functions": 65,
-  "lines": 63,
-  "statements": 63
+  "branches": 76,
+  "functions": 72,
+  "lines": 73,
+  "statements": 73
 }

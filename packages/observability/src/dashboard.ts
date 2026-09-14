@@ -100,7 +100,6 @@ export class OTLPExporter {
       if (traces.length === 0) return true;
 
       const body = JSON.stringify(this._toOTLPFormat(traces));
-      const { fetch } = await import('node:http');
       // Use https if endpoint starts with https
       const mod = this._config.endpoint.startsWith('https') ? await import('node:https') : await import('node:http');
 

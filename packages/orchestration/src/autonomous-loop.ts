@@ -204,11 +204,6 @@ export class AutonomousLoop {
       };
 
       goal.results.set(goal.currentStepIndex, result);
-
-      if (step.retryCount >= step.maxRetries) {
-        goal.currentStepIndex++; // Skip failed step
-      }
-
       return result;
     }
   }
@@ -229,13 +224,29 @@ export class AutonomousLoop {
         await this.evaluateProgress(goalId);
       }
 
-      // If stuck, try adapting
+      if (result?.success) {
+        // A successful step proves the current plan is making progress, so
+        // reset the consecutive adaptation budget for the next failure streak.
+        goal.evaluation.attempts = 0;
+        continue;
+      }
+
+      // Failed steps stay at the same index until their retry budget is
+      // exhausted. Only then do we adapt the remaining plan. This prevents a
+      // failed step from being silently skipped and the goal from being
+      // reported as completed.
       if (result && !result.success) {
-        goal.evaluation.attempts++;
-        if (goal.evaluation.attempts >= goal.evaluation.maxAttempts) {
+        const failedStep = goal.plan[goal.currentStepIndex];
+        if (failedStep && failedStep.retryCount >= failedStep.maxRetries) {
+          goal.evaluation.attempts++;
+
+          if (goal.evaluation.attempts >= goal.evaluation.maxAttempts) {
+            goal.status = 'failed';
+            break;
+          }
+
           goal.status = 'adapting';
           await this.adaptPlan(goalId);
-          goal.evaluation.attempts = 0;
         }
       }
     }

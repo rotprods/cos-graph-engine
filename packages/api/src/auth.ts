@@ -1,10 +1,6 @@
-import { EntityId, CellContext } from '@cos/core';
+import { createHmac, timingSafeEqual } from 'node:crypto';
+import { CellContext } from '@cos/core';
 import { Configuration } from '@cos/infrastructure';
-
-// ================================================================
-// Phase 5: Authentication Middleware
-// Supports: JWT tokens, API Keys
-// ================================================================
 
 export interface AuthIdentity {
   userId: string;
@@ -13,96 +9,119 @@ export interface AuthIdentity {
   tokenType: 'jwt' | 'api_key' | 'none';
 }
 
+const MAX_TOKEN_LENGTH = 8192;
+const MAX_JWT_LIFETIME_SECONDS = 86400;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function anonymous(): AuthIdentity {
+  return { userId: 'anonymous', role: 'user', permissions: [], tokenType: 'none' };
+}
+
 export class AuthMiddleware {
-  private config: Configuration;
-  private apiKeys: Set<string> = new Set();
-  private tokens: Map<string, AuthIdentity> = new Map();
+  constructor(private config: Configuration) {}
 
-  constructor(config: Configuration) {
-    this.config = config;
-    this.loadKeys();
+  private signingKey(): string {
+    const key = this.config.get<string>('auth.jwtSecret');
+    if (typeof key !== 'string' || Buffer.byteLength(key, 'utf8') < 32 || /^change-me/i.test(key)) {
+      throw new Error('Configure auth.jwtSecret with a strong signing key of at least 32 bytes');
+    }
+    return key;
   }
 
-  private loadKeys(): void {
+  private isConfiguredApiKey(token: string): boolean {
+    const candidate = Buffer.from(token, 'utf8');
     const keys = this.config.get<string[]>('auth.apiKeys') || [];
-    for (const key of keys) {
-      this.apiKeys.add(key);
+    for (const configured of keys) {
+      if (typeof configured !== 'string' || configured.length === 0) continue;
+      const expected = Buffer.from(configured, 'utf8');
+      if (candidate.length === expected.length && timingSafeEqual(candidate, expected)) return true;
     }
+    return false;
   }
 
-  /** Authenticate a request, return identity or throw */
   async authenticate(authorization?: string): Promise<AuthIdentity> {
-    if (!authorization) {
-      // No auth → system user with limited permissions
+    if (!authorization || !authorization.startsWith('Bearer ')) return anonymous();
+    const token = authorization.substring(7);
+    if (token.length === 0 || token.length > MAX_TOKEN_LENGTH) return anonymous();
+
+    if (this.isConfiguredApiKey(token)) {
+      return { userId: 'api-user', role: 'user', permissions: ['read', 'write', 'execute'], tokenType: 'api_key' };
+    }
+
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3 || !parts.every(part => /^[A-Za-z0-9_-]+$/.test(part))) return anonymous();
+      const [encodedHeader, encodedPayload, signature] = parts;
+      if (signature.length !== 43) return anonymous();
+      const header: unknown = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8'));
+      if (!isRecord(header) || header.alg !== 'HS256' || header.typ !== 'JWT' || header.crit !== undefined) return anonymous();
+
+      const expected = createHmac('sha256', this.signingKey()).update(`${encodedHeader}.${encodedPayload}`).digest();
+      const supplied = Buffer.from(signature, 'base64url');
+      if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return anonymous();
+
+      const payload: unknown = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));
+      if (!isRecord(payload) || typeof payload.sub !== 'string' || payload.sub.length === 0 || payload.sub.length > 256) return anonymous();
+      if (payload.iss !== 'cos' || payload.aud !== 'cos-api') return anonymous();
+      if (payload.role !== 'user' && payload.role !== 'admin') return anonymous();
+      const now = Math.floor(Date.now() / 1000);
+      if (typeof payload.exp !== 'number' || !Number.isSafeInteger(payload.exp) || payload.exp <= now) return anonymous();
+      if (typeof payload.iat !== 'number' || !Number.isSafeInteger(payload.iat) || payload.iat > now || payload.exp <= payload.iat) return anonymous();
+      if (payload.exp - payload.iat > MAX_JWT_LIFETIME_SECONDS) return anonymous();
+      if (payload.nbf !== undefined && (typeof payload.nbf !== 'number' || !Number.isSafeInteger(payload.nbf) || payload.nbf > now)) return anonymous();
+      const allowed = payload.role === 'admin' ? ['read', 'write', 'execute', 'admin'] : ['read', 'write', 'execute'];
+      if (!Array.isArray(payload.permissions) || !payload.permissions.every(permission => typeof permission === 'string' && allowed.includes(permission))) return anonymous();
       return {
-        userId: 'anonymous',
-        role: 'user',
-        permissions: ['read'],
-        tokenType: 'none',
+        userId: payload.sub,
+        role: payload.role,
+        permissions: [...new Set<string>(payload.permissions)],
+        tokenType: 'jwt',
       };
+    } catch {
+      return anonymous();
     }
-
-    if (authorization.startsWith('Bearer ')) {
-      const token = authorization.substring(7);
-
-      // Check if it's an API key
-      if (this.apiKeys.has(token)) {
-        return {
-          userId: 'api-user',
-          role: 'user',
-          permissions: ['read', 'write', 'execute'],
-          tokenType: 'api_key',
-        };
-      }
-
-      // Check cached JWT
-      const cached = this.tokens.get(token);
-      if (cached) return cached;
-
-      // Validate JWT (simple HMAC for now)
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
-          const identity: AuthIdentity = {
-            userId: payload.sub || 'unknown',
-            role: payload.role || 'user',
-            permissions: payload.permissions || ['read'],
-            tokenType: 'jwt',
-          };
-          this.tokens.set(token, identity);
-          return identity;
-        }
-      } catch {
-        // Invalid JWT, fall through
-      }
-    }
-
-    // Default: anonymous user
-    return {
-      userId: 'anonymous',
-      role: 'user',
-      permissions: ['read'],
-      tokenType: 'none',
-    };
   }
 
-  /** Generate a simple JWT for testing */
+  authorize(identity: AuthIdentity, method: string, path: string): boolean {
+    if (method === 'GET' && ['/', '/dashboard', '/health', '/chat', '/research'].includes(path)) return true;
+    if (identity.tokenType === 'none') return false;
+    if (path === '/config' || path === '/auth/token') {
+      return identity.role === 'admin' && identity.permissions.includes('admin');
+    }
+    if (path === '/self-improve') return identity.permissions.includes('execute');
+    if (method === 'GET' || method === 'HEAD') return identity.permissions.includes('read');
+    return identity.permissions.includes('write') && identity.permissions.includes('execute');
+  }
+
+  redactedConfiguration(): ReturnType<Configuration['snapshot']> {
+    const result = this.config.snapshot();
+    for (const [key, entry] of Object.entries(result)) {
+      if (/^auth\.|secret|password|token|credential|api.?key/i.test(key)) {
+        result[key] = { ...entry, value: '[REDACTED]' };
+      }
+    }
+    return result;
+  }
+
   generateToken(userId: string, role: 'admin' | 'user' = 'user'): string {
-    const secret = this.config.get<string>('auth.jwtSecret') || 'change-me';
+    if (typeof userId !== 'string' || userId.length === 0 || userId.length > 256 || (role !== 'admin' && role !== 'user')) {
+      throw new Error('Invalid token subject or role');
+    }
+    const secret = this.signingKey();
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+    const now = Math.floor(Date.now() / 1000);
     const payload = Buffer.from(JSON.stringify({
-      sub: userId,
-      role,
+      sub: userId, role, iss: 'cos', aud: 'cos-api',
       permissions: role === 'admin' ? ['read', 'write', 'execute', 'admin'] : ['read', 'write', 'execute'],
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 86400,
+      iat: now, exp: now + MAX_JWT_LIFETIME_SECONDS,
     })).toString('base64url');
-    const signature = Buffer.from(`${header}.${payload}.${secret}`).toString('base64url');
+    const signature = createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url');
     return `${header}.${payload}.${signature}`;
   }
 
-  /** Create cell context from auth identity */
   toCellContext(identity: AuthIdentity, traceId?: string): CellContext {
     return {
       traceId: traceId || `cos_${Date.now()}`,

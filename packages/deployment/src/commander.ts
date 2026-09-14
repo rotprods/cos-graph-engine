@@ -4,6 +4,9 @@
 // ================================================================
 
 import * as readline from 'readline';
+import { COSServer } from '@cos/api';
+import { Configuration } from '@cos/infrastructure';
+import { BaseCell, EntityId } from '@cos/core';
 
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';
@@ -47,33 +50,35 @@ ${c(GREEN, '  exit')}        ${GRAY}- Exit the commander${RESET}
 `);
 }
 
-function showStatusBar(stats: any) {
-  const health = stats?.system?.status || 'unknown';
-  const healthColor = health === 'healthy' ? GREEN : health === 'degraded' ? YELLOW : RED;
-  const cells = stats?.system?.metrics?.cells || 0;
-  const tools = stats?.system?.metrics?.tools || 0;
-  const memory = stats?.memory?.totalEntries || 0;
-  const reasoning = stats?.reasoning || 0;
+function showStatusBar(health: Record<string, any>) {
+  const status = health?.system?.status || 'unknown';
+  const healthColor = status === 'healthy' ? GREEN : status === 'degraded' ? YELLOW : RED;
+  const cells = health?.system?.metrics?.cells || 0;
+  const tools = health?.system?.metrics?.tools || 0;
+  const memory = health?.system?.metrics?.memory || 0;
 
   console.log(`\n${c(GRAY, '┌─')} ${c(BOLD, 'SYSTEM STATUS')} ${c(GRAY, '─────────────────────────────────────────────────────┐')}`);
-  console.log(`${c(GRAY, '│')}  ${c(healthColor, '●')} Health: ${c(healthColor, health.padEnd(12))} ${c(BLUE, '🧩')} Cells: ${cells}  ${c(MAGENTA, '🧠')} Reasoning: ${reasoning}  ${c(GREEN, '🔧')} Tools: ${tools}  ${c(CYAN, '💾')} Memory: ${memory}`);
+  console.log(`${c(GRAY, '│')}  ${c(healthColor, '●')} Health: ${c(healthColor, status.padEnd(12))} ${c(BLUE, '🧩')} Cells: ${cells}  ${c(GREEN, '🔧')} Tools: ${tools}  ${c(CYAN, '💾')} Memory: ${memory}`);
   console.log(`${c(GRAY, '└──────────────────────────────────────────────────────────────────┘')}\n`);
 }
 
 export async function runCommander() {
-  const api = require('../api/src/index.ts');
-  const infra = require('../infrastructure/src/index.ts');
-  const core = require('../core/src/index.ts');
-
-  const config = new infra.Configuration();
+  const config = new Configuration();
   config.loadPresets();
-  const server = new api.COSServer(config);
+
+  const server = new COSServer({
+    host: config.get<string>('server.host') ?? '0.0.0.0',
+    port: config.get<number>('server.port') ?? 8080,
+    maxMemory: config.get<number>('storage.memory.maxEntries') ?? 10000,
+    logLevel: config.get<string>('log.level') ?? 'info',
+    plugins: [],
+  });
 
   // Register a demo cell
-  const cell = new (class extends core.BaseCell {
+  const cell = new (class extends BaseCell {
     constructor() {
       super({
-        id: 'cos:commander:cell' as core.EntityId, name: 'commander-cell',
+        id: 'cos:commander:cell' as EntityId, name: 'commander-cell',
         purpose: 'Interactive CLI processing cell',
         version: { major: 1, minor: 0, patch: 0 }, owner: 'cos', type: 'cognitive',
         policies: [], dependencies: [],
@@ -93,13 +98,13 @@ export async function runCommander() {
   })();
 
   await server.cellHost.register(cell);
-  await server.policies.addRule({ id: 'p:all' as core.EntityId, name: 'allow-all', description: '', effect: 'allow', actions: ['*'], resources: ['*'], conditions: [], priority: 0, enabled: true });
+  await server.policies.addRule({ id: 'p:all' as EntityId, name: 'allow-all', description: '', effect: 'allow', actions: ['*'], resources: ['*'], conditions: [], priority: 0, enabled: true });
 
   // Seed demo data
   await server.memory.store('COS is a cognitive operating system with 11 subsystems', 'semantic', { tags: ['architecture', 'cos'], importance: 0.9 });
   await server.memory.store('5 reasoning engines: CoT, ToT, Reflection, GoT, Debate', 'semantic', { tags: ['reasoning'], importance: 0.85 });
-  await server.knowledge.addStatement({ subject: 'COS', predicate: 'is', object: 'Cognitive Operating System', confidence: 1, source: 'sys' as core.EntityId, metadata: {}, embedding: undefined });
-  await server.knowledge.addStatement({ subject: 'COS', predicate: 'has', object: '11 subsystems', confidence: 1, source: 'sys' as core.EntityId, metadata: {}, embedding: undefined });
+  await server.knowledge.addStatement({ subject: 'COS', predicate: 'is', object: 'Cognitive Operating System', confidence: 1, source: 'sys' as EntityId, metadata: {}, embedding: undefined });
+  await server.knowledge.addStatement({ subject: 'COS', predicate: 'has', object: '11 subsystems', confidence: 1, source: 'sys' as EntityId, metadata: {}, embedding: undefined });
 
   showBanner();
   showHelp();
@@ -119,8 +124,8 @@ export async function runCommander() {
         showStatusBar(health);
         console.log(`  ${c(BOLD, 'System:')}     ${health.system?.status}`);
         console.log(`  ${c(BOLD, 'Cells:')}      ${health.system?.metrics?.cells}`);
-        console.log(`  ${c(BOLD, 'Memory:')}     ${(stats.memory as any).totalEntries} entries`);
-        console.log(`  ${c(BOLD, 'Knowledge:')}  ${(stats.knowledge as any).nodeCount || 0} nodes`);
+        console.log(`  ${c(BOLD, 'Memory:')}     ${stats.memory.totalEntries} entries`);
+        console.log(`  ${c(BOLD, 'Knowledge:')}  ${stats.knowledge.nodeCount || 0} nodes`);
         console.log(`  ${c(BOLD, 'Reasoning:')}  ${stats.reasoning} engines`);
         console.log(`  ${c(BOLD, 'Tools:')}      ${stats.tools}`);
         console.log(`  ${c(BOLD, 'Agents:')}     ${stats.agents}`);
@@ -149,7 +154,7 @@ export async function runCommander() {
         console.log(`\n  ${c(BOLD, 'Memory Statistics:')}`);
         console.log(`  Total: ${stats.totalEntries} entries`);
         for (const [layer, count] of Object.entries(stats.byLayer)) {
-          if (count > 0) console.log(`  ${c(CYAN, layer.padEnd(15))} ${count} entries`);
+          if (typeof count === 'number' && count > 0) console.log(`  ${c(CYAN, layer.padEnd(15))} ${count} entries`);
         }
         break;
       }
@@ -183,9 +188,9 @@ export async function runCommander() {
       case 'cells': {
         const cells = server.cellHost.getAllCells();
         console.log(`\n  ${c(BOLD, 'Cognitive Cells:')}`);
-        cells.forEach((c: any) => {
-          console.log(`  ${c(GREEN, '●')} ${c(BOLD, c.definition.name)} ${c(GRAY, '(' + c.definition.type + ')')}`);
-          console.log(`     ${c(GRAY, c.definition.purpose.substring(0, 60))}`);
+        cells.forEach((cellItem: any) => {
+          console.log(`  ${c(GREEN, '●')} ${c(BOLD, cellItem.definition.name)} ${c(GRAY, '(' + cellItem.definition.type + ')')}`);
+          console.log(`     ${c(GRAY, cellItem.definition.purpose.substring(0, 60))}`);
         });
         break;
       }

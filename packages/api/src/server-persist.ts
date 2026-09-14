@@ -1,20 +1,25 @@
 import { COSServer } from './server';
-import { PersistenceManager, FileBackedData } from '@cos/infrastructure';
+import { PersistenceManager, FileBackedData, FileBackedMemory } from '@cos/infrastructure';
+import { MemoryManager } from '@cos/memory';
 import * as path from 'path';
 
 // ================================================================
-// PERSISTENT COSServer — All state survives process restarts
+// PERSISTENT COSServer — Durable memory authority + derived snapshots
 // ================================================================
 
 export class PersistentCOSSERVER {
   public readonly server: COSServer;
   public readonly persistence: PersistenceManager;
+  public readonly memoryStore: FileBackedMemory;
   public readonly stores: Record<string, FileBackedData> = {};
   private initialized = false;
+  private shutdownPromise: Promise<void> | null = null;
 
   constructor(dataDir?: string) {
-    this.server = new COSServer();
     this.persistence = new PersistenceManager(dataDir || path.join(process.cwd(), '.cos-data'));
+    this.memoryStore = new FileBackedMemory(this.persistence, 'memory');
+    const memory = new MemoryManager(this.memoryStore);
+    this.server = new COSServer(undefined, { memory });
   }
 
   async init(): Promise<void> {
@@ -22,51 +27,76 @@ export class PersistentCOSSERVER {
 
     await this.persistence.init();
 
-    // Create persistent stores for critical state
-    this.stores.memory = new FileBackedData(this.persistence.dataPath, 'memory');
-    this.stores.knowledge = new FileBackedData(this.persistence.dataPath, 'knowledge');
-    this.stores.learning = new FileBackedData(this.persistence.dataPath, 'learning');
-    this.stores.config = new FileBackedData(this.persistence.dataPath, 'config');
-    this.stores.metrics = new FileBackedData(this.persistence.dataPath, 'metrics');
+    // Non-memory stores are derived/supporting state. Canonical memory is the
+    // FileBackedMemory instance injected into COSServer above.
+    if (!this.stores.knowledge) this.stores.knowledge = new FileBackedData(this.persistence.dataPath, 'knowledge');
+    if (!this.stores.learning) this.stores.learning = new FileBackedData(this.persistence.dataPath, 'learning');
+    if (!this.stores.config) this.stores.config = new FileBackedData(this.persistence.dataPath, 'config');
+    if (!this.stores.metrics) this.stores.metrics = new FileBackedData(this.persistence.dataPath, 'metrics');
 
-    // Register all stores with persistence manager
     for (const [name, store] of Object.entries(this.stores)) {
       this.persistence.register(name, store);
     }
 
-    // Load persisted state
+    // Corrupt/schema-invalid memory throws here; only ENOENT is reported as
+    // missing by PersistenceManager.load().
     const { loaded, missing } = await this.persistence.loadAll();
     console.log(`[COS Persist] Loaded: ${loaded.join(', ') || 'none'} | New: ${missing.join(', ') || 'none'}`);
-
-    // Restore memory state
-    for (const [key, value] of Object.entries(this.stores.memory.serialize() as Record<string, unknown> || {})) {
-      if (key !== 'type' && key !== 'version') {
-        // Restore would use the store's specific format
-      }
-    }
 
     this.initialized = true;
   }
 
   async saveNow(): Promise<void> {
-    // Save current state from memory
-    const memStats = await this.server.memory.stats();
-    this.stores.memory.set('stats', memStats);
-    this.stores.memory.set('entries', (memStats as any).totalEntries || 0);
+    // FileBackedMemory persists actual MemoryEntry authority, not derived
+    // counters. Remaining stores below are explicitly supporting snapshots.
+    await this.memoryStore.flush();
+    if (!this.initialized) return;
 
     const kgStats = await this.server.knowledge.stats();
     this.stores.knowledge.set('stats', kgStats);
-    this.stores.knowledge.set('statements', (kgStats as any).nodeCount || 0);
+    this.stores.knowledge.set('statements', kgStats.nodeCount);
 
     const learnStats = this.server.learning.stats;
     this.stores.learning.set('stats', learnStats);
     this.stores.learning.set('examples', learnStats.totalExamples);
 
-    await this.persistence.saveAll();
+    for (const name of Object.keys(this.stores)) {
+      await this.persistence.save(name);
+    }
   }
 
   async shutdown(): Promise<void> {
-    await this.saveNow();
-    console.log('[COS Persist] State saved. Shutting down.');
+    if (this.shutdownPromise) return this.shutdownPromise;
+    this.shutdownPromise = this.shutdownOnce();
+    return this.shutdownPromise;
+  }
+
+  private async shutdownOnce(): Promise<void> {
+    const errors: unknown[] = [];
+
+    // Stop producers before the final durability flush so no runtime mutation
+    // can race behind the shutdown checkpoint.
+    try {
+      await this.server.shutdown();
+    } catch (error) {
+      errors.push(error);
+    }
+
+    try {
+      await this.saveNow();
+    } catch (error) {
+      errors.push(error);
+    }
+
+    try {
+      await this.memoryStore.dispose();
+    } catch (error) {
+      errors.push(error);
+    }
+
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, 'Persistent COS shutdown failed');
+
+    console.log('[COS Persist] Durable state flushed. Server shut down.');
   }
 }

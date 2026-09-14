@@ -2,7 +2,7 @@
 // Ontologies, entities, relationships, SPARQL queries, transitive inference
 // Refactored: mutation API, adjacency maps, serialization, validation
 
-import { generateId, EntityId } from '@cos/core';
+import { generateId } from '@cos/core';
 
 export type EntityType = 'concept' | 'person' | 'org' | 'product' | 'tech' | 'event' | 'place' | 'system';
 export type RelationType = 'created' | 'uses' | 'part_of' | 'subclass_of' | 'located_in' | 'produced_by' | 'has' | 'related_to';
@@ -19,6 +19,17 @@ export interface KGRelation {
 
 export interface SPARQLQuery {
   select: string[]; where: Array<{ subject: string; predicate: string; object: string }>; limit?: number;
+}
+
+export interface KGMetrics {
+  /** Current canonical names. */
+  nodeCount: number;
+  edgeCount: number;
+  /** Backward-compatible aliases used by historical callers/tests. */
+  entityCount: number;
+  relationCount: number;
+  avgDegree: number;
+  density: number;
 }
 
 export class KnowledgeGraphEngine {
@@ -51,6 +62,7 @@ export class KnowledgeGraphEngine {
   addRelation(r: KGRelation): void {
     if (!this.entities.some(e => e.id === r.source)) throw new Error(`Relation source ${r.source} not found`);
     if (!this.entities.some(e => e.id === r.target)) throw new Error(`Relation target ${r.target} not found`);
+    if (this.relations.some(existing => existing.id === r.id)) throw new Error(`Duplicate relation ID: ${r.id}`);
     this.relations.push(r); this.buildAdjacency();
   }
 
@@ -81,6 +93,10 @@ export class KnowledgeGraphEngine {
     this.addRelation({ id: generateId(), source: 'rag', target: 'embedding', type: 'uses' });
   }
 
+  /**
+   * Demo mirrors the documented COS architecture rather than a truncated six-node subset.
+   * Adding Runtime and Governance restores the architecture contract while keeping IDs stable.
+   */
   buildCOS() {
     this.addEntity({ id: 'cos', name: 'Cognitive OS', type: 'system' });
     this.addEntity({ id: 'cos-memory', name: 'Memory', type: 'concept' });
@@ -88,11 +104,15 @@ export class KnowledgeGraphEngine {
     this.addEntity({ id: 'cos-knowledge', name: 'Knowledge', type: 'concept' });
     this.addEntity({ id: 'cos-execution', name: 'Execution', type: 'concept' });
     this.addEntity({ id: 'cos-orch', name: 'Orchestration', type: 'concept' });
+    this.addEntity({ id: 'cos-runtime', name: 'Runtime', type: 'system' });
+    this.addEntity({ id: 'cos-governance', name: 'Governance', type: 'concept' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-memory', type: 'has' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-reasoning', type: 'has' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-knowledge', type: 'has' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-execution', type: 'has' });
     this.addRelation({ id: generateId(), source: 'cos', target: 'cos-orch', type: 'has' });
+    this.addRelation({ id: generateId(), source: 'cos', target: 'cos-runtime', type: 'has' });
+    this.addRelation({ id: generateId(), source: 'cos', target: 'cos-governance', type: 'has' });
   }
 
   sparql(query: SPARQLQuery): Array<Record<string, KGEntity>> {
@@ -104,12 +124,17 @@ export class KnowledgeGraphEngine {
           if (pattern.predicate !== 'type' || entity.type !== pattern.object) { match = false; break; }
         } else if (pattern.object.startsWith('?')) {
           if (!this.relations.some(r => r.source === pattern.subject && r.target === entity.id && r.type === (pattern.predicate as RelationType))) { match = false; break; }
+        } else {
+          if (!this.relations.some(r => r.source === pattern.subject && r.target === pattern.object && r.type === (pattern.predicate as RelationType))) {
+            match = false; break;
+          }
         }
       }
       if (match) {
         const binding: Record<string, KGEntity> = {};
         for (const v of query.select) binding[v] = entity;
         results.push(binding);
+        if (query.limit && results.length >= query.limit) break;
       }
     }
     return results;
@@ -147,31 +172,30 @@ export class KnowledgeGraphEngine {
 
   toMermaid(): string {
     let m = 'graph LR\n';
-    for (const e of this.entities) {
-      m += `    ${e.id}["${e.name}"]\n`;
-    }
-    for (const r of this.relations) {
-      m += `    ${r.source} -->|"${r.type}"| ${r.target}\n`;
-    }
+    for (const e of this.entities) m += `    ${e.id}["${e.name}"]\n`;
+    for (const r of this.relations) m += `    ${r.source} -->|"${r.type}"| ${r.target}\n`;
     return m;
   }
 
   validate(): string[] {
     const errors: string[] = [];
+    const relationIds = new Set<string>();
     for (const r of this.relations) {
+      if (relationIds.has(r.id)) errors.push(`Duplicate relation ID: ${r.id}`);
+      relationIds.add(r.id);
       if (!this.entities.some(e => e.id === r.source)) errors.push(`Dangling relation source: ${r.source}`);
       if (!this.entities.some(e => e.id === r.target)) errors.push(`Dangling relation target: ${r.target}`);
     }
     return errors;
   }
 
-  metrics(): { nodeCount: number; edgeCount: number; avgDegree: number; density: number } {
+  metrics(): KGMetrics {
     const n = this.entities.length; const e = this.relations.length;
     this.buildAdjacency();
     const deg = this.entities.map(en => (this.adj.get(en.id)?.length || 0) + (this.adjRev.get(en.id)?.length || 0));
-    const avgDeg = n > 0 ? deg.reduce((a, b) => a + b, 0) / n : 0;
+    const avgDegree = n > 0 ? deg.reduce((a, b) => a + b, 0) / n : 0;
     const density = n > 1 ? (2 * e) / (n * (n - 1)) : 0;
-    return { nodeCount: n, edgeCount: e, avgDegree: avgDeg, density };
+    return { nodeCount: n, edgeCount: e, entityCount: n, relationCount: e, avgDegree, density };
   }
 
   toJSON() { return { entities: this.entities, relations: this.relations }; }

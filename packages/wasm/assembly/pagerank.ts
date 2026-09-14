@@ -1,5 +1,5 @@
 // PageRank — AssemblyScript
-// Power iteration method. Opera sobre CSR arrays en memoria lineal.
+// Power iteration over outgoing CSR adjacency. Rank is distributed from each source to its targets.
 
 export function pageRank(
   indptrPtr: usize, indptrLen: i32,
@@ -11,58 +11,51 @@ export function pageRank(
   const n = indptrLen - 1;
   if (n <= 0) return;
 
-  const initRank: f64 = 1.0 / f64(n);
-  const danglingRank: f64 = damping * initRank;
+  const initialRank: f64 = 1.0 / f64(n);
 
-  // Ranks actual y nuevo
   let rankPtr = heap.alloc(n * 8);
   let newRankPtr = heap.alloc(n * 8);
 
-  // Inicializar ranks
   for (let i: i32 = 0; i < n; i++) {
-    store<f64>(rankPtr + i * 8, initRank);
+    store<f64>(rankPtr + i * 8, initialRank);
   }
 
   for (let iter: i32 = 0; iter < iterations; iter++) {
-    // Calcular rank dangling
     let danglingSum: f64 = 0.0;
-    for (let i: i32 = 0; i < n; i++) {
-      const start = load<i32>(indptrPtr + i * 4);
-      const end = load<i32>(indptrPtr + (i + 1) * 4);
+    for (let source: i32 = 0; source < n; source++) {
+      const start = load<i32>(indptrPtr + source * 4);
+      const end = load<i32>(indptrPtr + (source + 1) * 4);
       if (start == end) {
-        danglingSum += load<f64>(rankPtr + i * 8);
+        danglingSum += load<f64>(rankPtr + source * 8);
       }
     }
 
-    const baseRank = (1.0 - damping) / f64(n);
-
+    const baseRank = (1.0 - damping) / f64(n) + (damping * danglingSum) / f64(n);
     for (let i: i32 = 0; i < n; i++) {
-      let sum: f64 = 0.0;
-      const start = load<i32>(indptrPtr + i * 4);
-      const end = load<i32>(indptrPtr + (i + 1) * 4);
+      store<f64>(newRankPtr + i * 8, baseRank);
+    }
 
+    for (let source: i32 = 0; source < n; source++) {
+      const start = load<i32>(indptrPtr + source * 4);
+      const end = load<i32>(indptrPtr + (source + 1) * 4);
+      const outDegree = end - start;
+      if (outDegree == 0) continue;
+
+      const contribution = damping * load<f64>(rankPtr + source * 8) / f64(outDegree);
       let j = start;
       while (j < end) {
-        const neighbor = load<i32>(indicesPtr + j * 4);
-        const nStart = load<i32>(indptrPtr + neighbor * 4);
-        const nEnd = load<i32>(indptrPtr + (neighbor + 1) * 4);
-        const outDegree = nEnd - nStart;
-        if (outDegree > 0) {
-          sum += load<f64>(rankPtr + neighbor * 8) / f64(outDegree);
-        }
+        const target = load<i32>(indicesPtr + j * 4);
+        const current = load<f64>(newRankPtr + target * 8);
+        store<f64>(newRankPtr + target * 8, current + contribution);
         j += 1;
       }
-
-      store<f64>(newRankPtr + i * 8, baseRank + damping * sum + danglingRank * danglingSum);
     }
 
-    // Swap
     const tmp = rankPtr;
     rankPtr = newRankPtr;
     newRankPtr = tmp;
   }
 
-  // Copiar resultado
   for (let i: i32 = 0; i < n; i++) {
     store<f64>(resultPtr + i * 8, load<f64>(rankPtr + i * 8));
   }

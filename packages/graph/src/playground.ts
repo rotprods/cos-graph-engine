@@ -229,9 +229,9 @@ export class LevelPlayground {
         args: '',
         handler: () => {
           if (this.level === 0) {
-            const engine = new VisualGraphEngine();
-            const g = engine.createFromEdges([], 'Playground');
-            return g.renderer?.('ascii') || 'No renderer available';
+            const engine = new VisualGraphEngine('Playground');
+            engine.createFromEdges('Playground', []);
+            return engine.render('ascii');
           }
           const nodes = (this.context.graph as any).nodes || [];
           if (nodes.length === 0) return 'No graph to visualize';

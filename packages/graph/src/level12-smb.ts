@@ -1,29 +1,23 @@
 // LEVEL 12: SMB Integration — Persistent Memory Graph
 // Extends MemoryGraphEngine with SMB backing store and event publishing
 
-import { MemoryGraphEngine, MemoryNode, MemoryEdge, MemoryGraph, MemoryNodeType, MemoryEdgeType } from './level12-memory';
+import { MemoryGraphEngine, MemoryNode, MemoryGraph, MemoryEdgeType } from './level12-memory';
 import { SMB } from './smb';
 import type { EntityId } from '@cos/core';
 
 const SMB_KEY_PREFIX = 'memory-graph:';
 
-/**
- * SMB-integrated memory graph.
- * Wraps MemoryGraphEngine with save/load to the Shared Memory Bus
- * and publishes events for memory operations.
- */
 export class SMBMemoryGraph {
   private engine: MemoryGraphEngine;
   private smb: SMB;
-  public graphId: string;
+  public graphId: EntityId;
 
   constructor(smb: SMB, name: string = 'memory-graph') {
     this.smb = smb;
     this.engine = new MemoryGraphEngine(name);
-    this.graphId = `${SMB_KEY_PREFIX}${name}`;
+    this.graphId = `${SMB_KEY_PREFIX}${name}` as EntityId;
   }
 
-  /** Delegate to underlying MemoryGraphEngine */
   get graph() { return this.engine; }
 
   addNode(n: Omit<MemoryNode, 'id' | 'createdAt' | 'lastAccessed' | 'accessCount'>): EntityId {
@@ -81,23 +75,11 @@ export class SMBMemoryGraph {
     return this.engine.strongestPath(fromId, toId);
   }
 
-  forget(minConfidence?: number): number {
-    return this.engine.forget(minConfidence);
-  }
+  forget(minConfidence?: number): number { return this.engine.forget(minConfidence); }
+  consolidate(): number { return this.engine.consolidate(); }
+  validate(): string[] { return this.engine.validate(); }
+  metrics(): ReturnType<MemoryGraphEngine['metrics']> { return this.engine.metrics(); }
 
-  consolidate(): number {
-    return this.engine.consolidate();
-  }
-
-  validate(): string[] {
-    return this.engine.validate();
-  }
-
-  metrics(): ReturnType<MemoryGraphEngine['metrics']> {
-    return this.engine.metrics();
-  }
-
-  /** Save the entire memory graph to SMB */
   async save(): Promise<EntityId> {
     const data = this.engine.toJSON();
     return this.smb.saveGraph(this.graphId, data, {
@@ -106,20 +88,13 @@ export class SMBMemoryGraph {
     });
   }
 
-  /** Load the memory graph from SMB */
   async load(): Promise<boolean> {
     const data = await this.smb.loadGraph(this.graphId) as MemoryGraph | null;
     if (!data) return false;
-    const restored = MemoryGraphEngine.fromJSON(data);
-    this.engine = restored;
+    this.engine = MemoryGraphEngine.fromJSON(data);
     return true;
   }
 
-  toJSON(): MemoryGraph {
-    return this.engine.toJSON();
-  }
-
-  toMermaid(): string {
-    return this.engine.toMermaid();
-  }
+  toJSON(): MemoryGraph { return this.engine.toJSON(); }
+  toMermaid(): string { return this.engine.toMermaid(); }
 }
