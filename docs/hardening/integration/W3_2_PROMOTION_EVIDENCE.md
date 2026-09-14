@@ -1,6 +1,6 @@
 # W3.2 Promotion Evidence
 
-Date: 2026-09-12
+Date: 2026-09-14
 Linear authority: ROT-87
 Bounded correctness child: ROT-121
 Repository: `rotprods/cos-graph-engine`
@@ -12,6 +12,7 @@ This document preserves the post-W2 promotion REDs, the control-plane reconcilia
 ## Frozen authorities
 
 - live `main` at W3.2 activation: `3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83`
+- live `main` re-read on 2026-09-14 before the final control repair: unchanged at `3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83`
 - W3.1 prequalified head: `04e6222a7541d14ffed66eef16de5bd8f59720e6`
 - W2 qualified source head: `3ff1609cf7270e393f9fa0f7e89da97fbf0a6651`
 - W2 qualified synthetic candidate: `1a67e2c733510dcec2f9973c37365a5b4c1af330`
@@ -107,14 +108,61 @@ The Recovery workflow now runs this timing suite explicitly on Node22 and Node26
 
 Because this is a product-code mutation above the W2 authority, **all earlier candidate GREEN results are stale for promotion**. A fresh exact synthetic merge candidate must pass both complete promotion gates from scratch.
 
+## RED 3 — final anti-bypass scanner self-matches the W2 detector
+
+After the timing repair, PR #119 produced exact synthetic merge candidate `504093cbbd296672e44019b97a312bc6cfe4a7ef`.
+
+`COS Main Convergence Gate` run `34717390364` was fully GREEN on that exact candidate:
+
+- `quality-core` PASS;
+- `docker` PASS, including production runtime package/privilege and HTTP health smoke;
+- `coverage` PASS;
+- `specialized` PASS;
+- `performance` PASS;
+- `contract` PASS;
+- aggregate `complete` PASS;
+- coverage artifact `10304879714`, digest `sha256:ef3ef9898e30597417e19cf807eb6a9ed57f524ea37890b8c0e3cb773160e786`.
+
+`CGEV11 Recovery Stack Integration` run `34717390363` then showed:
+
+- Node26 job `103617011717`: PASS;
+- Node22 job `103617011645`: PASS through exact ancestry, pinned Docker TCB, strict TypeScript, W1B/W1C/W1D, W2 operator/auth `10/10`, W2 HTTP trust-boundary `18/18`, W2 production-security AST checks, W3.2 timing regression, full canonical suite, integrated coverage and HIGH audit;
+- Node22 measured coverage `80.74 / 80.09 / 86.15 / 80.74` against unchanged floor `80.05 / 80.05 / 85.8 / 80.05`;
+- Node22 `npm audit --audit-level=high`: `0 vulnerabilities`;
+- Node22 artifact `10304956360`, digest `sha256:6bd804e85bebfb4f1830e3d4ade588421814ad752b121a5b763b0e3ec008a17e`;
+- Node26 artifact `10305555866`, digest `sha256:7e87c7e9f8532ed9114329668aa5a5bc1240681b6791e1bead353a0b90172347`.
+
+The final Node22 coarse anti-bypass step alone failed. It generated `cgev11-stack-source.diff` from `W1D_SHA...HEAD`, which necessarily included the already-qualified W2 detector source `scripts/check-w2-production-security.mjs`. The raw grep matched the detector's own diagnostic literals:
+
+- `@ts-ignore/@ts-nocheck is forbidden`;
+- `new Function() is forbidden`.
+
+The semantic W2 production-security AST checker had already passed earlier in the same job. Therefore this RED is a self-referential control-plane false positive, not evidence of a newly introduced production bypass.
+
+PR #119 was intentionally closed unmerged while this bounded control repair was prepared, to avoid paying for partial CI candidates.
+
+### Bounded final control repair
+
+Commit `ac4077bf688cfcf0a078a07239b24ff793a7cc38` changes only the coarse textual scan boundary:
+
+- the simple textual new-bypass diff is now `W2_SHA...HEAD`, so it evaluates only mutations introduced after the already-qualified W2 authority;
+- the full mutation allowlist remains `W1D_SHA...HEAD` and is unchanged;
+- the W2 production-security AST checker remains enabled and is rerun in the final scope gate;
+- workflow fail-open detection remains enabled;
+- coverage floors, audit severity, W1/W2 security assertions, Node runtimes, sandbox digest and product code are unchanged.
+
+This repair does not make candidate `504093cb...` GREEN retroactively. Because workflow bytes changed, all exact-candidate results above are historical evidence only. A new synthetic merge SHA must be generated and both promotion gates must pass from scratch.
+
 ## Current W3.2 mutation boundary
 
 Above exact W2 head `3ff1609c...`, W3.2 owns only:
 
-- `.github/workflows/cgev11-stack-integration.yml` — post-W2 exact promotion qualification;
+- `.github/workflows/cgev11-stack-integration.yml` — post-W2 exact promotion qualification plus the bounded coarse-scan self-hit repair;
 - `docs/hardening/integration/W3_2_PROMOTION_EVIDENCE.md` — provenance and RED/repair evidence;
 - `packages/graph/src/pipeline-l4l5l6.ts` — deterministic timing-source precedence repair discovered by the promotion gauntlet;
 - `scripts/test-pipeline-l45l6.ts` — deterministic regression for that root cause.
+
+A live `W2_SHA...HEAD` compare was re-run immediately before the final control repair and contained exactly those four paths. No unexpected package/source mutation was present.
 
 No dependency, sandbox image, coverage checker/floor, W1/W2 security assertion or release authority is modified.
 
