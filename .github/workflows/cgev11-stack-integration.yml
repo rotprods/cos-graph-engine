@@ -113,7 +113,7 @@ jobs:
       - name: Qualified recovery plus W2/W3.2 scope and anti-bypass
         run: |
           set -euo pipefail
-          git diff --unified=0 "$W1D_SHA"...HEAD -- '*.ts' '*.cjs' '*.mjs' > cgev11-stack-source.diff
+          git diff --unified=0 "$W2_SHA"...HEAD -- '*.ts' '*.cjs' '*.mjs' > cgev11-stack-source.diff
           if grep -E '^\+.*(as any|@ts-ignore|@ts-nocheck|new Function\(|eval\(|console\.log[[:space:]]*=)' cgev11-stack-source.diff; then
             echo 'Integration candidate introduced a forbidden code/type bypass or dynamic-code primitive' >&2
             exit 1
