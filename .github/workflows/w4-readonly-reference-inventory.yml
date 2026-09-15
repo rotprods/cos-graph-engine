@@ -1,0 +1,92 @@
+name: W4 read-only reference inventory
+
+on:
+  push:
+    branches: [forensics/w4-readonly-preflight-20260915]
+
+permissions:
+  contents: read
+
+env:
+  TARGET_SHA: e3e198ce01e576d30ac89b3760a52f2d8461d781
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind and detach exact qualified target
+        run: |
+          set -euo pipefail
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          git checkout --detach "$TARGET_SHA"
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+      - name: Scan tracked text references
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess
+
+          target = os.environ['TARGET_SHA']
+          tracked = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          tracked = [p for p in tracked if p]
+          manifests = {'package.json', 'package-lock.json'}
+
+          patterns = {
+              'debug_cli': re.compile(r'debug-cli\.ts'),
+              'debug_cli2': re.compile(r'debug-cli2\.ts'),
+              'debug_import': re.compile(r'debug-import\.ts'),
+              'md_to_pdf': re.compile(r'md-to-pdf'),
+              'md_to_pdf_import': re.compile(r'''(?:from\s+|require\(\s*)["']md-to-pdf["']'''),
+              'playwright_package': re.compile(r'@playwright/test'),
+              'playwright_word': re.compile(r'playwright', re.I),
+              'pdfkit': re.compile(r'pdfkit'),
+              'typedoc': re.compile(r'typedoc', re.I),
+          }
+
+          hits = {k: [] for k in patterns}
+          unreadable = []
+          for path in tracked:
+              try:
+                  text = pathlib.Path(path).read_text(encoding='utf-8')
+              except (UnicodeDecodeError, OSError):
+                  unreadable.append(path)
+                  continue
+              for lineno, line in enumerate(text.splitlines(), 1):
+                  for key, rx in patterns.items():
+                      if rx.search(line):
+                          hits[key].append({'path': path, 'line': lineno, 'text': line[:300]})
+
+          def non_manifest(entries):
+              return [e for e in entries if e['path'] not in manifests]
+
+          report = {
+              'schema': 'cgev11.w4-reference-inventory/v1',
+              'targetSha': target,
+              'trackedFiles': len(tracked),
+              'unreadableTrackedFiles': unreadable,
+              'pathsContainingPlaywright': [p for p in tracked if 'playwright' in p.lower()],
+              'patterns': {
+                  key: {
+                      'allCount': len(entries),
+                      'nonManifestCount': len(non_manifest(entries)),
+                      'hits': entries,
+                  }
+                  for key, entries in hits.items()
+              },
+              'debugScripts': {
+                  p: pathlib.Path(p).exists()
+                  for p in ['scripts/debug-cli.ts', 'scripts/debug-cli2.ts', 'scripts/debug-import.ts']
+              },
+          }
+          pathlib.Path('w4-reference-inventory.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: w4-reference-inventory-${{ env.TARGET_SHA }}
+          path: w4-reference-inventory.json
+          if-no-files-found: error
