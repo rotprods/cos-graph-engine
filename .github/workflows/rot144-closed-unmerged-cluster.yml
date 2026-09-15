@@ -1,0 +1,168 @@
+name: ROT-144 closed-unmerged donor clustering
+
+on:
+  push:
+    branches: [forensics/rot144-closed-unmerged-cluster-20260915]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: rot144-closed-unmerged-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  W3_SHA: e3e198ce01e576d30ac89b3760a52f2d8461d781
+
+jobs:
+  cluster:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+      - name: Cluster closed-unmerged branch heads
+        env:
+          API_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, subprocess, urllib.request
+          from collections import defaultdict, Counter
+
+          repo=os.environ['REPOSITORY']; token=os.environ['API_TOKEN']; w3=os.environ['W3_SHA']
+
+          def git(*args, check=True):
+              p=subprocess.run(['git',*args],text=True,capture_output=True)
+              if check and p.returncode:
+                  raise RuntimeError(f"git {' '.join(args)} failed: {p.stderr.strip()}")
+              return p.stdout.strip(),p.returncode
+
+          def api_pages(path):
+              out=[]; page=1
+              while True:
+                  sep='&' if '?' in path else '?'
+                  url=f'https://api.github.com/repos/{repo}{path}{sep}per_page=100&page={page}'
+                  req=urllib.request.Request(url,headers={
+                    'Authorization':f'Bearer {token}',
+                    'Accept':'application/vnd.github+json',
+                    'X-GitHub-Api-Version':'2022-11-28',
+                    'User-Agent':'cgev11-rot144',
+                  })
+                  with urllib.request.urlopen(req,timeout=30) as r: batch=json.loads(r.read().decode())
+                  out.extend(batch)
+                  if len(batch)<100: break
+                  page+=1
+              return out
+
+          pulls=api_pages('/pulls?state=closed&sort=updated&direction=desc')
+          closed=[p for p in pulls if p.get('merged_at') is None]
+          by_branch=defaultdict(list)
+          for p in closed:
+              by_branch[p['head']['ref']].append(p)
+
+          refs_text,_=git('for-each-ref','--format=%(refname:short)\t%(objectname)','refs/remotes/origin')
+          refs={}
+          for line in refs_text.splitlines():
+              if not line.strip(): continue
+              ref,sha=line.split('\t',1)
+              if ref=='origin/HEAD': continue
+              refs[ref.removeprefix('origin/')]=sha
+
+          missing=[]; candidates=[]
+          for branch,prs in sorted(by_branch.items()):
+              sha=refs.get(branch)
+              if not sha:
+                  missing.append({'branch':branch,'prs':[p['number'] for p in prs]})
+                  continue
+              candidates.append({'branch':branch,'sha':sha,'prs':[p['number'] for p in prs],
+                                 'titles':[p['title'] for p in prs]})
+
+          # Collapse exact duplicate heads first.
+          by_sha=defaultdict(list)
+          for c in candidates: by_sha[c['sha']].append(c)
+          nodes=[]
+          for sha,items in by_sha.items():
+              nodes.append({'sha':sha,
+                            'branches':sorted(i['branch'] for i in items),
+                            'prs':sorted({n for i in items for n in i['prs']}),
+                            'titles':sorted({t for i in items for t in i['titles']})})
+
+          # Strict ancestry across distinct SHAs.
+          ancestors=defaultdict(set); descendants=defaultdict(set)
+          for a in nodes:
+              for b in nodes:
+                  if a['sha']==b['sha']: continue
+                  _,rc=git('merge-base','--is-ancestor',a['sha'],b['sha'],check=False)
+                  if rc==0:
+                      ancestors[b['sha']].add(a['sha']); descendants[a['sha']].add(b['sha'])
+
+          tips=[n for n in nodes if not descendants[n['sha']]]
+          node_by_sha={n['sha']:n for n in nodes}
+
+          # Analyze tips against qualified W3.
+          tip_records=[]
+          branch_memberships=defaultdict(list)
+          for tip in tips:
+              member_shas={tip['sha']}|ancestors[tip['sha']]
+              member_nodes=[node_by_sha[s] for s in member_shas]
+              member_branches=sorted({b for n in member_nodes for b in n['branches']})
+              member_prs=sorted({p for n in member_nodes for p in n['prs']})
+              for b in member_branches: branch_memberships[b].append(tip['sha'])
+
+              mb,mb_rc=git('merge-base',w3,tip['sha'],check=False)
+              common=(mb_rc==0 and bool(mb))
+              counts,_=git('rev-list','--left-right','--count',f'{w3}...{tip["sha"]}',check=False)
+              left=right=None
+              if counts:
+                  parts=counts.split()
+                  if len(parts)==2: left,right=map(int,parts)
+              unique_patch_count=None
+              if common:
+                  out,rc=git('rev-list','--cherry-pick','--right-only','--no-merges',f'{w3}...{tip["sha"]}',check=False)
+                  if rc==0: unique_patch_count=len([x for x in out.splitlines() if x])
+              paths,rc=git('diff','--name-only',w3,tip['sha'],check=False)
+              changed=[x for x in paths.splitlines() if x] if rc==0 else []
+              roots=Counter(p.split('/',1)[0] for p in changed)
+              tip_records.append({
+                'tipSha':tip['sha'],'tipBranches':tip['branches'],'tipPrs':tip['prs'],
+                'memberBranches':member_branches,'memberPrs':member_prs,'memberBranchCount':len(member_branches),
+                'mergeBaseWithW3':mb if common else None,'unrelatedToW3':not common,
+                'behindW3':left,'aheadW3':right,'uniquePatchCountVsW3':unique_patch_count,
+                'changedPathCountVsW3':len(changed),'changedTopRoots':dict(roots.most_common()),
+                'changedPathsSample':changed[:80],
+              })
+
+          # Branch assignment evidence: every existing candidate must map to >=1 tip.
+          unassigned=[c['branch'] for c in candidates if not branch_memberships[c['branch']]]
+          if unassigned:
+              raise RuntimeError(f'unassigned closed-unmerged branches: {unassigned}')
+
+          tip_records.sort(key=lambda x:(-x['memberBranchCount'],-(x['uniquePatchCountVsW3'] or 0),x['tipBranches'][0]))
+          report={
+            'schema':'cgev11.rot144.closed-unmerged-cluster/v1',
+            'repository':repo,'w3Sha':w3,
+            'counts':{
+              'closedUnmergedPrs':len(closed),'closedUnmergedHeadBranchesApi':len(by_branch),
+              'existingCandidateBranches':len(candidates),'missingDeletedHeadBranches':len(missing),
+              'uniqueHeadShas':len(nodes),'familyTips':len(tips),
+              'collapsedNonTipShas':len(nodes)-len(tips),'unassignedExistingBranches':len(unassigned),
+            },
+            'missingHeads':missing,
+            'tips':tip_records,
+            'branchMemberships':dict(sorted(branch_memberships.items())),
+          }
+          with open('rot144-closed-unmerged-cluster.json','w') as f: json.dump(report,f,indent=2); f.write('\n')
+          print(json.dumps({'counts':report['counts'],'topTips':[{k:t[k] for k in ['tipBranches','tipPrs','memberBranchCount','uniquePatchCountVsW3','changedPathCountVsW3','unrelatedToW3']} for t in tip_records[:25]]},indent=2))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rot144-closed-unmerged-cluster-${{ github.sha }}
+          path: rot144-closed-unmerged-cluster.json
+          if-no-files-found: error
