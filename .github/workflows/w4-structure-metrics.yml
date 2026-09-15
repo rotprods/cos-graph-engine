@@ -1,0 +1,120 @@
+name: W4 structural metrics
+
+on:
+  push:
+    branches: [forensics/w4-readonly-preflight-20260915]
+
+permissions:
+  contents: read
+
+env:
+  TARGET_SHA: e3e198ce01e576d30ac89b3760a52f2d8461d781
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact qualified target
+        run: |
+          set -euo pipefail
+          git cat-file -e "${TARGET_SHA}^{commit}"
+          git checkout --detach "$TARGET_SHA"
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+      - name: Compute structural metrics
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, re, subprocess
+
+          target = os.environ['TARGET_SHA']
+          files = [p for p in subprocess.check_output(['git','ls-files']).decode().splitlines() if p]
+
+          def read(path):
+              return pathlib.Path(path).read_text(encoding='utf-8')
+
+          def line_count(path):
+              return len(read(path).splitlines())
+
+          # Playground: imported level engines vs identifier references outside import lines.
+          playground_path = 'packages/graph/src/playground.ts'
+          playground = read(playground_path)
+          level_imports = []
+          for line in playground.splitlines():
+              m = re.match(r"import\s+\{\s*([A-Za-z0-9_]+)\s*\}\s+from\s+'(\./level[^']+)'", line)
+              if m:
+                  level_imports.append((m.group(1), m.group(2)))
+          body_lines = [ln for ln in playground.splitlines() if not ln.startswith('import ')]
+          playground_body = '\n'.join(body_lines)
+          playground_usage = [
+              {
+                  'identifier': ident,
+                  'module': module,
+                  'bodyOccurrences': len(re.findall(rf'\b{re.escape(ident)}\b', playground_body)),
+              }
+              for ident, module in level_imports
+          ]
+
+          # Candidate large/central modules and their top-level export/class/function counts.
+          candidates = [
+              'packages/execution/src/tool-runtime.ts',
+              'packages/graph/src/plugin.ts',
+              'packages/graph/src/playground.ts',
+              'packages/graph/src/visualizer.ts',
+              'packages/graph/src/cli.ts',
+              'packages/infrastructure/src/persistence.ts',
+          ]
+          module_metrics = {}
+          for path in candidates:
+              text = read(path)
+              module_metrics[path] = {
+                  'lines': len(text.splitlines()),
+                  'exportedClasses': re.findall(r'^export class\s+([A-Za-z0-9_]+)', text, re.M),
+                  'exportedFunctions': re.findall(r'^export function\s+([A-Za-z0-9_]+)', text, re.M),
+                  'exportedInterfaces': re.findall(r'^export interface\s+([A-Za-z0-9_]+)', text, re.M),
+                  'localFunctions': len(re.findall(r'^(?:async\s+)?function\s+[A-Za-z0-9_]+', text, re.M)),
+                  'relativeImports': re.findall(r"from\s+['\"](\.[^'\"]+)['\"]", text),
+                  'packageImports': sorted(set(re.findall(r"from\s+['\"](@?[^./][^'\"]*)['\"]", text))),
+              }
+
+          # Workflow operational shape; intentionally simple and auditable text classification.
+          workflow_paths = [p for p in files if p.startswith('.github/workflows/') and p.endswith(('.yml','.yaml'))]
+          workflows = []
+          for path in workflow_paths:
+              text = read(path)
+              workflows.append({
+                  'path': path,
+                  'lines': len(text.splitlines()),
+                  'workflowDispatch': 'workflow_dispatch' in text,
+                  'pullRequestTrigger': bool(re.search(r'^\s*pull_request\s*:', text, re.M)),
+                  'pushTrigger': bool(re.search(r'^\s*push\s*:', text, re.M)),
+                  'scheduleTrigger': bool(re.search(r'^\s*schedule\s*:', text, re.M)),
+                  'permissionsEmpty': bool(re.search(r'^permissions:\s*\{\}\s*$', text, re.M)),
+                  'explicitExit1': 'exit 1' in text,
+                  'coverageCommand': 'npm run coverage' in text,
+                  'typecheckCommand': 'tsc --noEmit' in text,
+                  'auditCommand': 'npm audit' in text,
+              })
+
+          report = {
+              'schema': 'cgev11.w4-structure-metrics/v1',
+              'targetSha': target,
+              'trackedFiles': len(files),
+              'playground': {
+                  'levelImportCount': len(level_imports),
+                  'levelImportUsage': playground_usage,
+              },
+              'moduleMetrics': module_metrics,
+              'workflows': workflows,
+          }
+          pathlib.Path('w4-structure-metrics.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report, indent=2))
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: w4-structure-metrics-${{ env.TARGET_SHA }}
+          path: w4-structure-metrics.json
+          if-no-files-found: error
