@@ -40,6 +40,19 @@ jobs:
                   raise RuntimeError(f"git {' '.join(args)} failed: {p.stderr.strip()}")
               return p.stdout.strip(), p.returncode
 
+          def has_merge_base(a, b):
+              _, rc = git('merge-base', a, b, check=False)
+              return rc == 0
+
+          def diff_paths(a, b):
+              # Triple-dot is ideal when histories share a base. For unrelated imported/sync
+              # histories, compare trees directly and record that ancestry is unrelated.
+              if has_merge_base(a, b):
+                  out, _ = git('diff', '--name-only', f'{a}...{b}')
+                  return [p for p in out.splitlines() if p], 'merge-base'
+              out, _ = git('diff', '--name-only', a, b)
+              return [p for p in out.splitlines() if p], 'tree-to-tree-no-merge-base'
+
           def api_pages(path):
               out, page = [], 1
               while True:
@@ -94,21 +107,34 @@ jobs:
               behind, ahead = map(int, counts.split())
               if ahead <= 0:
                   continue
-              candidates.append({'name': name, 'ref': ref, 'sha': sha, 'aheadOfMain': ahead, 'behindMain': behind})
+              candidates.append({
+                  'name': name,
+                  'ref': ref,
+                  'sha': sha,
+                  'aheadOfMain': ahead,
+                  'behindMain': behind,
+                  'hasMergeBaseWithMain': has_merge_base('origin/main', ref),
+                  'hasMergeBaseWithW3': has_merge_base(qualified, ref),
+              })
 
           candidates.sort(key=lambda x: x['name'])
           names = [c['name'] for c in candidates]
           by_name = {c['name']: c for c in candidates}
 
-          # Pairwise ancestry edges A -> B where A is ancestor of B.
+          # Pairwise ancestry edges A -> B only when ancestry is meaningful.
           ancestry = []
-          for a in candidates:
-              for b in candidates:
-                  if a['name'] == b['name']:
+          unrelated_pairs = []
+          for i, a in enumerate(candidates):
+              for b in candidates[i + 1:]:
+                  if not has_merge_base(a['ref'], b['ref']):
+                      unrelated_pairs.append([a['name'], b['name']])
                       continue
-                  _, rc = git('merge-base','--is-ancestor',a['ref'],b['ref'],check=False)
-                  if rc == 0:
+                  _, rc_ab = git('merge-base','--is-ancestor',a['ref'],b['ref'],check=False)
+                  _, rc_ba = git('merge-base','--is-ancestor',b['ref'],a['ref'],check=False)
+                  if rc_ab == 0:
                       ancestry.append({'ancestor': a['name'], 'descendant': b['name']})
+                  if rc_ba == 0:
+                      ancestry.append({'ancestor': b['name'], 'descendant': a['name']})
 
           ancestors_of = defaultdict(set)
           descendants_of = defaultdict(set)
@@ -129,16 +155,18 @@ jobs:
               c['w3CommitsNotInBranch'] = w3_unique
               _, rc1 = git('merge-base','--is-ancestor',ref,qualified,check=False)
               _, rc2 = git('merge-base','--is-ancestor',qualified,ref,check=False)
-              c['ancestorOfW3'] = rc1 == 0
-              c['descendantOfW3'] = rc2 == 0
+              c['ancestorOfW3'] = c['hasMergeBaseWithW3'] and rc1 == 0
+              c['descendantOfW3'] = c['hasMergeBaseWithW3'] and rc2 == 0
               c['ancestorsWithinCandidates'] = sorted(ancestors_of[c['name']])
               c['descendantsWithinCandidates'] = sorted(descendants_of[c['name']])
               c['isFamilyTip'] = c['name'] in tips
 
-              paths_main, _ = git('diff','--name-only',f'origin/main...{ref}')
-              paths_w3, _ = git('diff','--name-only',f'{qualified}...{ref}')
-              c['changedPathsVsMain'] = [p for p in paths_main.splitlines() if p]
-              c['changedPathsVsW3'] = [p for p in paths_w3.splitlines() if p]
+              paths_main, main_mode = diff_paths('origin/main', ref)
+              paths_w3, w3_mode = diff_paths(qualified, ref)
+              c['changedPathsVsMain'] = paths_main
+              c['changedPathsVsW3'] = paths_w3
+              c['mainDiffMode'] = main_mode
+              c['w3DiffMode'] = w3_mode
 
               bp = patch_ids(f'origin/main..{ref}')
               bset = set(bp)
@@ -148,8 +176,10 @@ jobs:
               c['patchIdUniqueToBranch'] = len(bset - w3_patch_set)
               c['patchOverlapRatio'] = round(len(overlap) / len(bset), 4) if bset else 1.0
 
-              # Safe preliminary disposition: structure-based, never calls work lost solely by name.
-              if c['ancestorOfW3']:
+              # Safe preliminary disposition: structural evidence first.
+              if not c['hasMergeBaseWithMain'] or not c['hasMergeBaseWithW3']:
+                  disposition = 'UNRELATED_HISTORY_EXTERNAL_SYNC_REVIEW'
+              elif c['ancestorOfW3']:
                   disposition = 'ALREADY_ANCESTRY_CONTAINED_IN_W3'
               elif c['descendantsWithinCandidates']:
                   disposition = 'CHAIN_ANCESTOR_SUPERSEDED_BY_LATER_NO_PR_REF'
@@ -163,7 +193,6 @@ jobs:
                   disposition = 'TIP_WITH_UNIQUE_PATCH_VALUE_REVIEW'
               c['preliminaryDisposition'] = disposition
 
-          # Family memberships: each tip plus all candidate ancestors.
           families = []
           for tip in tips:
               members = sorted({tip} | ancestors_of[tip])
@@ -173,19 +202,22 @@ jobs:
                   'memberCount': len(members),
                   'tipUniquePatchesVsW3': by_name[tip].get('patchIdUniqueToBranch'),
                   'tipChangedPathCountVsW3': len(by_name[tip].get('changedPathsVsW3', [])),
+                  'tipDisposition': by_name[tip].get('preliminaryDisposition'),
               })
           families.sort(key=lambda f: (-f['memberCount'], f['tip']))
 
           report = {
-              'schema': 'cgev11.w0-orphan-clusters/v1',
+              'schema': 'cgev11.w0-orphan-clusters/v2',
               'repository': repo,
               'mainSha': git('rev-parse','origin/main')[0],
               'qualifiedW3SourceSha': qualified,
               'candidateCount': len(candidates),
               'familyTipCount': len(tips),
               'w3PatchIdCount': len(w3_patch_set),
+              'unrelatedPairCount': len(unrelated_pairs),
               'families': families,
               'ancestryEdges': ancestry,
+              'unrelatedPairs': unrelated_pairs,
               'branches': candidates,
           }
           with open('w0-orphan-clusters.json','w') as f:
@@ -195,6 +227,7 @@ jobs:
           print(json.dumps({
               'candidateCount': len(candidates),
               'familyTipCount': len(tips),
+              'unrelatedPairCount': len(unrelated_pairs),
               'families': families,
               'branches': [
                   {
@@ -206,6 +239,8 @@ jobs:
                       'uniquePatches': c['patchIdUniqueToBranch'],
                       'ratio': c['patchOverlapRatio'],
                       'tip': c['isFamilyTip'],
+                      'mainBase': c['hasMergeBaseWithMain'],
+                      'w3Base': c['hasMergeBaseWithW3'],
                       'disposition': c['preliminaryDisposition'],
                   }
                   for c in candidates
