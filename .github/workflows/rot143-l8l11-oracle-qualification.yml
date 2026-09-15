@@ -1,0 +1,121 @@
+name: ROT-143 L8-L11 oracle qualification
+
+on:
+  push:
+    branches: [forensics/rot143-l8l11-qualification-20260915]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rot143-l8l11-oracle-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: e3e198ce01e576d30ac89b3760a52f2d8461d781
+  TARGET_SHA: 1c8e7259977d9dbd08e5a6ce429f4b96279c6ef4
+
+jobs:
+  node22:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ env.TARGET_SHA }}
+      - name: Bind exact target and prove bounded RED to GREEN wiring
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          changed="$(git diff --name-only "$BASE_SHA...$TARGET_SHA")"
+          test "$changed" = 'package.json'
+          BASE_SHA="$BASE_SHA" TARGET_SHA="$TARGET_SHA" node <<'NODE'
+          const {execFileSync} = require('node:child_process');
+          const base = JSON.parse(execFileSync('git',['show',`${process.env.BASE_SHA}:package.json`],{encoding:'utf8'}));
+          const target = JSON.parse(execFileSync('git',['show',`${process.env.TARGET_SHA}:package.json`],{encoding:'utf8'}));
+          const needle = 'scripts/test-levels-8-11.ts';
+          if (base.scripts['test:all'].includes(needle)) throw new Error('RED precondition invalid: baseline already wires L8-L11');
+          if (!target.scripts['test:all'].includes(needle)) throw new Error('GREEN wiring missing from target');
+          const count = target.scripts['test:all'].split(needle).length - 1;
+          if (count !== 1) throw new Error(`L8-L11 oracle must be wired exactly once, got ${count}`);
+          NODE
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx --no-install tsc --noEmit
+      - name: Dedicated L8-L11 oracle
+        run: npx --no-install tsx scripts/test-levels-8-11.ts
+      - name: Canonical test all includes L8-L11 oracle
+        run: timeout 300s npm run test:all
+      - name: Integrated coverage and immutable W1D ratchet
+        run: |
+          set -euo pipefail
+          npm run coverage
+          node scripts/check-cgev11-stack-coverage.mjs
+      - run: npm audit --audit-level=high
+      - name: Evidence receipt
+        run: |
+          node <<'NODE'
+          const fs=require('node:fs');
+          const s=JSON.parse(fs.readFileSync('coverage/coverage-summary.json','utf8')).total;
+          const receipt={schema:'cgev11.rot143/v1',targetSha:process.env.TARGET_SHA,node:process.version,coverage:{statements:s.statements.pct,branches:s.branches.pct,functions:s.functions.pct,lines:s.lines.pct},dedicatedOracle:'PASS',canonicalTestAll:'PASS',auditHigh:'PASS'};
+          fs.writeFileSync('rot143-receipt.json',JSON.stringify(receipt,null,2)+'\n');
+          console.log(JSON.stringify(receipt,null,2));
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rot143-node22-${{ env.TARGET_SHA }}
+          path: |
+            rot143-receipt.json
+            cgev11-stack-coverage.json
+            coverage/coverage-summary.json
+          if-no-files-found: error
+
+  node26:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ env.TARGET_SHA }}
+      - run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          test "$(git diff --name-only "$BASE_SHA...$TARGET_SHA")" = 'package.json'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '26.8.2'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx --no-install tsc --noEmit
+      - run: npx --no-install tsx scripts/test-levels-8-11.ts
+      - run: timeout 300s npm run test:all
+
+  complete:
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    needs: [node22, node26]
+    steps:
+      - name: Require both exact-target jobs
+        env:
+          NODE22_RESULT: ${{ needs.node22.result }}
+          NODE26_RESULT: ${{ needs.node26.result }}
+        run: |
+          set -euo pipefail
+          test "$NODE22_RESULT" = success
+          test "$NODE26_RESULT" = success
+          printf '{"schema":"cgev11.rot143.complete/v1","targetSha":"%s","node22":"%s","node26":"%s"}\n' "$TARGET_SHA" "$NODE22_RESULT" "$NODE26_RESULT" > rot143-complete.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rot143-complete-${{ env.TARGET_SHA }}
+          path: rot143-complete.json
+          if-no-files-found: error
