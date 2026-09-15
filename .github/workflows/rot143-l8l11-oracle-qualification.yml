@@ -19,7 +19,7 @@ env:
 jobs:
   node22:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -53,10 +53,11 @@ jobs:
         run: npx --no-install tsx scripts/test-levels-8-11.ts
       - name: Canonical test all includes L8-L11 oracle
         run: timeout 300s npm run test:all
-      - name: Integrated coverage and immutable W1D ratchet
+      - name: Integrated coverage using the same W3 corpus and immutable W1D ratchet
         run: |
           set -euo pipefail
-          npm run coverage
+          npm run asbuild
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node --import tsx scripts/test-sandbox-coverage-integration.cjs && node --import tsx scripts/test-sandbox-security-integration.cjs && node --import tsx scripts/test-tool-capability-w1d.cjs && node --import tsx scripts/test-filesystem-confinement-w1d2.cjs && node --import tsx scripts/test-http-egress-w1d3.cjs && node --import tsx scripts/test-search-tool-w1d4.cjs && node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs && node --import tsx scripts/test-operator-auth-rollout.cjs && node --import tsx scripts/test-http-trust-boundary-w2.cjs'
           node scripts/check-cgev11-stack-coverage.mjs
       - run: npm audit --audit-level=high
       - name: Evidence receipt
@@ -64,7 +65,7 @@ jobs:
           node <<'NODE'
           const fs=require('node:fs');
           const s=JSON.parse(fs.readFileSync('coverage/coverage-summary.json','utf8')).total;
-          const receipt={schema:'cgev11.rot143/v1',targetSha:process.env.TARGET_SHA,node:process.version,coverage:{statements:s.statements.pct,branches:s.branches.pct,functions:s.functions.pct,lines:s.lines.pct},dedicatedOracle:'PASS',canonicalTestAll:'PASS',auditHigh:'PASS'};
+          const receipt={schema:'cgev11.rot143/v1',targetSha:process.env.TARGET_SHA,node:process.version,coverage:{statements:s.statements.pct,branches:s.branches.pct,functions:s.functions.pct,lines:s.lines.pct},dedicatedOracle:'PASS',canonicalTestAll:'PASS',coverageCorpus:'W3_INTEGRATED',auditHigh:'PASS'};
           fs.writeFileSync('rot143-receipt.json',JSON.stringify(receipt,null,2)+'\n');
           console.log(JSON.stringify(receipt,null,2));
           NODE
