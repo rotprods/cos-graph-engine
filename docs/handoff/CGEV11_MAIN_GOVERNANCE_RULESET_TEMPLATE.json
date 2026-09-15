@@ -1,0 +1,99 @@
+{
+  "schema": "cgev11.github-main-governance-ruleset/v1",
+  "purpose": "Operator-reviewed template. Strip the schema/purpose fields before POSTing to GitHub REST /repos/rotprods/cos-graph-engine/rulesets.",
+  "apiVersion": "2026-03-10",
+  "githubRequest": {
+    "name": "CGEV11 Main Promotion Authority",
+    "target": "branch",
+    "enforcement": "active",
+    "bypass_actors": [],
+    "conditions": {
+      "ref_name": {
+        "include": [
+          "refs/heads/main"
+        ],
+        "exclude": []
+      }
+    },
+    "rules": [
+      {
+        "type": "deletion"
+      },
+      {
+        "type": "non_fast_forward"
+      },
+      {
+        "type": "pull_request",
+        "parameters": {
+          "allowed_merge_methods": [
+            "merge"
+          ],
+          "dismiss_stale_reviews_on_push": false,
+          "require_code_owner_review": false,
+          "require_last_push_approval": false,
+          "required_approving_review_count": 0,
+          "required_review_thread_resolution": true
+        }
+      },
+      {
+        "type": "required_status_checks",
+        "parameters": {
+          "do_not_enforce_on_create": false,
+          "required_status_checks": [
+            {
+              "context": "complete",
+              "integration_id": 15368
+            },
+            {
+              "context": "stack-complete",
+              "integration_id": 15368
+            }
+          ],
+          "strict_required_status_checks_policy": true
+        }
+      }
+    ]
+  },
+  "policyNotes": {
+    "requiredByW3_2": [
+      "Pull-request based promotion into main",
+      "Convergence aggregate check complete",
+      "Recovery aggregate check stack-complete",
+      "Checks bound to GitHub Actions app id 15368 where supported",
+      "No force pushes",
+      "No deletion of main",
+      "No routine configured bypass actor",
+      "Strict latest-base status-check policy"
+    ],
+    "chosenConservativeDefaults": {
+      "allowed_merge_methods": [
+        "merge"
+      ],
+      "required_approving_review_count": 0,
+      "required_review_thread_resolution": true,
+      "require_code_owner_review": false,
+      "require_last_push_approval": false,
+      "dismiss_stale_reviews_on_push": false
+    },
+    "rationale": [
+      "W3.2 requires PR promotion and exact aggregate gates but does not establish an external reviewer authority, so the template does not invent a one-approval requirement that the repository may be unable to satisfy.",
+      "Review-thread resolution is enabled because unresolved review discussion is already a W3.2 stop condition.",
+      "Only merge commits are allowed in this CGEV11 profile to minimize divergence from the synthetic merge-candidate qualification model.",
+      "No bypass actors are configured. Emergency owner action must be an explicit ruleset edit/disable with auditable ruleset history, not a silent routine bypass."
+    ]
+  },
+  "frozenEvidence": {
+    "main": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+    "sourceHead": "e3e198ce01e576d30ac89b3760a52f2d8461d781",
+    "syntheticCandidate": "567d84059ff024c6dbd4f2fdc09079122bc86aa1",
+    "convergenceRun": 34855327390,
+    "recoveryRun": 34855327394,
+    "githubActionsIntegrationId": 15368,
+    "aggregateChecks": [
+      "complete",
+      "stack-complete"
+    ],
+    "githubIssue": 122,
+    "linearIssue": "ROT-130"
+  }
+}
