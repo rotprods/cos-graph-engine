@@ -1,9 +1,10 @@
 # ROT-140 — Graphify Snapshot V1 Recovery Evidence
 
-Status: RECOVERY_CANDIDATE / NOT PROMOTED
+Status: QUALIFIED_PRODUCT_HEAD / EVIDENCE-BOUND SUCCESSOR PENDING
 
-Parent authority: `fix/l8-l11-oracle-wiring-20260915` @ `1c8e7259977d9dbd08e5a6ce429f4b96279c6ef4`
-Donor authority: `feat/graphify-snapshot-v1` @ `2be33ebe03a3a74e729c02252580f0aeba48a35a`
+Parent authority: `fix/l8-l11-oracle-wiring-20260915` @ `1c8e7259977d9dbd08e5a6ce429f4b96279c6ef4`  
+Donor authority: `feat/graphify-snapshot-v1` @ `2be33ebe03a3a74e729c02252580f0aeba48a35a`  
+Qualified product head: `d3ef3565760080dd7cc5b3369b2f5be41a6de0dc`  
 Frozen W3.2 authority remains unchanged: `e3e198ce01e576d30ac89b3760a52f2d8461d781` / PR #119.
 
 ## Why recovery is justified
@@ -16,7 +17,7 @@ The capability projects one authority-tagged snapshot into existing L8 Knowledge
 
 The donor is valuable but must not be merged or copied as public authority unchanged.
 
-A bounded local audit of the exact donor source reproduced integrity gaps that historical tests did not cover:
+A bounded audit of the exact donor source reproduced integrity gaps that historical tests did not cover:
 
 1. provenance dictionaries were ordinary JavaScript objects, so prototype-sensitive IDs such as `__proto__` were not guaranteed to survive as own keys;
 2. the same risk existed independently for deterministic-node, deterministic-edge, semantic-node, semantic-edge and chunk provenance tables;
@@ -61,22 +62,61 @@ New `scripts/test-graphify-snapshot-v1-hardening.cjs` proves:
 
 Both tests are wired into canonical `test:all`, so Graphify becomes part of the standard and coverage corpus rather than a side workflow-only feature.
 
-## Qualification contract
+## First exact-head GREEN
 
-`.github/workflows/rot140-graphify-recovery.yml` qualifies the exact child on:
+Workflow: `ROT-140 Graphify Snapshot Recovery`  
+Run: `35090755032`  
+Exact tested head: `d3ef3565760080dd7cc5b3369b2f5be41a6de0dc`
 
-- Node 22.12.0 and Node 26.8.2;
-- strict TypeScript;
-- historical Graphify donor contract;
-- new hardening contract;
-- full canonical `test:all`;
-- W3 integrated coverage corpus and unchanged `check-cgev11-stack-coverage.mjs` floors;
-- HIGH dependency audit;
-- scope + anti-bypass allowlist;
-- exact-SHA aggregate receipt.
+Jobs:
 
-No product byte in frozen PR #119 is changed by this recovery branch.
+- Node 22.12.0: `104776222787` — PASS
+- Node 26.8.2: `104776222964` — PASS
+- exact-SHA aggregate receipt: `104776611109` — PASS
+
+Node 22 proved:
+
+- exact ancestry from parent `1c8e7259977d9dbd08e5a6ce429f4b96279c6ef4`;
+- pinned sandbox TCB `node@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868`;
+- strict TypeScript PASS;
+- historical Graphify contract PASS with 40 authority-failure families exercised;
+- Graphify hardening contract PASS with 5/5 provenance tables protected;
+- prototype-sensitive metadata preservation PASS;
+- circular-array fail-closed PASS;
+- non-plain-object fail-closed PASS;
+- canonical `test:all` PASS;
+- integrated W3 coverage corpus PASS, including sandbox/W1D/W2 carry-forward;
+- HIGH dependency audit PASS with 0 vulnerabilities;
+- mutation allowlist + anti-bypass PASS.
+
+Measured integrated coverage:
+
+- statements: **82.14%** vs 80.05% floor (**+2.09 pp**)
+- branches: **80.66%** vs 80.05% floor (**+0.61 pp**)
+- functions: **87.26%** vs 85.80% floor (**+1.46 pp**)
+- lines: **82.14%** vs 80.05% floor (**+2.09 pp**)
+
+Graphify-specific coverage in that run:
+
+- `graphify-snapshot-v1-internal.ts`: 96.81% statements / 92.17% branches / 88.88% functions / 96.81% lines
+- `graphify-snapshot.ts`: 100% statements / 94.44% branches / 94.73% functions / 100% lines
+
+Node 26 proved strict TypeScript + historical Graphify + hardening + full canonical suite compatibility.
+
+Artifacts:
+
+- Node22: `10444191390`, `sha256:3b78def18d404d67bb9868e230012f15c6b8f5f3826da444b9f8e5bf4e137688`
+- Node26: `10443729519`, `sha256:020554a15b6d35c664cc1984594c0f86fa9e56f338fe4c7d9ff86f3561f9b1d3`
+- complete receipt: `10444241248`, `sha256:ff9f82c52cb5bec7c4288f2a1eaccec738e0cdfd0a821fe152b7d57301f8c39a`
+
+## Evidence-binding rule
+
+The GREEN above belongs to product head `d3ef3565...`. This documentation update changes branch identity, so it cannot inherit that GREEN automatically.
+
+The documentation-bound successor MUST repeat the same Node22 + Node26 + exact-SHA aggregate workflow before ROT-140 can close. No threshold or test oracle may be weakened for that requalification.
 
 ## Non-claims
 
-Until the qualification workflow is GREEN, this document does not claim the recovery candidate is qualified. Even after a GREEN child, integration into W3/main remains separately governed by ROT-23/ROT-130 and cannot inherit promotion authority automatically.
+This recovery does not claim merge into W3/main, production deployment, Graphify Adapter + Persistence V1, OpenClaw/Ollama execution, filesystem watching, or global CGEV11 qualification.
+
+Even after the evidence-bound successor is GREEN, integration into W3/main remains separately governed by ROT-23/ROT-130 and cannot inherit promotion authority automatically.
