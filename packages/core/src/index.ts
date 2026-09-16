@@ -4,3 +4,5 @@
 export * from './types';
 export * from './errors';
 export * from './cell';
+export * from './identity';
+export * from './provenance';
