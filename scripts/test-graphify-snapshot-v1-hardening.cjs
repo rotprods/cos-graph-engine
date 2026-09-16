@@ -75,6 +75,51 @@ async function main() {
   assert.deepEqual(validateGraphifySnapshot(sharedSnapshot), []);
   assert.doesNotThrow(() => canonicalizeGraphifySnapshot(sharedSnapshot));
 
+  let getterCalls = 0;
+  const accessorMetadata = {};
+  Object.defineProperty(accessorMetadata, 'trap', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      getterCalls += 1;
+      return 'must-not-run';
+    },
+  });
+  const accessorSnapshot = base();
+  accessorSnapshot.nodes[0].metadata = accessorMetadata;
+  const accessorErrors = validateGraphifySnapshot(accessorSnapshot);
+  assert.equal(getterCalls, 0, 'validation must not execute accessor-backed input');
+  assert.match(accessorErrors.join('\n'), /accessor property/);
+  assert.throws(() => projectGraphifySnapshot(accessorSnapshot), GraphifyValidationError);
+  assert.equal(getterCalls, 0, 'projection preflight must not execute accessor-backed input');
+
+  const symbolSnapshot = base();
+  symbolSnapshot.nodes[0].metadata = { [Symbol('hidden')]: 'must-reject' };
+  const symbolErrors = validateGraphifySnapshot(symbolSnapshot);
+  assert.match(symbolErrors.join('\n'), /symbol-keyed property/);
+  assert.throws(() => canonicalizeGraphifySnapshot(symbolSnapshot), GraphifyValidationError);
+
+  const sparseSnapshot = base();
+  const sparse = [];
+  sparse.length = 1_000_000;
+  sparseSnapshot.nodes[0].metadata = { sparse };
+  const sparseErrors = validateGraphifySnapshot(sparseSnapshot);
+  assert.match(sparseErrors.join('\n'), /sparse array/);
+  assert.throws(() => projectGraphifySnapshot(sparseSnapshot), GraphifyValidationError);
+
+  const deepSnapshot = base();
+  const deepRoot = {};
+  let cursor = deepRoot;
+  for (let depth = 0; depth < 160; depth++) {
+    const next = {};
+    cursor.next = next;
+    cursor = next;
+  }
+  deepSnapshot.nodes[0].metadata = deepRoot;
+  const deepErrors = validateGraphifySnapshot(deepSnapshot);
+  assert.match(deepErrors.join('\n'), /exceeds maximum JSON depth 128/);
+  assert.throws(() => canonicalizeGraphifySnapshot(deepSnapshot), GraphifyValidationError);
+
   process.stdout.write(JSON.stringify({
     suite: 'graphify-snapshot-v1-hardening',
     status: 'PASS',
@@ -82,6 +127,10 @@ async function main() {
     prototypeSensitiveMetadataPreserved: true,
     circularArraysFailClosed: true,
     nonPlainObjectsFailClosed: true,
+    accessorPropertiesFailClosedWithoutExecution: getterCalls === 0,
+    symbolKeysFailClosed: true,
+    sparseArraysFailClosed: true,
+    maximumJsonDepthFailClosed: 128,
   }, null, 2) + '\n');
 }
 

@@ -12,6 +12,12 @@ import {
 
 type JsonObject = Record<string, unknown>;
 
+type JsonValidationFrame =
+  | { phase: 'visit'; value: unknown; path: string; depth: number }
+  | { phase: 'leave'; value: object };
+
+const GRAPHIFY_MAX_JSON_DEPTH = 128;
+
 function isPlainObject(value: object): value is JsonObject {
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null;
@@ -23,37 +29,108 @@ function validateJsonValueHardened(
   active: WeakSet<object>,
   errors: string[],
 ): void {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) errors.push(`${path} contains a non-finite number`);
-    return;
-  }
-  if (typeof value === 'undefined' || typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
-    errors.push(`${path} contains a non-JSON value of type ${typeof value}`);
-    return;
-  }
-  if (typeof value !== 'object') return;
+  const stack: JsonValidationFrame[] = [{ phase: 'visit', value, path, depth: 0 }];
 
-  if (active.has(value)) {
-    errors.push(`${path} contains a circular reference`);
-    return;
-  }
-  if (!Array.isArray(value) && !isPlainObject(value)) {
-    errors.push(`${path} contains a non-plain JSON object`);
-    return;
-  }
+  while (stack.length > 0) {
+    const frame = stack.pop()!;
+    if (frame.phase === 'leave') {
+      active.delete(frame.value);
+      continue;
+    }
 
-  active.add(value);
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index++) {
-      validateJsonValueHardened(value[index], `${path}[${index}]`, active, errors);
+    const current = frame.value;
+    if (frame.depth > GRAPHIFY_MAX_JSON_DEPTH) {
+      errors.push(`${frame.path} exceeds maximum JSON depth ${GRAPHIFY_MAX_JSON_DEPTH}`);
+      continue;
     }
-  } else {
-    for (const [key, child] of Object.entries(value)) {
-      validateJsonValueHardened(child, `${path}.${key}`, active, errors);
+    if (current === null || typeof current === 'string' || typeof current === 'boolean') continue;
+    if (typeof current === 'number') {
+      if (!Number.isFinite(current)) errors.push(`${frame.path} contains a non-finite number`);
+      continue;
+    }
+    if (typeof current === 'undefined' || typeof current === 'function' || typeof current === 'symbol' || typeof current === 'bigint') {
+      errors.push(`${frame.path} contains a non-JSON value of type ${typeof current}`);
+      continue;
+    }
+    if (typeof current !== 'object') continue;
+
+    if (active.has(current)) {
+      errors.push(`${frame.path} contains a circular reference`);
+      continue;
+    }
+    if (!Array.isArray(current) && !isPlainObject(current)) {
+      errors.push(`${frame.path} contains a non-plain JSON object`);
+      continue;
+    }
+
+    const descriptors = Object.getOwnPropertyDescriptors(current);
+    active.add(current);
+    stack.push({ phase: 'leave', value: current });
+
+    if (Array.isArray(current)) {
+      let ownIndexCount = 0;
+      for (const key of Reflect.ownKeys(descriptors)) {
+        if (typeof key === 'symbol') {
+          errors.push(`${frame.path} contains a symbol-keyed property`);
+          continue;
+        }
+        if (key === 'length') continue;
+
+        const descriptor = descriptors[key]!;
+        if (!('value' in descriptor)) {
+          errors.push(`${frame.path}.${key} uses an accessor property`);
+          continue;
+        }
+
+        const index = Number(key);
+        const isArrayIndex = /^(0|[1-9]\d*)$/.test(key)
+          && Number.isSafeInteger(index)
+          && index >= 0
+          && index < current.length
+          && String(index) === key;
+        if (!isArrayIndex) {
+          errors.push(`${frame.path}.${key} is not a canonical JSON array index`);
+          continue;
+        }
+
+        ownIndexCount += 1;
+        if (!descriptor.enumerable) {
+          errors.push(`${frame.path}[${key}] is non-enumerable and not canonical JSON`);
+          continue;
+        }
+        stack.push({
+          phase: 'visit',
+          value: descriptor.value,
+          path: `${frame.path}[${key}]`,
+          depth: frame.depth + 1,
+        });
+      }
+      if (ownIndexCount !== current.length) errors.push(`${frame.path} contains a sparse array`);
+      continue;
+    }
+
+    for (const key of Reflect.ownKeys(descriptors)) {
+      if (typeof key === 'symbol') {
+        errors.push(`${frame.path} contains a symbol-keyed property`);
+        continue;
+      }
+      const descriptor = descriptors[key]!;
+      if (!('value' in descriptor)) {
+        errors.push(`${frame.path}.${key} uses an accessor property`);
+        continue;
+      }
+      if (!descriptor.enumerable) {
+        errors.push(`${frame.path}.${key} is non-enumerable and not canonical JSON`);
+        continue;
+      }
+      stack.push({
+        phase: 'visit',
+        value: descriptor.value,
+        path: `${frame.path}.${key}`,
+        depth: frame.depth + 1,
+      });
     }
   }
-  active.delete(value);
 }
 
 function canonicalJsonValue(value: unknown): unknown {

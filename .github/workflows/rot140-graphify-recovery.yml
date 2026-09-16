@@ -2,7 +2,9 @@ name: ROT-140 Graphify Snapshot Recovery
 
 on:
   push:
-    branches: [recover/graphify-snapshot-v1-rot140-20260916]
+    branches:
+      - recover/graphify-snapshot-v1-rot140-20260916
+      - fix/rot145-graphify-boundary-hardening-20260916
   workflow_dispatch: {}
 
 permissions:
