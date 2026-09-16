@@ -44,3 +44,4 @@ export * from './convert';
 export * from './query';
 export * from './csr';
 export * from './pruning';
+export * from './graphify-snapshot';

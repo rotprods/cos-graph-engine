@@ -1,0 +1,186 @@
+name: ROT-140 Graphify Snapshot Recovery
+
+on:
+  push:
+    branches: [recover/graphify-snapshot-v1-rot140-20260916]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rot140-graphify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PARENT_SHA: '1c8e7259977d9dbd08e5a6ce429f4b96279c6ef4'
+  W1C_SANDBOX_IMAGE: 'node@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868'
+
+jobs:
+  node22:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    outputs:
+      tested_sha: ${{ steps.identity.outputs.tested_sha }}
+      completed: ${{ steps.seal.outputs.completed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact child identity
+        id: identity
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$GITHUB_SHA"
+          git cat-file -e "${PARENT_SHA}^{commit}"
+          git merge-base --is-ancestor "$PARENT_SHA" HEAD
+          echo "tested_sha=$actual" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$actual" | tee rot140-node22-tested-sha.log
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Bind Node 22 minimum
+        run: |
+          set -euo pipefail
+          node --version | tee rot140-node22-version.log
+          test "$(node --version)" = 'v22.12.0'
+      - name: Verify pinned sandbox TCB
+        run: |
+          set -euo pipefail
+          docker version 2>&1 | tee rot140-node22-docker.log
+          docker pull "$W1C_SANDBOX_IMAGE" 2>&1 | tee rot140-node22-image-pull.log
+      - name: Strict TypeScript
+        run: npx --no-install tsc --noEmit
+      - name: Historical Graphify contract
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-graphify-snapshot-v1.cjs 2>&1 | tee rot140-node22-graphify-donor.log
+      - name: Graphify hardening contract
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-graphify-snapshot-v1-hardening.cjs 2>&1 | tee rot140-node22-graphify-hardening.log
+      - name: Full canonical suite
+        run: |
+          set -euo pipefail
+          npm run test:all 2>&1 | tee rot140-node22-test-all.log
+      - name: Integrated W3 coverage plus Graphify
+        run: |
+          set -euo pipefail
+          npm run asbuild
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && node --import tsx scripts/test-sandbox-coverage-integration.cjs && node --import tsx scripts/test-sandbox-security-integration.cjs && node --import tsx scripts/test-tool-capability-w1d.cjs && node --import tsx scripts/test-filesystem-confinement-w1d2.cjs && node --import tsx scripts/test-http-egress-w1d3.cjs && node --import tsx scripts/test-search-tool-w1d4.cjs && node --import tsx scripts/test-tool-capability-e2e-w1d5.cjs && node --import tsx scripts/test-operator-auth-rollout.cjs && node --import tsx scripts/test-http-trust-boundary-w2.cjs' 2>&1 | tee rot140-node22-coverage.log
+          node scripts/check-cgev11-stack-coverage.mjs 2>&1 | tee rot140-node22-coverage-ratchet.log
+      - name: High-severity dependency audit
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=high 2>&1 | tee rot140-node22-audit.log
+      - name: Scope and anti-bypass
+        run: |
+          set -euo pipefail
+          git diff --unified=0 "$PARENT_SHA"...HEAD -- '*.ts' '*.cjs' '*.mjs' > rot140-source.diff
+          if grep -E '^\+.*(as any|@ts-ignore|@ts-nocheck|new Function\(|eval\(|console\.log[[:space:]]*=)' rot140-source.diff; then
+            echo 'ROT-140 introduced a forbidden bypass or dynamic-code primitive' >&2
+            exit 1
+          fi
+          while IFS= read -r file; do
+            case "$file" in
+              package.json|packages/graph/src/index.ts|packages/graph/src/graphify-snapshot.ts|packages/graph/src/graphify-snapshot-v1-internal.ts|scripts/test-graphify-snapshot-v1.cjs|scripts/test-graphify-snapshot-v1-hardening.cjs|docs/graphify/ROT140_RECOVERY_EVIDENCE.md|.github/workflows/rot140-graphify-recovery.yml)
+                ;;
+              *)
+                echo "Unexpected ROT-140 mutation: $file" >&2
+                exit 1
+                ;;
+            esac
+          done < <(git diff --name-only "$PARENT_SHA"...HEAD)
+      - name: Preserve Node22 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rot140-node22-${{ github.sha }}
+          path: |
+            rot140-node22-*.log
+            rot140-source.diff
+            coverage/
+          if-no-files-found: warn
+      - id: seal
+        run: echo 'completed=true' >> "$GITHUB_OUTPUT"
+
+  node26:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      tested_sha: ${{ steps.identity.outputs.tested_sha }}
+      completed: ${{ steps.seal.outputs.completed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact child identity
+        id: identity
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$PARENT_SHA" HEAD
+          echo "tested_sha=$actual" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '26.8.2'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Strict TypeScript
+        run: npx --no-install tsc --noEmit
+      - name: Graphify contracts
+        run: |
+          set -euo pipefail
+          node --import tsx scripts/test-graphify-snapshot-v1.cjs 2>&1 | tee rot140-node26-graphify-donor.log
+          node --import tsx scripts/test-graphify-snapshot-v1-hardening.cjs 2>&1 | tee rot140-node26-graphify-hardening.log
+      - name: Full canonical suite
+        run: |
+          set -euo pipefail
+          npm run test:all 2>&1 | tee rot140-node26-test-all.log
+      - name: Preserve Node26 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rot140-node26-${{ github.sha }}
+          path: rot140-node26-*.log
+          if-no-files-found: warn
+      - id: seal
+        run: echo 'completed=true' >> "$GITHUB_OUTPUT"
+
+  complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ always() }}
+    needs: [node22, node26]
+    steps:
+      - name: Verify exact-SHA receipts
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          NODE22_RESULT: ${{ needs.node22.result }}
+          NODE26_RESULT: ${{ needs.node26.result }}
+          NODE22_SHA: ${{ needs.node22.outputs.tested_sha }}
+          NODE26_SHA: ${{ needs.node26.outputs.tested_sha }}
+          NODE22_DONE: ${{ needs.node22.outputs.completed }}
+          NODE26_DONE: ${{ needs.node26.outputs.completed }}
+        run: |
+          set -euo pipefail
+          test "$NODE22_RESULT" = success
+          test "$NODE26_RESULT" = success
+          test "$NODE22_DONE" = true
+          test "$NODE26_DONE" = true
+          test "$NODE22_SHA" = "$EXPECTED_SHA"
+          test "$NODE26_SHA" = "$EXPECTED_SHA"
+          printf '%s\n' "$EXPECTED_SHA" > rot140-qualified-sha.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rot140-complete-${{ github.sha }}
+          path: rot140-qualified-sha.txt
+          if-no-files-found: error

@@ -23,7 +23,7 @@
     "asbuild": "cd packages/wasm && npx asc assembly/index.ts --outFile build/optimized.wasm --optimizeLevel 3 --shrinkLevel 1 --exportRuntime",
     "wasm:build": "npm run asbuild",
     "test": "tsx scripts/run-tests.ts",
-    "test:all": "tsx scripts/run-tests.ts && tsx scripts/test-level1-diamond.ts && tsx scripts/test-level1-mutation.ts && tsx scripts/test-level3-consistency.ts && tsx scripts/test-level3-mutation.ts && tsx scripts/test-level7-compute.ts && tsx scripts/test-levels-8-11.ts && tsx scripts/test-levels-12-19.ts && tsx scripts/test-pipeline-l45l6.ts && tsx scripts/test-pipeline-l891011.ts && tsx scripts/test-pipeline-l12131415.ts && tsx scripts/test-pipeline-l16171819.ts && tsx scripts/test-cli-visualizer.ts",
+    "test:all": "tsx scripts/run-tests.ts && tsx scripts/test-level1-diamond.ts && tsx scripts/test-level1-mutation.ts && tsx scripts/test-level3-consistency.ts && tsx scripts/test-level3-mutation.ts && tsx scripts/test-level7-compute.ts && tsx scripts/test-levels-8-11.ts && tsx scripts/test-levels-12-19.ts && tsx scripts/test-pipeline-l45l6.ts && tsx scripts/test-pipeline-l891011.ts && tsx scripts/test-pipeline-l12131415.ts && tsx scripts/test-pipeline-l16171819.ts && tsx scripts/test-cli-visualizer.ts && node --import tsx scripts/test-graphify-snapshot-v1.cjs && node --import tsx scripts/test-graphify-snapshot-v1-hardening.cjs",
     "test:csr": "tsx scripts/test-csr.ts",
     "test:pruning": "tsx scripts/test-pruning.ts",
     "test:benchmark": "tsx scripts/test-benchmark.ts",
