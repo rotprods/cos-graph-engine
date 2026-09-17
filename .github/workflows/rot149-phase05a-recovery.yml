@@ -1,0 +1,229 @@
+name: ROT-149 Phase05A Recovery
+
+on:
+  push:
+    branches:
+      - recover/phase05a-rot149-20260917
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rot149-phase05a-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  QUALIFIED_PARENT_SHA: '01104b63deeb6aab3ac465766c2d2443bccc5159'
+  W1C_SANDBOX_IMAGE: 'node@sha256:ef24c5053d50fdc3e4e56eb4e7ddb7861874ab0fdc797046ba897581deb8e868'
+
+jobs:
+  node22:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    outputs:
+      tested_sha: ${{ steps.identity.outputs.tested_sha }}
+      completed: ${{ steps.seal.outputs.completed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact recovery identity
+        id: identity
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$GITHUB_SHA"
+          git cat-file -e "${QUALIFIED_PARENT_SHA}^{commit}"
+          git merge-base --is-ancestor "$QUALIFIED_PARENT_SHA" HEAD
+          echo "tested_sha=$actual" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$actual" | tee rot149-node22-tested-sha.log
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.12.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Bind Node 22 minimum
+        run: |
+          set -euo pipefail
+          node --version | tee rot149-node22-version.log
+          test "$(node --version)" = 'v22.12.0'
+      - name: Verify pinned sandbox TCB
+        run: |
+          set -euo pipefail
+          docker version 2>&1 | tee rot149-node22-docker.log
+          docker pull "$W1C_SANDBOX_IMAGE" 2>&1 | tee rot149-node22-image-pull.log
+      - name: Verify frozen donor blob identities
+        run: |
+          set -euo pipefail
+          check_blob() { test "$(git rev-parse "HEAD:$1")" = "$2"; }
+          check_blob packages/execution/src/authority-execution-runtime.ts 4b88698e1bd76f47a627becd759369f5568114b4
+          check_blob packages/execution/src/authority-lease-store-postgres.ts 30539badfeff958fa630b27f25b50c54de7b7609
+          check_blob packages/execution/src/authority-lease.ts aabf9f61d1a003167474d7fbe8c8bfc16dcd9a05
+          check_blob packages/execution/src/authority-policy-bound-runtime.ts 0a8f1b827722b2b2cd8c1816cf1f3843aa18f179
+          check_blob packages/execution/src/authority-policy.ts d53a79d2e5d271a66f22c641feaee319cd0d10b6
+          check_blob packages/execution/src/authority-provider-lease-retry-planner.ts 487f35639a23bd5f8efe61904f741fc8da032f33
+          check_blob packages/execution/src/authority-provider-reconciliation.ts 6fa6406126f48f590947e033e25ae9ae539956c9
+          check_blob packages/execution/src/authority-side-effect-runtime.ts b674b0305c76600cb03bca0690a90b4ced1ae4db
+          check_blob packages/execution/src/authority-side-effect-store-postgres.ts 70b1aeaa6ce726d87992d9c0de3cb415c2dda255
+          check_blob packages/execution/src/authority-side-effect.ts ca387c99a6eac41062af7284bbc377152d516de2
+          check_blob packages/execution/src/authority-observed-outcome-recorder.ts 91560ecf373ce54aa19455958fa920f26035321b
+          check_blob packages/runtime/src/postgres.ts 8f56181b39bd577b8ada433635e7516b14a8c533
+          check_blob scripts/test-authority-lease.ts 3286c5aed85284ed479764399de461b97494baf9
+          check_blob scripts/test-authority-lease-postgres.ts 5382ce131b1a571669596c9c401bbe1149be8585
+          check_blob scripts/test-authority-execution-runtime.ts a05a4573c0817fe255d5e2a306ffc453b1f1ea7c
+          check_blob scripts/test-authority-policy.ts 6b3c76a8266984e6455542ccb15ecfc57a1e0be2
+          check_blob scripts/test-authority-policy-bound-runtime.ts 901dcb8001a5e0b21fab8dfc0b20a3ba81e1b4bd
+          check_blob scripts/test-authority-provider-reconciliation-clean.ts f5722901308a2ba518c1f23613bc5b1f495e7bd5
+          check_blob scripts/test-authority-provider-lease-retry-planner.ts 953364acc9f191636f53e501ddd6f97c7e9953b5
+          check_blob scripts/test-authority-observed-outcome-recorder.ts deaa74ceef11fa454b94eb4789ccb8bea685b77f
+          printf 'frozen donor identities PASS\n' | tee rot149-node22-donor-blobs.log
+      - name: Strict TypeScript
+        run: |
+          set -euo pipefail
+          npx --no-install tsc --noEmit 2>&1 | tee rot149-node22-typecheck.log
+      - name: Phase05A targeted authority contracts
+        run: |
+          set -euo pipefail
+          npx --no-install tsx scripts/test-authority-lease.ts 2>&1 | tee rot149-node22-lease.log
+          npx --no-install tsx scripts/test-authority-lease-postgres.ts 2>&1 | tee rot149-node22-lease-postgres.log
+          npx --no-install tsx scripts/test-authority-execution-runtime.ts 2>&1 | tee rot149-node22-execution.log
+          npx --no-install tsx scripts/test-authority-policy.ts 2>&1 | tee rot149-node22-policy.log
+          npx --no-install tsx scripts/test-authority-policy-bound-runtime.ts 2>&1 | tee rot149-node22-policy-bound.log
+          npx --no-install tsx scripts/test-authority-provider-reconciliation-clean.ts 2>&1 | tee rot149-node22-reconciliation.log
+          npx --no-install tsx scripts/test-authority-provider-lease-retry-planner.ts 2>&1 | tee rot149-node22-retry-planner.log
+          npx --no-install tsx scripts/test-authority-observed-outcome-recorder.ts 2>&1 | tee rot149-node22-observed-outcome.log
+          npx --no-install tsx scripts/test-authority-side-effect-postgres-clean.ts 2>&1 | tee rot149-node22-side-effect-postgres.log
+      - name: Full canonical suite
+        run: |
+          set -euo pipefail
+          npm run test:all 2>&1 | tee rot149-node22-test-all.log
+      - name: Integrated coverage and immutable ratchet
+        run: |
+          set -euo pipefail
+          npm run asbuild
+          npx --no-install c8 --reporter=text --reporter=lcov --reporter=json-summary sh -c 'npm run test:coverage:all && npx --no-install tsx scripts/test-authority-lease.ts && npx --no-install tsx scripts/test-authority-lease-postgres.ts && npx --no-install tsx scripts/test-authority-execution-runtime.ts && npx --no-install tsx scripts/test-authority-policy.ts && npx --no-install tsx scripts/test-authority-policy-bound-runtime.ts && npx --no-install tsx scripts/test-authority-provider-reconciliation-clean.ts && npx --no-install tsx scripts/test-authority-provider-lease-retry-planner.ts && npx --no-install tsx scripts/test-authority-observed-outcome-recorder.ts && npx --no-install tsx scripts/test-authority-side-effect-postgres-clean.ts' 2>&1 | tee rot149-node22-coverage.log
+          node scripts/check-cgev11-stack-coverage.mjs 2>&1 | tee rot149-node22-coverage-ratchet.log
+      - name: High-severity dependency audit
+        run: |
+          set -euo pipefail
+          npm audit --audit-level=high 2>&1 | tee rot149-node22-audit.log
+      - name: Scope, freeze and anti-bypass
+        run: |
+          set -euo pipefail
+          git diff --unified=0 "$QUALIFIED_PARENT_SHA"...HEAD -- '*.ts' '*.cjs' '*.mjs' > rot149-source.diff
+          if grep -E '^\+.*(as any|@ts-ignore|@ts-nocheck|new Function\(|eval\(|console\.log[[:space:]]*=)' rot149-source.diff; then
+            echo 'ROT-149 introduced a forbidden bypass or dynamic-code primitive' >&2
+            exit 1
+          fi
+          while IFS= read -r file; do
+            case "$file" in
+              packages/runtime/src/postgres.ts|packages/runtime/src/index.ts|packages/execution/src/authority-execution-runtime.ts|packages/execution/src/authority-lease-store-postgres.ts|packages/execution/src/authority-lease.ts|packages/execution/src/authority-policy-bound-runtime.ts|packages/execution/src/authority-policy.ts|packages/execution/src/authority-provider-lease-retry-planner.ts|packages/execution/src/authority-provider-reconciliation.ts|packages/execution/src/authority-side-effect-runtime.ts|packages/execution/src/authority-side-effect-store-postgres.ts|packages/execution/src/authority-side-effect.ts|packages/execution/src/authority-observed-outcome-recorder.ts|packages/execution/src/authority-phase05-clean.ts|scripts/fixtures/fake-authority-lease-postgres.ts|scripts/fixtures/fake-authority-side-effect-postgres.ts|scripts/test-authority-lease.ts|scripts/test-authority-lease-postgres.ts|scripts/test-authority-execution-runtime.ts|scripts/test-authority-policy.ts|scripts/test-authority-policy-bound-runtime.ts|scripts/test-authority-provider-reconciliation-clean.ts|scripts/test-authority-provider-lease-retry-planner.ts|scripts/test-authority-observed-outcome-recorder.ts|scripts/test-authority-side-effect-postgres-clean.ts|docs/hardening/ADR-010-OBSERVED-PROVIDER-OUTCOME-RECOVERY.md|.github/workflows/rot149-phase05a-recovery.yml)
+                ;;
+              *)
+                echo "Unexpected ROT-149/ROT-159 mutation: $file" >&2
+                exit 1
+                ;;
+            esac
+          done < <(git diff --name-only "$QUALIFIED_PARENT_SHA"...HEAD)
+          test "$(git rev-parse "${QUALIFIED_PARENT_SHA}:.github/workflows/release.yml")" = "$(git rev-parse HEAD:.github/workflows/release.yml)"
+          test "$(git rev-parse "${QUALIFIED_PARENT_SHA}:.github/workflows/deploy.yml")" = "$(git rev-parse HEAD:.github/workflows/deploy.yml)"
+      - name: Preserve Node22 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rot149-node22-${{ github.sha }}
+          path: |
+            rot149-node22-*.log
+            rot149-source.diff
+            coverage/
+          if-no-files-found: warn
+      - id: seal
+        run: echo 'completed=true' >> "$GITHUB_OUTPUT"
+
+  node26:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    outputs:
+      tested_sha: ${{ steps.identity.outputs.tested_sha }}
+      completed: ${{ steps.seal.outputs.completed }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind exact recovery identity
+        id: identity
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$GITHUB_SHA"
+          git merge-base --is-ancestor "$QUALIFIED_PARENT_SHA" HEAD
+          echo "tested_sha=$actual" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '26.8.2'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Strict TypeScript
+        run: |
+          set -euo pipefail
+          npx --no-install tsc --noEmit 2>&1 | tee rot149-node26-typecheck.log
+      - name: Phase05A targeted authority contracts
+        run: |
+          set -euo pipefail
+          npx --no-install tsx scripts/test-authority-lease.ts 2>&1 | tee rot149-node26-lease.log
+          npx --no-install tsx scripts/test-authority-lease-postgres.ts 2>&1 | tee rot149-node26-lease-postgres.log
+          npx --no-install tsx scripts/test-authority-execution-runtime.ts 2>&1 | tee rot149-node26-execution.log
+          npx --no-install tsx scripts/test-authority-policy.ts 2>&1 | tee rot149-node26-policy.log
+          npx --no-install tsx scripts/test-authority-policy-bound-runtime.ts 2>&1 | tee rot149-node26-policy-bound.log
+          npx --no-install tsx scripts/test-authority-provider-reconciliation-clean.ts 2>&1 | tee rot149-node26-reconciliation.log
+          npx --no-install tsx scripts/test-authority-provider-lease-retry-planner.ts 2>&1 | tee rot149-node26-retry-planner.log
+          npx --no-install tsx scripts/test-authority-observed-outcome-recorder.ts 2>&1 | tee rot149-node26-observed-outcome.log
+          npx --no-install tsx scripts/test-authority-side-effect-postgres-clean.ts 2>&1 | tee rot149-node26-side-effect-postgres.log
+      - name: Full canonical suite
+        run: |
+          set -euo pipefail
+          npm run test:all 2>&1 | tee rot149-node26-test-all.log
+      - name: Preserve Node26 evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rot149-node26-${{ github.sha }}
+          path: rot149-node26-*.log
+          if-no-files-found: warn
+      - id: seal
+        run: echo 'completed=true' >> "$GITHUB_OUTPUT"
+
+  complete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ always() }}
+    needs: [node22, node26]
+    steps:
+      - name: Verify exact-SHA receipts
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          NODE22_RESULT: ${{ needs.node22.result }}
+          NODE26_RESULT: ${{ needs.node26.result }}
+          NODE22_SHA: ${{ needs.node22.outputs.tested_sha }}
+          NODE26_SHA: ${{ needs.node26.outputs.tested_sha }}
+          NODE22_DONE: ${{ needs.node22.outputs.completed }}
+          NODE26_DONE: ${{ needs.node26.outputs.completed }}
+        run: |
+          set -euo pipefail
+          test "$NODE22_RESULT" = success
+          test "$NODE26_RESULT" = success
+          test "$NODE22_DONE" = true
+          test "$NODE26_DONE" = true
+          test "$NODE22_SHA" = "$EXPECTED_SHA"
+          test "$NODE26_SHA" = "$EXPECTED_SHA"
+          printf '%s\n' "$EXPECTED_SHA" > rot149-qualified-sha.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rot149-complete-${{ github.sha }}
+          path: rot149-qualified-sha.txt
+          if-no-files-found: error
