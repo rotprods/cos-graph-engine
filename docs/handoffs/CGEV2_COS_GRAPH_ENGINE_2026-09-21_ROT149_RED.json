@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 2,
+  "checkpointId": "CGEV2-CGE-20260921-ROT149-RED-001",
+  "project": "COS Graph Engine — CGE V11 Sublime Recovery",
+  "repository": "rotprods/cos-graph-engine",
+  "mode": [
+    "ONLINE",
+    "DURABLE",
+    "RECOVERABLE",
+    "EXACT_HEAD"
+  ],
+  "globalSeal": "CGEV11_SUBLIME_STATE_NOT_VERIFIED",
+  "authority": {
+    "main": {
+      "sha": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+      "protected": true,
+      "requiredStatusChecksVisible": [],
+      "enforcementLevel": "everyone"
+    },
+    "pr119": {
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "baseSha": "3ae197ebe6024b68ea2cc33a4c54c76fbc8d1e83",
+      "headSha": "e3e198ce01e576d30ac89b3760a52f2d8461d781"
+    },
+    "active": {
+      "issue": "ROT-149",
+      "branch": "recover/phase05a-rot149-20260917",
+      "headSha": "a1a53e9429020b80f4f6912b5c1f191168bc6639",
+      "treeSha": "98d243cbaf16ce1955ddd5838c33f7689669d57a",
+      "status": "RED_UNQUALIFIED"
+    }
+  },
+  "completed": {
+    "ROT-138": "Done",
+    "ROT-140": "Done",
+    "ROT-141": "Done",
+    "ROT-143": "Done",
+    "ROT-145": "Done",
+    "ROT-158": "Done"
+  },
+  "activeIssues": {
+    "ROT-149": "In Progress",
+    "ROT-159": "In Progress",
+    "ROT-130": "In Progress"
+  },
+  "lineage": {
+    "qualifiedParentRot158": "01104b63deeb6aab3ac465766c2d2443bccc5159",
+    "rot159PortCommit": "b6e50e076b7ceac175319c876235e8e9728ab8ae",
+    "rot159ExportCommit": "8c9dd2457fb114553ffa921081a743a8937c6133",
+    "rot149ProductRecoveryCommit": "c5a11f886b0b20eb99bc03466a8cbaf7969861a6",
+    "rot149QualificationHead": "a1a53e9429020b80f4f6912b5c1f191168bc6639",
+    "donorPr49Head": "3e79488a3ca5013812ab3f64d18b2a55b8050333",
+    "observedOutcomeRecorderBlob": "91560ecf373ce54aa19455958fa920f26035321b"
+  },
+  "redEvidence": {
+    "runId": 35234977842,
+    "conclusion": "failure",
+    "node22": {
+      "jobId": 105248445182,
+      "artifactId": 10503306446,
+      "digest": "sha256:cd26d757ffaa051e411fef310f4f282af85d0806fccb05ad643aff933ac12435"
+    },
+    "node26": {
+      "jobId": 105248445600,
+      "artifactId": 10502297312,
+      "digest": "sha256:91fac5cfc63cfca4d7ee16f0368222b9f725e334aac5ab684079649d7b1154da"
+    },
+    "passingAssertionsBeforeFailure": 135,
+    "failingContract": "scripts/test-authority-side-effect-postgres-clean.ts",
+    "failingContractBlob": "d51d3d82104363440404cd45fde8f74e7f401a25",
+    "error": "SIDE_EFFECT_FENCING_NOT_MONOTONIC previous=7 incoming=7",
+    "classification": "PRODUCT_REPLAY_IDEMPOTENCY_VALIDATION_ORDERING_DEFECT",
+    "downstreamGatesNotRun": [
+      "canonical_test_all",
+      "integrated_coverage_ratchet",
+      "high_audit",
+      "scope_freeze_anti_bypass",
+      "aggregate_exact_sha_receipt"
+    ]
+  },
+  "blockers": [
+    {
+      "id": "ROT-130/GH-122",
+      "state": "BLOCKED_EXTERNAL_AUTHORITY",
+      "reason": "main promotion governance cannot yet be certified/enforced from current managed GitHub integration"
+    },
+    {
+      "id": "GH-39",
+      "state": "OPEN_STOP_THE_LINE",
+      "reason": "release/deploy workflow freeze remains"
+    }
+  ],
+  "hardGates": [
+    "NO_MAIN_MERGE",
+    "NO_PR119_MUTATION",
+    "NO_PRODUCTION_PROVIDER_SUPABASE_MUTATION",
+    "NO_RELEASE_DEPLOY",
+    "NO_FORCE_PUSH_OR_RESET",
+    "NO_BLIND_CHERRY_PICK",
+    "NO_TEST_OR_THRESHOLD_RELAXATION",
+    "NO_EXACTLY_ONCE_PROVIDER_EFFECT_CLAIM",
+    "NO_PACKAGE_ROOT_PROMOTION_WITHOUT_CURRENT_PROOF"
+  ],
+  "nextSafeAction": {
+    "expectedHead": "a1a53e9429020b80f4f6912b5c1f191168bc6639",
+    "objective": "Repair identical accepted prepare replay so it converges before new-attempt monotonic-fence validation, while preserving fail-closed fence semantics for genuine new attempts.",
+    "firstContract": "scripts/test-authority-side-effect-postgres-clean.ts",
+    "completionGate": "Fresh exact-head Node22+Node26 GREEN including targeted contracts, canonical test:all, coverage ratchet, HIGH audit, anti-bypass and aggregate receipt."
+  },
+  "checkpointBranch": "checkpoint/cgev2-cos-graph-engine-20260921-rot149-red",
+  "activeBranchMutatedByCheckpoint": false
+}
