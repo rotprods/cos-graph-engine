@@ -21,7 +21,7 @@ const ORPHAN_SCRIPTS = [
   'test-convert',
   'test-security',
   'test-streaming',
-  // test-smb-integration excluido: cuelga el proceso (handles SMB abiertos, fix pendiente)
+  'test-smb-integration',
   'test-plugin',
   'test-playground',
   'test-i18n',
