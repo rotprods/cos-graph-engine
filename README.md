@@ -142,7 +142,8 @@ console.log(mol.computeWeight());  // Peso molecular
 
 | Comando | Que hace |
 |---------|----------|
-| `npm run test:all` | 7 suites, 390 tests |
+| `npm test` | 5 suites core + 17 scripts de nivel cableados (~171+ unidades, ~1200+ asserts) |
+| `npm run test:all` | Suite completa legacy |
 | `npm run test:l1` | L1 diamond + mutation |
 | `npm run test:l3` | L3 consistency + mutation |
 | `npm run test:l7` | L7 compute |
