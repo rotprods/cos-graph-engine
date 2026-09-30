@@ -3,6 +3,7 @@
 import { CosHub } from '../src/hub';
 import { HubQueries } from '../src/query';
 import { HubIntelligence } from '../src/intelligence';
+import { HubRAG } from '../src/rag';
 import { handleGitHubEvent } from '../src/webhook';
 import { loadEcosystemFile } from '../src/ecosystem';
 import { MemoryStore } from '../src/store';
@@ -90,7 +91,23 @@ async function main() {
     console.log(`  ${l.from} ↔ ${l.to}  (score ${l.score})`);
   }
 
-  console.log(`\n✅ Demo OK — hub operando + inteligencia sobre el grafo real del ecosistema.`);
+  // --- Tier 3: GraphRAG (L11) — consulta semántica ---
+  const rag = new HubRAG();
+  const indexed = rag.build(hub);
+  console.log(`\n═══ TIER 3 · GraphRAG (${indexed} chunks indexados, L11) ═══`);
+  const queries = [
+    'orquestación de agentes',
+    'molecular',
+    'motor de video y edición',
+    'grafos de conocimiento',
+  ];
+  for (const q of queries) {
+    const hits = rag.search(q, [], 3);
+    console.log(`\n  ? "${q}"`);
+    for (const h of hits) console.log(`     ${h.repo.padEnd(26)} score=${h.score.toFixed(3)}`);
+  }
+
+  console.log(`\n✅ Demo OK — hub + inteligencia + GraphRAG sobre el grafo real del ecosistema.`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
