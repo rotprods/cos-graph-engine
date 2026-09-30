@@ -12,6 +12,7 @@ export class InMemoryStore implements IMemoryStore {
   private entries: Map<EntityId, MemoryEntry> = new Map();
   private layerIndex: Map<MemoryLayer, Set<EntityId>> = new Map();
   private tagIndex: Map<string, Set<EntityId>> = new Map();
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     // Initialize all layers
@@ -24,8 +25,20 @@ export class InMemoryStore implements IMemoryStore {
       this.layerIndex.set(layer, new Set());
     }
 
-    // Start TTL sweeper
-    setInterval(() => this.sweepExpired(), 60000); // every 60s
+    // Start TTL sweeper. unref() para que el mantenimiento en segundo plano
+    // no impida que el proceso termine; dispose() lo detiene explícitamente.
+    this.sweepTimer = setInterval(() => this.sweepExpired(), 60000); // every 60s
+    if (typeof this.sweepTimer === 'object' && this.sweepTimer && 'unref' in this.sweepTimer) {
+      this.sweepTimer.unref();
+    }
+  }
+
+  /** Detiene el sweeper de TTL (libera el timer). Idempotente. */
+  dispose(): void {
+    if (this.sweepTimer) {
+      clearInterval(this.sweepTimer);
+      this.sweepTimer = null;
+    }
   }
 
   async store(entry: MemoryEntry): Promise<EntityId> {

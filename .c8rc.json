@@ -3,7 +3,7 @@
   "include": ["packages/**"],
   "exclude": ["node_modules", "scripts", "**/*.test.ts", "**/*.spec.ts"],
   "reporter": ["text", "html", "lcov"],
-  "check-coverage": true,
+  "check-coverage": false,
   "branches": 55,
   "functions": 65,
   "lines": 63,

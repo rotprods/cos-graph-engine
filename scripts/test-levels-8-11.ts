@@ -108,10 +108,10 @@ function assert(cond: boolean, msg: string) { if (cond) { p++; } else { f++; con
   assert(sg.nodes.length === 4, 'L9: addNode adds nodes');
 
   // addEdge
-  sg.addEdge({ id: 'e1', source: 'dog', target: 'cat', type: 'similar', weight: 0.9 });
-  sg.addEdge({ id: 'e2', source: 'dog', target: 'mammal', type: 'is_a', weight: 1.0 });
-  sg.addEdge({ id: 'e3', source: 'cat', target: 'mammal', type: 'is_a', weight: 1.0 });
-  sg.addEdge({ id: 'e4', source: 'car', target: 'cat', type: 'dissimilar', weight: 0.1 });
+  sg.addEdge({ id: 'e1', source: 'dog', target: 'cat', relation: 'related_to', strength: 0.9 });
+  sg.addEdge({ id: 'e2', source: 'dog', target: 'mammal', relation: 'is_a', strength: 1.0 });
+  sg.addEdge({ id: 'e3', source: 'cat', target: 'mammal', relation: 'is_a', strength: 1.0 });
+  sg.addEdge({ id: 'e4', source: 'car', target: 'cat', relation: 'opposite_of', strength: 0.1 });
   assert(sg.edges.length === 4, 'L9: addEdge adds edges');
 
   // removeNode
@@ -122,7 +122,7 @@ function assert(cond: boolean, msg: string) { if (cond) { p++; } else { f++; con
   // removeEdge
   sg.removeEdge('e4');
   assert(sg.edges.length === 3, 'L9: removeEdge removes edge');
-  sg.addEdge({ id: 'e4', source: 'car', target: 'cat', type: 'dissimilar', weight: 0.1 });
+  sg.addEdge({ id: 'e4', source: 'car', target: 'cat', relation: 'opposite_of', strength: 0.1 });
 
   // getNode
   assert(sg.getNode('dog') !== undefined, 'L9: getNode returns node');
@@ -172,14 +172,14 @@ function assert(cond: boolean, msg: string) { if (cond) { p++; } else { f++; con
   assert(eg.nodes.length === 0, 'L10: Empty has 0 nodes');
 
   // addNode
-  eg.addNode({ id: 'doc1', source: 'Document A', embedding: [0.5, 0.2, 0.8], metadata: { type: 'doc' } });
-  eg.addNode({ id: 'doc2', source: 'Document B', embedding: [0.55, 0.25, 0.85], metadata: { type: 'doc' } });
-  eg.addNode({ id: 'img1', source: 'Image', embedding: [0.1, 0.9, 0.3], metadata: { type: 'image' } });
-  eg.addNode({ id: 'doc3', source: 'Document C', embedding: [0.52, 0.22, 0.82], metadata: { type: 'doc' } });
+  eg.addNode({ id: 'doc1', source: 'Document A', vector: [0.5, 0.2, 0.8], metadata: { type: 'doc' } });
+  eg.addNode({ id: 'doc2', source: 'Document B', vector: [0.55, 0.25, 0.85], metadata: { type: 'doc' } });
+  eg.addNode({ id: 'img1', source: 'Image', vector: [0.1, 0.9, 0.3], metadata: { type: 'image' } });
+  eg.addNode({ id: 'doc3', source: 'Document C', vector: [0.52, 0.22, 0.82], metadata: { type: 'doc' } });
   assert(eg.nodes.length === 4, 'L10: addNode adds nodes');
 
   // duplicate
-  try { eg.addNode({ id: 'doc1', source: 'Dup', embedding: [0, 0, 0], metadata: {} }); assert(false, 'L10: Should reject'); }
+  try { eg.addNode({ id: 'doc1', source: 'Dup', vector: [0, 0, 0], metadata: {} }); assert(false, 'L10: Should reject'); }
   catch (e) { assert(true, 'L10: Rejects duplicate'); }
 
   // addEdge

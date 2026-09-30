@@ -66,10 +66,14 @@ export class InputSanitizer {
   sanitizePath(raw: string): string {
     let path = raw;
     if (this.options.trim) path = path.trim();
-    if (this.options.stripHtml) path = this.stripHtml(path);
-    // Remove path traversal
-    path = path.replace(/\.\.\//g, '').replace(/\.\.\\/g, '');
+    // 1) chars especiales -> '_' (antes de stripHtml, para conservar el mapeo)
     path = path.replace(/[<>:"|?*]/g, '_');
+    // 2) traversal: runs de '../' | '..\' y cualquier run de 2+ puntos; limpia separadores iniciales
+    path = path.replace(/(\.\.[/\\])+/g, '');
+    path = path.replace(/\.{2,}/g, '');
+    path = path.replace(/^[/\\]+/, '');
+    // 3) HTML residual
+    if (this.options.stripHtml) path = this.stripHtml(path);
     if (this.options.maxIdLength) path = path.slice(0, this.options.maxIdLength);
     if (path.length === 0) path = 'unnamed';
     return path;
@@ -90,7 +94,7 @@ export class InputSanitizer {
   }
 
   private stripHtml(input: string): string {
-    return input.replace(/<[a-zA-Z\/][^>]*>/g, '');
+    return input.replace(/<[a-zA-Z\/][^>]*>/g, '').replace(/[<>]/g, '');
   }
 }
 

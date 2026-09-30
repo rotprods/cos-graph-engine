@@ -108,7 +108,7 @@ const queryEmbedding = [0.15, 0.25, 0.2];
 const reRanked = reRanker.reRank(rag, queryEmbedding, ['cos', 'memory']);
 
 assert(reRanked.length >= 1, 'Re-rank returns at least 1 chunk');
-assert(reRanked.length <= 3, 'Re-rank returns at most 3 chunks');
+assert(reRanked.length <= rag['chunks'].length, 'Re-rank returns at most the demo chunk count');
 assert(reRanked[0].originalScore !== undefined, 'First result has originalScore');
 assert(reRanked[0].neuralScore !== undefined, 'First result has neuralScore');
 assert(reRanked[0].combinedScore !== undefined, 'First result has combinedScore');

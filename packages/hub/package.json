@@ -1,0 +1,14 @@
+{
+  "name": "@cos/hub",
+  "version": "0.1.0",
+  "description": "COS Graph Hub — runtime del grafo del ecosistema ROT sobre el engine de 20 niveles",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "npx tsx tests/hub.test.ts"
+  },
+  "dependencies": {
+    "@cos/core": "0.1.0",
+    "@cos/graph": "2.1.0"
+  }
+}
