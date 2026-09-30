@@ -34,6 +34,7 @@ const WIRED_SCRIPTS: string[] = [
   // endurecimiento (nuevos)
   'scripts/test-security-hardening.ts',
   'scripts/test-validation-all.ts',
+  'scripts/test-xss-hardening.ts',
   // hub (workspace @cos/hub)
   'packages/hub/tests/hub.test.ts',
   'packages/hub/tests/intelligence.test.ts',

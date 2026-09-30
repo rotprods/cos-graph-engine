@@ -561,10 +561,11 @@ async function send() {
   input.focus();
 }
 
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function addMessage(text, type) {
   const div = document.createElement('div');
   div.className = 'msg ' + type;
-  div.innerHTML = text;
+  div.textContent = text;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -664,11 +665,11 @@ async function research() {
     const data = await res.json();
 
     // Report
-    let reportHtml = \`<div style="font-size:14px;font-weight:600;margin-bottom:8px">${data.report?.title || 'Research Analysis'}</div>\`;
-    reportHtml += \`<div>${(data.report?.summary || data.report || '').substring(0, 2000)}</div>\`;
+    let reportHtml = \`<div style="font-size:14px;font-weight:600;margin-bottom:8px">${esc(data.report?.title || 'Research Analysis')}</div>\`;
+    reportHtml += \`<div>${esc((data.report?.summary || data.report || '').substring(0, 2000))}</div>\`;
     if (data.report?.conclusions) {
       reportHtml += '<div style="margin-top:12px;font-weight:600">Conclusions:</div><ul style="margin-top:4px;padding-left:20px">';
-      data.report.conclusions.forEach((c: string) => reportHtml += \`<li style="font-size:12px;margin:2px 0">${c}</li>\`);
+      data.report.conclusions.forEach((c: string) => reportHtml += \`<li style="font-size:12px;margin:2px 0">${esc(c)}</li>\`);
       reportHtml += '</ul>';
     }
     reportHtml += '<div style="margin-top:12px;font-size:11px;color:#8b949e;border-top:1px solid #21262d;padding-top:8px">';
@@ -682,12 +683,12 @@ async function research() {
     let traceHtml = '';
     if (data.reasoning) {
       data.reasoning.forEach((step: any, i: number) => {
-        traceHtml += \`<div class="step">Step ${i + 1}: ${step.output?.substring(0, 80) || ''}</div>\`;
+        traceHtml += \`<div class="step">Step ${i + 1}: ${esc(step.output?.substring(0, 80) || '')}</div>\`;
         if (step.confidence) traceHtml += \`<div class="meta">  confidence: ${(step.confidence*100).toFixed(0)}%</div>\`;
       });
     }
     if (data.llmTrace) {
-      traceHtml += \`<div class="result" style="margin-top:8px">🤖 LLM: ${(data.llmTrace.content || '').substring(0, 200)}</div>\`;
+      traceHtml += \`<div class="result" style="margin-top:8px">🤖 LLM: ${esc((data.llmTrace.content || '').substring(0, 200))}</div>\`;
     }
     document.getElementById('trace').innerHTML = traceHtml || '<div style="color:#8b949e">No reasoning trace available</div>';
 
@@ -697,7 +698,7 @@ async function research() {
       kgHtml += '<div style="font-weight:600;margin-bottom:6px">Knowledge Graph</div>';
       if (Array.isArray(data.knowledge)) {
         data.knowledge.slice(0, 5).forEach((k: any) => {
-          kgHtml += \`<div class="stat-row"><span class="key">${k.subject || '?'}</span><span class="val">${k.predicate || '→'} ${k.object || '?'}</span></div>\`;
+          kgHtml += \`<div class="stat-row"><span class="key">${esc(k.subject || '?')}</span><span class="val">${esc(k.predicate || '→')} ${esc(k.object || '?')}</span></div>\`;
         });
       }
     }
@@ -709,13 +710,13 @@ async function research() {
     if (data.selfImprovement) {
       kgHtml += '<div style="font-weight:600;margin-top:10px;margin-bottom:6px">Self-Improvement</div>';
       kgHtml += \`<div class="stat-row"><span class="key">Score</span><span class="val">${(data.selfImprovement.score*100).toFixed(0)}/100</span></div>\`;
-      kgHtml += \`<div class="stat-row"><span class="key">Trend</span><span class="val"><span class="status-dot ${data.selfImprovement.trend === 'improving' ? 'green' : 'yellow'}"></span>${data.selfImprovement.trend}</span></div>\`;
+      kgHtml += \`<div class="stat-row"><span class="key">Trend</span><span class="val"><span class="status-dot ${data.selfImprovement.trend === 'improving' ? 'green' : 'yellow'}"></span>${esc(data.selfImprovement.trend)}</span></div>\`;
     }
     kgHtml += '</div>';
     document.getElementById('knowledge').innerHTML = kgHtml;
 
   } catch (e) {
-    document.getElementById('report').innerHTML = \`<div style="color:#f85149">Error: ${e.message}</div>\`;
+    document.getElementById('report').innerHTML = \`<div style="color:#f85149">Error: ${esc(e.message)}</div>\`;
   }
   document.getElementById('research-btn').disabled = false;
 }
