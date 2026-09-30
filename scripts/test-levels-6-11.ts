@@ -20,8 +20,11 @@ async function main() {
 
   // L7: Computational Graph
   const cg = new ComputationalGraph(); cg.buildMLP();
-  assert(cg.nodes.length === 10, 'L7: MLP has 10 nodes (x, w1, b1, w2, fc1, h1, r1, fc2, logits, loss)');
-  assert(cg.edges.length === 9, 'L7: MLP has 9 edges');
+  // buildMLP usa un segundo logit (logit1) para que cross_entropy reciba 2 entradas
+  // y el gradiente no sea cero: 11 nodos / 10 aristas.
+  const expectedIds = ['x', 'w1', 'b1', 'w2', 'logit1', 'fc1', 'h1', 'r1', 'fc2', 'logit0', 'loss'];
+  assert(cg.nodes.length === 11 && expectedIds.every(id => cg.nodes.some(n => n.id === id)), 'L7: MLP has 11 nodes (x, w1, b1, w2, logit1, fc1, h1, r1, fc2, logit0, loss)');
+  assert(cg.edges.length === 10, 'L7: MLP has 10 edges');
   const loss = cg.forward({ x: 1 });
   assert(typeof loss === 'number', 'L7: Forward pass computes loss');
   assert(cg['values'].get('fc1') === 0.5, 'L7: fc1 = x*w1 = 0.5');

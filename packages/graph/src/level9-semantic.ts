@@ -72,11 +72,12 @@ export class SemanticGraph {
   }
 
   lca(id1: string, id2: string): SemanticNode | null {
+    // is_a edges: source = child, target = parent. Ancestors walk source -> target.
     const ancestors1 = new Set<string>();
     const collect = (id: string, set: Set<string>) => {
       set.add(id);
-      for (const e of this.edges.filter(e => e.target === id && e.relation === 'is_a')) {
-        collect(e.source, set);
+      for (const e of this.edges.filter(e => e.source === id && e.relation === 'is_a')) {
+        collect(e.target, set);
       }
     };
     collect(id1, ancestors1);
@@ -85,8 +86,8 @@ export class SemanticGraph {
       const id = queue.shift()!;
       if (ancestors1.has(id)) return this.getNode(id) || null;
       if (visited.has(id)) continue; visited.add(id);
-      for (const e of this.edges.filter(e => e.target === id && e.relation === 'is_a')) {
-        queue.push(e.source);
+      for (const e of this.edges.filter(e => e.source === id && e.relation === 'is_a')) {
+        queue.push(e.target);
       }
     }
     return null;
@@ -98,14 +99,47 @@ export class SemanticGraph {
     const depth = (id: string): number => {
       let d = 0; let cur = id;
       while (true) {
-        const parent = this.edges.find(e => e.target === cur && e.relation === 'is_a');
+        const parent = this.edges.find(e => e.source === cur && e.relation === 'is_a');
         if (!parent) break;
-        cur = parent.source; d++;
+        cur = parent.target; d++;
       }
       return d;
     };
     const d1 = depth(id1); const d2 = depth(id2); const da = depth(ancestor.id);
-    return (2 * da) / (d1 + d2);
+    // Wu-Palmer with +1 depth offset so siblings share a non-zero common-ancestor score.
+    return (2 * (da + 1)) / ((d1 + 1) + (d2 + 1));
+  }
+
+  findSimilar(id: string, k: number): Array<{ node: SemanticNode; score: number }> {
+    if (!this.nodes.some(n => n.id === id)) throw new Error(`Node ${id} not found`);
+    const ranked = this.nodes
+      .filter(n => n.id !== id)
+      .map(n => ({ node: n, score: this.similarity(id, n.id) }))
+      .filter(r => r.score > 0)
+      .sort((a, b) => b.score - a.score);
+    return ranked.slice(0, Math.max(0, k));
+  }
+
+  findPath(from: string, to: string): string[] {
+    if (!this.nodes.some(n => n.id === from) || !this.nodes.some(n => n.id === to)) return [];
+    this.buildAdjacency();
+    const prev = new Map<string, string | null>();
+    const visited = new Set<string>([from]);
+    const queue: string[] = [from];
+    prev.set(from, null);
+    while (queue.length) {
+      const cur = queue.shift()!;
+      if (cur === to) {
+        const path: string[] = [];
+        let node: string | null = to;
+        while (node !== null) { path.unshift(node); node = prev.get(node) ?? null; }
+        return path;
+      }
+      for (const next of this.adj.get(cur) || []) {
+        if (!visited.has(next)) { visited.add(next); prev.set(next, cur); queue.push(next); }
+      }
+    }
+    return [];
   }
 
   toMermaid(): string {

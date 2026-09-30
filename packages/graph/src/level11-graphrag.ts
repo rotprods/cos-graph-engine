@@ -87,6 +87,7 @@ export class GraphRAGEngine {
     this.addChunk({ id: 'c1', text: 'COS has a 12-layer memory system with TTL and consolidation', source: 'docs', embedding: [0.1, 0.2, 0.3], entities: ['cos', 'memory'] });
     this.addChunk({ id: 'c2', text: 'The reasoning engine supports forward and backward chaining', source: 'docs', embedding: [0.2, 0.3, 0.1], entities: ['reasoning'] });
     this.addChunk({ id: 'c3', text: 'Knowledge graphs enable structured RAG with multi-hop retrieval', source: 'docs', embedding: [0.3, 0.1, 0.2], entities: ['knowledge', 'cos'] });
+    this.addChunk({ id: 'c4', text: 'The execution engine schedules tasks topologically with retries and timeouts', source: 'docs', embedding: [0.15, 0.25, 0.35], entities: ['execution', 'cos'] });
   }
 
   static cosineSim(a: number[], b: number[]): number {
@@ -117,7 +118,8 @@ export class GraphRAGEngine {
 
     // Re-rank
     const hybrid: Array<{ chunk: Chunk; score: number }> = topChunks.map(c => {
-      const entityOverlap = c.entities.filter(e => visitedEntities.has(e)).length / Math.max(1, c.entities.length);
+      const ents = c.entities || [];
+      const entityOverlap = ents.filter(e => visitedEntities.has(e)).length / Math.max(1, ents.length);
       return { chunk: c, score: this.config.similarityWeight * (scored.find(s => s.chunk.id === c.id)?.score || 0) + (1 - this.config.similarityWeight) * entityOverlap };
     });
     hybrid.sort((a, b) => b.score - a.score);
