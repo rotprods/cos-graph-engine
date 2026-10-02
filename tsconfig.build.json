@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "commonjs",
-    "lib": ["ES2022"],
+    "module": "Node16",
+    "lib": ["ES2022", "DOM"],
     "outDir": "./dist",
     "rootDir": ".",
     "strict": false,
@@ -12,7 +12,7 @@
     "declaration": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "moduleResolution": "node",
+    "moduleResolution": "Node16",
     "allowSyntheticDefaultImports": true,
     "paths": {
       "@cos/core": ["./packages/core/src"],

@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { VisualGraphEngine, MermaidRenderer, GraphvizRenderer, ASCIITreeRenderer } from './level0-visual';
-import { ExecutionGraphEngine, QueueScheduler } from './level1-execution';
+import { ExecutionGraphEngine } from './level1-execution';
 import { StateMachine } from './level2-state';
 import { DependencyResolver } from './level3-dependency';
 import { CallGraphBuilder } from './level4-call';
@@ -80,6 +80,7 @@ ${c(BOLD, 'Commands:')}
   ${c(GREEN, 'list')}                    ${GRAY}List all levels with details${RESET}
   ${c(GREEN, 'info')}       <level>     ${GRAY}Show info about a specific level${RESET}
   ${c(GREEN, 'exec')}       --file <f>  ${GRAY}Execute a graph workflow from JSON file${RESET}
+  ${c(GREEN, 'query')}      --file <f>  ${GRAY}Inspect a node and its graph edges${RESET}
   ${c(GREEN, 'analyze')}    --level <L> ${GRAY}Analyze a trace/data through a level${RESET}
   ${c(GREEN, 'render')}                 ${GRAY}Render a graph (mermaid/ascii/graphviz)${RESET}
   ${c(GREEN, 'smb')}                    ${GRAY}Save/load/list graphs in SMB${RESET}
@@ -94,6 +95,7 @@ ${c(BOLD, 'Examples:')}
   ${c(CYAN, 'cos graph list')}
   ${c(CYAN, 'cos graph info L4')}
   ${c(CYAN, 'cos graph exec --file workflow.json')}
+  ${c(CYAN, 'cos graph query --file workflow.json --node process')}
   ${c(CYAN, 'cos graph analyze --level L4 --trace trace.json')}
   ${c(CYAN, 'cos graph render --mermaid --output diagram.md')}
   ${c(CYAN, 'cos graph smb --save --level L7 --id my-graph')}
@@ -155,22 +157,86 @@ async function cmdInfo(level: string) {
   console.log();
 }
 
-async function cmdExec(file: string) {
+export function readWorkflow(file: string, validateL0 = false): { data: any; level: string; absPath: string } {
   if (!file || file === 'true') {
-    console.error(c(RED, 'Error: --file is required. Example: cos graph exec --file workflow.json'));
-    return;
+    throw new Error('--file is required. Example: cos graph exec --file workflow.json');
   }
   const absPath = path.resolve(file);
   if (!fs.existsSync(absPath)) {
-    console.error(c(RED, `Error: File not found: ${absPath}`));
-    return;
+    throw new Error(`File not found: ${absPath}`);
   }
-  const data = JSON.parse(fs.readFileSync(absPath, 'utf-8'));
-  const level = data.level || 'L0';
+
+  let data: any;
+  try {
+    data = JSON.parse(fs.readFileSync(absPath, 'utf-8'));
+  } catch (error: any) {
+    if (error instanceof SyntaxError) {
+      throw new Error(`Invalid JSON in ${absPath}: ${error.message}`);
+    }
+    throw new Error(`Could not read ${absPath}: ${error.message}`);
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(`Invalid workflow in ${absPath}: expected a JSON object`);
+  }
+
+  const level = data.level === undefined || data.level === ''
+    ? 'L0'
+    : typeof data.level === 'string'
+      ? data.level.trim()
+      : '';
+  if (!level) {
+    throw new Error(`Invalid workflow in ${absPath}: level must be a string such as L0`);
+  }
+
+  if (validateL0 && level.toUpperCase() === 'L0') {
+    if (!Array.isArray(data.nodes)) {
+      throw new Error(`Invalid L0 workflow in ${absPath}: nodes must be an array`);
+    }
+    const nodeIds = new Set<string>();
+    data.nodes.forEach((node: any, index: number) => {
+      if (!node || typeof node !== 'object' || Array.isArray(node)) {
+        throw new Error(`Invalid L0 workflow in ${absPath}: nodes[${index}] must be an object`);
+      }
+      if (typeof node.id !== 'string' || node.id.trim() === '') {
+        throw new Error(`Invalid L0 workflow in ${absPath}: nodes[${index}].id must be a non-empty string`);
+      }
+      if (nodeIds.has(node.id)) {
+        throw new Error(`Invalid L0 workflow in ${absPath}: duplicate node id '${node.id}'`);
+      }
+      nodeIds.add(node.id);
+      if (typeof node.label !== 'string' || node.label.trim() === '') {
+        throw new Error(`Invalid L0 workflow in ${absPath}: nodes[${index}].label must be a non-empty string`);
+      }
+    });
+    if (!Array.isArray(data.edges)) {
+      throw new Error(`Invalid L0 workflow in ${absPath}: edges must be an array`);
+    }
+    data.edges.forEach((edge: any, index: number) => {
+      if (!edge || typeof edge !== 'object' || Array.isArray(edge)) {
+        throw new Error(`Invalid L0 workflow in ${absPath}: edges[${index}] must be an object`);
+      }
+      if (typeof edge.source !== 'string' || !nodeIds.has(edge.source)) {
+        throw new Error(`Invalid L0 workflow in ${absPath}: edges[${index}].source must reference an existing node`);
+      }
+      if (typeof edge.target !== 'string' || !nodeIds.has(edge.target)) {
+        throw new Error(`Invalid L0 workflow in ${absPath}: edges[${index}].target must reference an existing node`);
+      }
+    });
+  }
+
+  return { data, level, absPath };
+}
+
+function edgeLabel(edge: any): string {
+  return edge.type || edge.label || 'default';
+}
+
+async function cmdExec(file: string) {
+  const { data, level } = readWorkflow(file, true);
   const info = (LEVELS as any)[level.toUpperCase()];
   if (!info) {
-    console.error(c(RED, `Unknown level: ${level}`));
-    return;
+    throw new Error(`Unknown level: ${level}. Available levels: ${Object.keys(LEVELS).join(', ')}`);
   }
   console.log(`\n${c(BOLD, `Executing ${level} workflow from ${file}`)}`);
   const engine = new info.cls();
@@ -181,7 +247,7 @@ async function cmdExec(file: string) {
   }
   if (data.edges) {
     for (const e of data.edges) {
-      if (engine.addEdge) engine.addEdge(e.source, e.target, e.type || 'default');
+      if (engine.addEdge) engine.addEdge(e.source, e.target, edgeLabel(e));
     }
   }
   const validation = engine.validate ? engine.validate() : [];
@@ -191,6 +257,30 @@ async function cmdExec(file: string) {
   }
   const m = engine.metrics ? engine.metrics() : {};
   console.log(`  ${c(GREEN, '✓')} Workflow executed. ${JSON.stringify(m)}`);
+}
+
+async function cmdQuery(file: string, nodeId: string) {
+  if (!nodeId || nodeId === 'true') {
+    throw new Error('--node is required. Example: cos graph query --file workflow.json --node process');
+  }
+  const { data, level, absPath } = readWorkflow(file, true);
+  if (level.toUpperCase() !== 'L0') {
+    throw new Error(`Query only supports L0 workflows; received ${level} in ${absPath}`);
+  }
+  const node = data.nodes.find((candidate: any) => candidate.id === nodeId);
+  if (!node) {
+    throw new Error(`Node not found: ${nodeId}`);
+  }
+  const incoming = data.edges.filter((edge: any) => edge.target === nodeId);
+  const outgoing = data.edges.filter((edge: any) => edge.source === nodeId);
+  const describeEdge = (edge: any) => {
+    return `${edge.source} -> ${edge.target} (${edgeLabel(edge)})`;
+  };
+  console.log(`\n${c(BOLD, `Node ${node.id}`)}: ${node.label}`);
+  console.log(`  ${c(GRAY, 'Incoming:')} ${incoming.length}`);
+  incoming.forEach((edge: any) => console.log(`    ${describeEdge(edge)}`));
+  console.log(`  ${c(GRAY, 'Outgoing:')} ${outgoing.length}`);
+  outgoing.forEach((edge: any) => console.log(`    ${describeEdge(edge)}`));
 }
 
 async function cmdAnalyze(level: string, trace: string) {
@@ -212,7 +302,35 @@ async function cmdAnalyze(level: string, trace: string) {
   if (v.length > 0) v.slice(0, 3).forEach((e: any) => console.log(`    ${c(YELLOW, '⚠')} ${e}`));
 }
 
-async function cmdRender(mermaid: string, format: string, output: string) {
+async function cmdRender(mermaid: string, format: string, output: string, file = '') {
+  if (file === 'true') {
+    throw new Error('--file requires a path');
+  }
+  if (file) {
+    const { data, level, absPath } = readWorkflow(file, true);
+    if (level.toUpperCase() !== 'L0') {
+      throw new Error(`Render only supports L0 workflows; received ${level} in ${absPath}`);
+    }
+    if (!output || output === 'true') {
+      throw new Error('--output is required when rendering a workflow file');
+    }
+    const normalizedFormat = format.toLowerCase() === 'dot' ? 'graphviz' : format.toLowerCase();
+    if (!['mermaid', 'graphviz', 'ascii', 'json'].includes(normalizedFormat)) {
+      throw new Error(`Unknown render format: ${format}. Use mermaid, graphviz, ascii, or json`);
+    }
+    const engine = new VisualGraphEngine(typeof data.title === 'string' && data.title.trim() ? data.title : 'Graph');
+    for (const node of data.nodes) engine.addNode(node);
+    for (const edge of data.edges) engine.addEdge(edge.source, edge.target, edgeLabel(edge));
+    const result = engine.render(normalizedFormat as 'mermaid' | 'graphviz' | 'ascii' | 'json');
+    try {
+      fs.writeFileSync(path.resolve(output), result, 'utf-8');
+    } catch (error: any) {
+      throw new Error(`Could not write render output ${path.resolve(output)}: ${error.message}`);
+    }
+    console.log(`  ${c(GREEN, '✓')} Written to ${output}`);
+    return;
+  }
+
   const engine = new VisualGraphEngine('Demo Graph');
   // Build a demo graph manually
   const n1 = engine.addNode({ label: 'Start', type: 'start' });
@@ -225,7 +343,7 @@ async function cmdRender(mermaid: string, format: string, output: string) {
   // Get the visual graph object via toJSON
   const graph = engine.toJSON();
   let result = '';
-  if (mermaid === 'true' || format === 'mermaid') {
+  if (format === 'mermaid') {
     const renderer = new MermaidRenderer();
     result = renderer.render(graph);
     console.log(`\n${c(BOLD, 'Mermaid Diagram:')}\n`);
@@ -290,19 +408,20 @@ async function cmdPipeline(name: string) {
   const pipelines: Record<string, { name: string; run: () => any }> = {
     L4L5L6: { name: 'Call → CFG → DataFlow', run: () => {
       const p = new PipelineL4L5L6();
-      return p.runPipeline([]);
+      p.traceToDataFlow({ name: 'CLI demo trace', entries: [{ name: 'main', children: [{ name: 'process' }] }] });
+      return p.metrics();
     }},
     L8L9L10L11: { name: 'Knowledge → Semantic → Embedding → GraphRAG', run: () => {
       const p = new PipelineL8L9L10L11();
-      return p.runPipeline([]);
+      return p.buildDemo();
     }},
     L12L13L14L15: { name: 'Memory → Agent → Tool → Workflow', run: () => {
       const p = new PipelineL12L13L14L15();
-      return p.runPipeline([], [], [], []);
+      return p.buildDemo();
     }},
     L16L17L18L19: { name: 'Network → Social → Bio → Molecular', run: () => {
       const p = new PipelineL16L17L18L19();
-      return p.runPipeline([]);
+      return p.buildDemo();
     }},
   };
   const p = pipelines[name.toUpperCase()];
@@ -560,8 +679,9 @@ export async function graphCli(argv: string[]): Promise<void> {
     case 'list': await cmdList(); break;
     case 'info': await cmdInfo(args._ || args.level || ''); break;
     case 'exec': await cmdExec(args.file); break;
+    case 'query': await cmdQuery(args.file, args.node); break;
     case 'analyze': await cmdAnalyze(args.level || 'L4', args.trace || ''); break;
-    case 'render': await cmdRender(args.mermaid || 'true', args.format || 'mermaid', args.output || ''); break;
+    case 'render': await cmdRender(args.mermaid || 'true', args.format || 'mermaid', args.output || '', args.file || ''); break;
     case 'smb': await cmdSmb(args); break;
     case 'pipeline': await cmdPipeline(args.name || 'L4L5L6'); break;
     case 'demo': await cmdDemo(args._ || args.level || 'L1'); break;
@@ -575,7 +695,10 @@ export async function graphCli(argv: string[]): Promise<void> {
 
 // Standalone entry point
 if (require.main === module) {
-  graphCli(process.argv.slice(3)).catch(e => {
+  const processArgs = process.argv.slice(2);
+  const scriptArg = processArgs[0] || '';
+  const cliArgs = /(?:^|[\\/])cli\.(?:ts|js)$/.test(scriptArg) ? processArgs.slice(1) : processArgs;
+  graphCli(cliArgs).catch(e => {
     console.error(c(RED, `Error: ${e.message}`));
     process.exit(1);
   });

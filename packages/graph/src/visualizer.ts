@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { VisualGraphEngine, MermaidRenderer } from './level0-visual';
 import { ExecutionGraphEngine } from './level1-execution';
-import { StateMachine, StateMachineJSON } from './level2-state';
+import { StateMachine } from './level2-state';
 import { DependencyResolver } from './level3-dependency';
 import { CallGraphBuilder } from './level4-call';
 import { CFGBuilder } from './level5-cfg';
@@ -25,6 +25,7 @@ import { NetworkGraphEngine } from './level16-network';
 import { SocialGraphEngine } from './level17-social';
 import { BiologicalGraphEngine } from './level18-biological';
 import { MolecularGraphEngine } from './level19-molecular';
+import { generateId } from '@cos/core';
 
 export interface VisualizerConfig {
   title?: string;
@@ -34,22 +35,40 @@ export interface VisualizerConfig {
 }
 
 const LEVEL_ENGINES: Record<string, { name: string; color: string; buildDemo: (engine: any) => void }> = {
-  L0: { name: 'Visual Graph', color: '#4A90D9', buildDemo: (e: VisualGraphEngine) => e.buildDemo() },
-  L1: { name: 'Execution Graph', color: '#7B68EE', buildDemo: (e: ExecutionGraphEngine) => e.buildDemo() },
-  L2: { name: 'State Machine', color: '#2ECC71', buildDemo: (e: StateMachine) => e.buildDemo() },
-  L3: { name: 'Dependency Graph', color: '#E74C3C', buildDemo: (e: DependencyResolver) => e.buildDiamond() },
-  L4: { name: 'Call Graph', color: '#F39C12', buildDemo: (e: CallGraphBuilder) => e.buildDemo() },
-  L5: { name: 'CFG', color: '#1ABC9C', buildDemo: (e: CFGBuilder) => e.buildIfElse() },
+  L0: { name: 'Visual Graph', color: '#4A90D9', buildDemo: (e: VisualGraphEngine) => e.buildFlowchart() },
+  L1: { name: 'Execution Graph', color: '#7B68EE', buildDemo: () => { throw new Error('Execution Graph demo requires async createGraph'); } },
+  L2: { name: 'State Machine', color: '#2ECC71', buildDemo: (e: StateMachine) => {
+    e.addState({ id: 'pending', label: 'Pending', type: 'initial' });
+    e.addState({ id: 'done', label: 'Done', type: 'final' });
+    e.addTransition({ from: 'pending', to: 'done', event: 'complete', label: 'complete' });
+  } },
+  L3: { name: 'Dependency Graph', color: '#E74C3C', buildDemo: (e: DependencyResolver) => {
+    const app = generateId(); const library = generateId();
+    e.createGraph('Demo dependencies', [
+      { id: app, name: 'app', type: 'package' },
+      { id: library, name: 'library', type: 'package' },
+    ], [{ source: app, target: library, type: 'depends_on' }]);
+  } },
+  L4: { name: 'Call Graph', color: '#F39C12', buildDemo: (e: CallGraphBuilder) => {
+    const graphId = e.createGraph('Demo calls'); const root = generateId(); const leaf = generateId();
+    e.addNode(graphId, { id: root, name: 'main', type: 'root', callCount: 1 });
+    e.addNode(graphId, { id: leaf, name: 'process', type: 'function', callCount: 1 });
+    e.addEdge(graphId, { id: generateId(), source: root, target: leaf, callCount: 1 });
+  } },
+  L5: { name: 'CFG', color: '#1ABC9C', buildDemo: (e: CFGBuilder) => {
+    const cfgId = e.createCFG('Demo CFG');
+    e.buildIfThenElse(cfgId, 'ready', 'Process', 'Fallback', 'Merge');
+  } },
   L6: { name: 'DataFlow', color: '#3498DB', buildDemo: (e: DataFlowGraph) => e.buildETLPipeline() },
   L7: { name: 'Compute Graph', color: '#9B59B6', buildDemo: (e: ComputationalGraph) => e.buildMLP() },
-  L8: { name: 'Knowledge Graph', color: '#E67E22', buildDemo: (e: KnowledgeGraphEngine) => e.buildKnowledgeGraph() },
-  L9: { name: 'Semantic Graph', color: '#1ABC9C', buildDemo: (e: SemanticGraph) => e.buildDemo() },
-  L10: { name: 'Embedding Graph', color: '#2980B9', buildDemo: (e: EmbeddingGraph) => e.buildDemo() },
+  L8: { name: 'Knowledge Graph', color: '#E67E22', buildDemo: (e: KnowledgeGraphEngine) => e.buildCOS() },
+  L9: { name: 'Semantic Graph', color: '#1ABC9C', buildDemo: (e: SemanticGraph) => e.buildAnimalTaxonomy() },
+  L10: { name: 'Embedding Graph', color: '#2980B9', buildDemo: (e: EmbeddingGraph) => e.buildAIModelGraph() },
   L11: { name: 'GraphRAG', color: '#8E44AD', buildDemo: (e: GraphRAGEngine) => e.buildDemo() },
-  L12: { name: 'Memory Graph', color: '#16A085', buildDemo: (e: MemoryGraphEngine) => e.buildMemoryGraph() },
+  L12: { name: 'Memory Graph', color: '#16A085', buildDemo: (e: MemoryGraphEngine) => e.buildConversation() },
   L13: { name: 'Agent Graph', color: '#27AE60', buildDemo: (e: AgentGraphEngine) => e.buildDevTeam() },
   L14: { name: 'Tool Graph', color: '#2C3E50', buildDemo: (e: ToolGraphEngine) => e.buildToolEcosystem() },
-  L15: { name: 'Workflow Graph', color: '#D35400', buildDemo: (e: WorkflowGraphEngine) => e.buildWorkflow() },
+  L15: { name: 'Workflow Graph', color: '#D35400', buildDemo: (e: WorkflowGraphEngine) => e.buildSupportWorkflow() },
   L16: { name: 'Network Graph', color: '#C0392B', buildDemo: (e: NetworkGraphEngine) => e.buildInfrastructure() },
   L17: { name: 'Social Graph', color: '#E91E63', buildDemo: (e: SocialGraphEngine) => e.buildTechNetwork() },
   L18: { name: 'Biological Graph', color: '#00BCD4', buildDemo: (e: BiologicalGraphEngine) => e.buildNeuralCircuit() },
@@ -403,7 +422,18 @@ export function generateVisualizer(
     try {
       const engine = new (getEngineClass(levelId))();
       info.buildDemo(engine);
-      const json = engine.toJSON ? engine.toJSON() : {};
+      const json = engine.toJSON ? engine.toJSON() : null;
+      if (!json) {
+        data.push({
+          id: levelId,
+          name: info.name,
+          color: info.color,
+          nodes: [],
+          edges: [],
+          metrics: { status: 'Demo data is not serializable by this engine' },
+        });
+        continue;
+      }
       const metrics = engine.metrics ? engine.metrics() : {};
       const nodes = json.nodes || json.blocks || json.states || json.entities || json.chunks || json.atoms || [];
       const edges = json.edges || json.transitions || json.relations || json.bonds || [];

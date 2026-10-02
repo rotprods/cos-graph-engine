@@ -190,6 +190,70 @@ section('SVGGraphRenderer — custom options');
   assert(svg.includes('arrowhead'), 'has arrowhead marker');
 }
 
+section('SVGGraphRenderer — visible escaped edge label');
+
+{
+  const graph = new CSRGraph();
+  graph.addNode({ id: 'a', label: 'A' });
+  graph.addNode({ id: 'b', label: 'B' });
+  graph.addEdge('a', 'b', { label: 'A & <B>' });
+  const svg = new SVGGraphRenderer().render(graph, { layout: 'tree', showEdgeLabels: true });
+
+  assert(svg.includes('class="edge-label"'), 'edge label is visible text');
+  assert(svg.includes('A &amp; &lt;B&gt;'), 'edge label is XML escaped');
+}
+
+section('SVGGraphRenderer — directed edge geometry');
+
+{
+  const graph = buildChain(3);
+  const svg = new SVGGraphRenderer().render(graph, {
+    layout: 'tree',
+    width: 300,
+    height: 200,
+    nodeRadius: 20,
+    showLabels: false,
+  });
+  const lines = [...svg.matchAll(/<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"[^>]*marker-end=/g)];
+  assert(lines.length === 2, 'chain has two directed SVG lines');
+  const marker = svg.match(/<marker[^>]*refX="([\d.-]+)"[^>]*>[\s\S]*?<polygon points="([^"]+)"/);
+  assert(marker !== null && Number(marker?.[1]) === 10 && marker?.[2].includes('10 3.5'), 'arrow tip is anchored at the line endpoint');
+  assert(!svg.includes('NaN') && !svg.includes('Infinity'), 'chain SVG has finite geometry');
+  lines.forEach((match, index) => {
+    const values = match.slice(1).map(Number);
+    assert(values.every(Number.isFinite), `chain edge ${index} coordinates are finite`);
+    assert(values[0] !== values[2] || values[1] !== values[3], `chain edge ${index} has non-zero length`);
+    const sourceY = 50 + index * 50;
+    const targetY = sourceY + 50;
+    assert(Math.abs(Math.hypot(values[0] - 150, values[1] - sourceY) - 20) < 0.2, `chain edge ${index} starts at source border`);
+    assert(Math.abs(Math.hypot(values[2] - 150, values[3] - targetY) - 20) < 0.2, `chain edge ${index} ends at target border`);
+  });
+}
+
+section('SVGGraphRenderer — self-loop geometry');
+
+{
+  const graph = new CSRGraph();
+  graph.addNode({ id: 'loop', label: 'Loop' });
+  graph.addEdge('loop', 'loop', { label: 'repeat' });
+  const svg = new SVGGraphRenderer().render(graph, {
+    layout: 'tree',
+    width: 300,
+    height: 200,
+    nodeRadius: 20,
+    showEdgeLabels: true,
+  });
+  const pathMatch = svg.match(/<path d="([^"]+)"[^>]*marker-end=/);
+  assert(pathMatch !== null && svg.includes('refX="10"'), 'self-loop uses a directed marker path');
+  assert(!svg.includes('NaN') && !svg.includes('Infinity'), 'self-loop SVG has finite geometry');
+  const coordinates = (pathMatch?.[1].match(/-?\d+\.\d+/g) || []).map(Number);
+  assert(coordinates.length === 8 && coordinates.every(Number.isFinite), 'self-loop path coordinates are finite');
+  const endX = coordinates[coordinates.length - 2];
+  const endY = coordinates[coordinates.length - 1];
+  assert(Math.abs(Math.hypot(endX - 150, endY - 100) - 20) < 0.2, 'self-loop path ends at node border');
+  assert(svg.includes('class="edge-label"') && svg.includes('repeat'), 'self-loop label remains visible');
+}
+
 // ============================================================
 // Summary
 // ============================================================

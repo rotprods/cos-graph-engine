@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#0d1117" />
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#58a6ff" />
+    </marker>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+  </defs>
+  <line x1="400.0" y1="170.0" x2="400.0" y2="280.0" stroke="#58a6ff" stroke-width="1.0" opacity="0.6" marker-end="url(#arrowhead)" />
+  <text class="edge-label" x="400.0" y="217.0" text-anchor="middle" fill="#c9d1d9" font-size="11" font-family="sans-serif">enter</text>
+  <line x1="400.0" y1="320.0" x2="400.0" y2="430.0" stroke="#58a6ff" stroke-width="1.0" opacity="0.6" marker-end="url(#arrowhead)" />
+  <text class="edge-label" x="400.0" y="367.0" text-anchor="middle" fill="#c9d1d9" font-size="11" font-family="sans-serif">complete</text>
+  <circle cx="400.0" cy="150.0" r="20" fill="#1f6feb" stroke="#58a6ff" stroke-width="1.5" filter="url(#glow)" />
+  <text x="400.0" y="154.0" text-anchor="middle" fill="#c9d1d9" font-size="11" font-family="sans-serif">Start</text>
+  <circle cx="400.0" cy="300.0" r="20" fill="#1f6feb" stroke="#58a6ff" stroke-width="1.5" filter="url(#glow)" />
+  <text x="400.0" y="304.0" text-anchor="middle" fill="#c9d1d9" font-size="11" font-family="sans-serif">Process</text>
+  <circle cx="400.0" cy="450.0" r="20" fill="#1f6feb" stroke="#58a6ff" stroke-width="1.5" filter="url(#glow)" />
+  <text x="400.0" y="454.0" text-anchor="middle" fill="#c9d1d9" font-size="11" font-family="sans-serif">End</text>
+</svg>

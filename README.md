@@ -68,12 +68,25 @@ Cada nivel comparte el mismo patron: mutation API, serializacion, adjacency maps
 ## Instalacion
 
 ```bash
-git clone https://github.com/cos/graph-engine.git
-cd cos
-npm install
+git clone https://github.com/rotprods/cos-graph-engine.git
+cd cos-graph-engine
+npm ci
 ```
 
-No hay dependencias externas. Solo TypeScript y Node stdlib.
+El runtime del grafo usa Node stdlib; el monorepo declara TypeScript, `tsx` y otras dependencias de desarrollo, además de sus workspaces internos. `npm ci` instala las dependencias fijadas en el lockfile.
+
+### Ejecutar un grafo desde JSON
+
+El CLI ejecuta un workflow JSON y muestra sus métricas. Desde la raíz del repositorio:
+
+```bash
+npm run cos:graph -- exec --file examples/graph-workflow.json
+npm run cos:graph -- query --file examples/graph-workflow.json --node process
+npm run cos:graph -- render --file examples/graph-workflow.json --format mermaid --output /tmp/graph-workflow.mmd
+npm run cos:svg -- examples/graph-workflow.json examples/graph-workflow.svg
+```
+
+La ejecución válida termina con código `0` y muestra `Workflow executed` junto con las métricas del grafo. `query` muestra el nodo y sus aristas entrantes/salientes; `render` escribe el fuente Mermaid del mismo JSON y `cos:svg` crea una imagen SVG visible con nodos, aristas y etiquetas. Los errores de archivo, JSON inválido, nivel desconocido o referencias inválidas muestran el motivo y terminan con código distinto de `0`.
 
 ---
 

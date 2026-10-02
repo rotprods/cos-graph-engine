@@ -29,6 +29,7 @@ export interface SVGRenderOptions {
   labelColor?: string;
   backgroundColor?: string;
   showLabels?: boolean;
+  showEdgeLabels?: boolean;
   arrowheads?: boolean;
 }
 
@@ -169,6 +170,7 @@ export class SVGGraphRenderer {
     const labelColor = options.labelColor ?? '#c9d1d9';
     const bgColor = options.backgroundColor ?? '#0d1117';
     const showLabels = options.showLabels ?? true;
+    const showEdgeLabels = options.showEdgeLabels ?? false;
     const arrowheads = options.arrowheads ?? true;
     const iterations = options.iterations ?? 100;
 
@@ -201,7 +203,31 @@ export class SVGGraphRenderer {
       if (!pA || !pB) continue;
 
       const marker = arrowheads ? ' marker-end="url(#arrowhead)"' : '';
-      lines.push(`  <line x1="${pA.x.toFixed(1)}" y1="${pA.y.toFixed(1)}" x2="${pB.x.toFixed(1)}" y2="${pB.y.toFixed(1)}" stroke="${edgeColor}" stroke-width="${(edge.weight ?? 1).toFixed(1)}" opacity="0.6"${marker} />`);
+      const strokeWidth = (edge.weight ?? 1).toFixed(1);
+      const isSelfLoop = edge.source === edge.target;
+      let labelX: number;
+      let labelY: number;
+      if (isSelfLoop) {
+        lines.push(`  <path d="${this._selfLoopPath(pA, nodeRadius)}" fill="none" stroke="${edgeColor}" stroke-width="${strokeWidth}" opacity="0.6"${marker} />`);
+        labelX = pA.x + nodeRadius * 2;
+        labelY = pA.y - nodeRadius * 2;
+      } else {
+        const dx = pB.x - pA.x;
+        const dy = pB.y - pA.y;
+        const distance = Math.hypot(dx, dy);
+        const ux = distance > 0 ? dx / distance : 1;
+        const uy = distance > 0 ? dy / distance : 0;
+        const x1 = pA.x + ux * nodeRadius;
+        const y1 = pA.y + uy * nodeRadius;
+        const x2 = pB.x - ux * nodeRadius;
+        const y2 = pB.y - uy * nodeRadius;
+        lines.push(`  <line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${edgeColor}" stroke-width="${strokeWidth}" opacity="0.6"${marker} />`);
+        labelX = (pA.x + pB.x) / 2;
+        labelY = (pA.y + pB.y) / 2 - 8;
+      }
+      if (showEdgeLabels && typeof edge.label === 'string' && edge.label) {
+        lines.push(`  <text class="edge-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" fill="${labelColor}" font-size="11" font-family="sans-serif">${_escapeXml(edge.label)}</text>`);
+      }
     }
 
     // Nodes
@@ -286,6 +312,18 @@ export class SVGGraphRenderer {
     }
 
     return positions;
+  }
+
+  private _selfLoopPath(center: Point, nodeRadius: number): string {
+    const startX = center.x + nodeRadius * 0.7;
+    const startY = center.y - nodeRadius * 0.7;
+    const control1X = center.x + nodeRadius * 2.5;
+    const control1Y = center.y - nodeRadius * 2.5;
+    const control2X = center.x + nodeRadius * 0.4;
+    const control2Y = center.y - nodeRadius * 0.4;
+    const endX = center.x + nodeRadius;
+    const endY = center.y;
+    return `M ${startX.toFixed(1)} ${startY.toFixed(1)} C ${control1X.toFixed(1)} ${control1Y.toFixed(1)}, ${control2X.toFixed(1)} ${control2Y.toFixed(1)}, ${endX.toFixed(1)} ${endY.toFixed(1)}`;
   }
 
   private _radialLayout(graph: CSRGraph, width: number, height: number): Map<string, Point> {
