@@ -35,17 +35,47 @@ export interface VisualGraph {
 export class MermaidRenderer {
   render(graph: VisualGraph): string {
     const dir = graph.direction || 'TB';
-    let mermaid = `graph ${dir}\n  title: "${graph.title}"\n`;
+    const idMap = this.createIdMap(graph.nodes);
+    let mermaid = `graph ${dir}\n`;
     for (const node of graph.nodes) {
       const [open, close] = this.getShape(node);
-      mermaid += `    ${node.id}${open}"${node.label}"${close}\n`;
+      mermaid += `    ${idMap.get(node.id)}${open}"${this.escapeText(node.label)}"${close}\n`;
     }
     for (const edge of graph.edges) {
       const style = edge.style === 'dashed' ? '-.-' : edge.style === 'dotted' ? '-.-' : '-->';
-      const label = edge.label ? `|${edge.label}|` : '';
-      mermaid += `    ${edge.source}${style}${label}${edge.target}\n`;
+      const label = edge.label ? `|${this.escapeText(edge.label)}|` : '';
+      mermaid += `    ${idMap.get(edge.source) || this.safeId(edge.source)}${style}${label}${idMap.get(edge.target) || this.safeId(edge.target)}\n`;
     }
     return mermaid;
+  }
+
+  private createIdMap(nodes: VisualNode[]): Map<string, string> {
+    const ids = new Map<string, string>();
+    const used = new Set<string>();
+    for (const [index, node] of nodes.entries()) {
+      const base = this.safeId(node.id, index);
+      let safe = base;
+      let suffix = 2;
+      while (used.has(safe)) safe = `${base}_${suffix++}`;
+      used.add(safe);
+      ids.set(node.id, safe);
+    }
+    return ids;
+  }
+
+  private safeId(id: string, fallback = 0): string {
+    const normalized = String(id).replace(/[^A-Za-z0-9_]/g, '_');
+    return `n_${normalized || fallback}`;
+  }
+
+  private escapeText(value: string): string {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\|/g, '&#124;')
+      .replace(/\r?\n/g, '<br/>');
   }
 
   private getShape(node: VisualNode): [string, string] {

@@ -1,0 +1,12 @@
+{
+  "level": "L0",
+  "nodes": [
+    { "id": "start", "label": "Start", "type": "start" },
+    { "id": "process", "label": "Process", "type": "process" },
+    { "id": "end", "label": "End", "type": "end" }
+  ],
+  "edges": [
+    { "source": "start", "target": "process", "type": "enter" },
+    { "source": "process", "target": "end", "type": "complete" }
+  ]
+}
