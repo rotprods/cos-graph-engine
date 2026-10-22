@@ -180,3 +180,12 @@ Todos los tickets del roadmap v2.1 han sido ejecutados y verificados.
 - GitHub: https://github.com/rotprods/cos-graph-engine
 - Landing page repo: https://github.com/rotprods/cos-graph-engine-landing-page
 - Docs site: https://cos-graph-docs.higgsfield.app (scaffolding, needs content)
+
+## Maintenance checkpoint — COS #134 (2026-10-22)
+
+- [x] Removed unused md-to-pdf dependency chain; retained unchanged PDFKit exporter.
+- [x] Reused only API workspace parity fix from PR124; regenerated lock, clean installation and dependency-tree validation passed.
+- [x] Local PDF generation verified16 pages; independent read-only investigation and review performed.
+- [ ] Complete verification: build/typecheck and visualizer termination remain BLOCKED; no hosted PASS, merge or deployment.
+- Source candidate `7bba2b9f4eab33b0ed68ba193ee39453243312f5`; branch `fix/134-pdf-dependency-chain`.
+- Canonical evidence/next action: [COS-134-PDF-REMEDIATION](docs/security/COS-134-PDF-REMEDIATION.md). Keep issue134 OPEN and PR DRAFT until all closure gates.
